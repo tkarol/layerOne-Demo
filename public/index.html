@@ -103,6 +103,7 @@
             </div>
           </div>
         </div>
+        <p id="laneNote" class="lane-note" hidden></p>
         <div id="verdict" class="verdict idle">Send a request to see what happens.</div>
       </section>
 
@@ -151,6 +152,14 @@
               <span><b>Live</b><small>Sends requests to a real LayerOne gateway, using the settings below.</small></span>
             </label>
           </div>
+
+          <div class="s-section-title">Presentation pace</div>
+          <div class="pace" role="radiogroup" aria-label="Presentation pace">
+            <label><input type="radio" name="pace" value="fast" /> Fast</label>
+            <label><input type="radio" name="pace" value="normal" /> Normal</label>
+            <label><input type="radio" name="pace" value="slow" /> Slow</label>
+          </div>
+          <p class="s-hint">How quickly the steps play on screen. In Dry run it also sets how long the stand-ins take; in Live, LayerOne's real response time is always used.</p>
 
           <div id="liveFields" class="live-fields">
             <div class="s-section-title">LayerOne gateway <span class="dim-note">used in Live mode</span></div>

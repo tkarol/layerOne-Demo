@@ -6,6 +6,7 @@ import path from 'node:path';
 
 const env = {
   LAYERONE_MODE: 'mock',
+  DEMO_PACE: 'fast',
   TRACE_FILE: path.join(os.tmpdir(), `layerone-demo-test-${process.pid}.jsonl`),
   SETTINGS_FILE: path.join(os.tmpdir(), `layerone-demo-test-settings-${process.pid}.json`),
 };
@@ -135,4 +136,25 @@ test('SETTINGS_PASSWORD protects changes but not reading', async () => {
   } finally {
     locked.close();
   }
+});
+
+test('pace is a saved setting and reaches the dry-run stand-ins only', async () => {
+  const put = await fetch(`${base}/api/settings`, { method: 'PUT', body: JSON.stringify({ pace: 'slow' }) });
+  assert.equal((await put.json()).settings.pace, 'slow');
+  assert.equal((await (await fetch(`${base}/api/config`)).json()).pace, 'slow');
+  const bad = await fetch(`${base}/api/settings`, { method: 'PUT', body: JSON.stringify({ pace: 'warp' }) });
+  assert.equal(bad.status, 400);
+  await fetch(`${base}/api/settings`, { method: 'PUT', body: JSON.stringify({ pace: 'fast' }) });
+  const t = await run('What are the next steps for a claim?');
+  assert.equal(t.request.headers['X-Demo-Pace'], 'fast');
+  await fetch(`${base}/api/settings`, { method: 'DELETE' });
+});
+
+test('live requests to LayerOne never carry the dry-run pace header', async () => {
+  const { buildRequest } = await import('../src/core/layerone.js');
+  const { envConfig } = await import('../src/core/config.js');
+  const cfg = { ...envConfig({ LAYERONE_BASE_URL: 'https://l1.example.gov', LAYERONE_API_KEY: 'k-123456789' }), pace: 'slow' };
+  const req = buildRequest({ prompt: 'hi', traceId: 't1', origin: 'http://x' }, cfg);
+  assert.equal(req.url, 'https://l1.example.gov/v1/chat/completions');
+  assert.equal(req.headers['X-Demo-Pace'], undefined);
 });

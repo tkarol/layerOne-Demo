@@ -91,8 +91,18 @@ function renderExamples() {
 // ---------- step 2: request & response lanes + verdict ----------
 const REQ_STAGES = new Set(['input', 'request', 'pre', 'inbound']);
 const RES_STAGES = new Set(['output', 'response', 'post', 'outbound']);
-const RESPONSE_ORDER = ['res-model', 'res-1', 'res-l1', 'res-2', 'res-app'];
-const REVEAL_MS = 260;
+// What happens inside LayerOne is only known once it responds, so these hops are
+// played back in order from its report, at the presentation pace from Settings.
+const REPLAY_ORDER = ['req-l1', 'req-2', 'req-model', 'res-model', 'res-1', 'res-l1', 'res-2', 'res-app'];
+const REPLAY_CAPTION = {
+  'req-l1': 'Checking the request…',
+  'req-model': 'Receiving the request…',
+  'res-model': 'Writing the answer…',
+  'res-l1': 'Checking the answer…',
+  'res-app': 'Receiving the answer…',
+};
+const PACE_MS = { fast: 300, normal: 700, slow: 1100 };
+const replayMs = () => PACE_MS[state.config?.pace] || PACE_MS.normal;
 
 function splitPolicies(policies = []) {
   return {
@@ -112,17 +122,24 @@ function checkCaption(list, fallback) {
   return fallback;
 }
 
-// Animate the response lane hop by hop once the answer arrives (presentation only).
 function revealStep(t) {
   const r = state.reveal;
   if (!r || r.id !== t?.id) return Infinity;
-  const n = Math.floor((performance.now() - r.start) / REVEAL_MS);
-  if (n >= RESPONSE_ORDER.length) {
+  const ms = replayMs();
+  const n = Math.floor((performance.now() - r.start) / ms);
+  if (n >= REPLAY_ORDER.length) {
     state.reveal = null;
     return Infinity;
   }
-  setTimeout(render, REVEAL_MS / 2);
+  setTimeout(render, ms / 2);
   return n;
+}
+
+// Live stopwatch while the request is with LayerOne (real elapsed time).
+function waitingFor(t) {
+  const start = (state.waitStart ||= {})[t.id] ||= performance.now();
+  setTimeout(() => state.selectedId === t.id && state.traces.get(t.id)?.status === 'running' && render(), 100);
+  return ((performance.now() - start) / 1000).toFixed(1);
 }
 
 function renderJourney(t) {
@@ -140,9 +157,7 @@ function renderJourney(t) {
     view['req-1'] = 'done';
     if (waiting) {
       view['req-1'] = st('gateway') === 'running' ? 'done' : 'active';
-      view['req-l1'] = ['active', 'Checking…'];
-      view['req-2'] = 'active';
-      view['req-model'] = ['active', 'Working…'];
+      view['req-l1'] = ['active', `Working… ${waitingFor(t)} s`];
     } else if (o === 'error' && !t.response) {
       view['req-1'] = 'blocked';
       view['req-l1'] = ['blocked', 'Could not reach LayerOne'];
@@ -179,14 +194,20 @@ function renderJourney(t) {
       view['res-app'] = ['done', view['res-l1'][0] === 'warn' ? 'Showed the cleaned answer' : 'Showed the answer'];
     }
 
-    // Hold back the response lane while it animates in.
-    const shown = o === 'running' ? -1 : revealStep(t);
-    RESPONSE_ORDER.forEach((k, i) => {
+    // Play LayerOne's inner steps back one hop at a time.
+    const shown = o === 'running' ? Infinity : revealStep(t);
+    REPLAY_ORDER.forEach((k, i) => {
       if (i < shown) return;
-      if (i === shown) view[k] = k.startsWith('res-') && k.length === 5 ? 'active' : ['active', '…'];
-      else view[k] = k.length === 5 ? '' : idle;
+      const isPath = /-\d$/.test(k);
+      if (i === shown) view[k] = isPath ? 'active' : ['active', REPLAY_CAPTION[k] || '…'];
+      else view[k] = isPath ? '' : idle;
     });
   }
+  const note = $('#laneNote');
+  note.hidden = !t || o === 'error' && !t.response;
+  note.textContent = waiting
+    ? `${t.mode === 'mock' ? 'Dry run' : 'Live'}: waiting for LayerOne (real elapsed time). It checks the request, calls the AI model and checks the answer inside this one request.`
+    : 'The steps inside LayerOne are shown from what LayerOne reported in its response.';
 
   for (const [key, val] of Object.entries(view)) {
     if (typeof val === 'string') {
@@ -213,7 +234,8 @@ function renderVerdict(t, o, req, res) {
   const inRemoved = req.filter((p) => p.result === 'redact');
   const outRemoved = res.filter((p) => p.result === 'redact');
   let msg;
-  if (o === 'running') msg = ['Following the request…', 'The request is going through LayerOne to the AI model and back.'];
+  if (o === 'running' && t.status === 'running') msg = ['Waiting for LayerOne…', 'LayerOne is checking the request, calling the AI model, and checking the answer.'];
+  else if (o === 'running') msg = ['Following the request…', 'Showing each step LayerOne reported, in order.'];
   else if (o === 'blocked') msg = ['🛑 Blocked before it reached the AI model', `LayerOne stopped this request, so the AI model never saw it.${blocker ? ` Reason: ${blocker.detail}.` : ''}`];
   else if (o === 'error') msg = ['⚠️ Something went wrong', t.error || 'The request could not be completed.'];
   else if (inRemoved.length && outRemoved.length) msg = ['✂️ Personal information removed both ways', `${inRemoved[0].detail} from the request, and ${outRemoved[0].detail.replace(/^Removed /, '').replace(/ from the AI’s answer$/, '')} from the AI model’s answer.`];
@@ -453,7 +475,7 @@ const ERROR_FIELDS = [...SETTINGS_FIELDS, 'settingsPassword'];
 
 function readForm() {
   const f = form();
-  const data = { mode: f.mode.value };
+  const data = { mode: f.mode.value, pace: f.pace.value || 'normal' };
   for (const k of SETTINGS_FIELDS) data[k] = f[k].value;
   data.timeoutMs = Number(data.timeoutMs);
   data.clearApiKey = f.clearApiKey.checked;
@@ -486,6 +508,7 @@ function updatePreview() {
 function fillForm(st) {
   const f = form();
   f.mode.value = st.mode;
+  f.pace.value = st.pace || 'normal';
   for (const k of SETTINGS_FIELDS) f[k].value = k === 'apiKey' ? '' : (st[k] ?? '');
   f.apiKey.placeholder = st.apiKeySet ? `Saved (ends in ${st.apiKeyHint.slice(1)}). Leave blank to keep it.` : 'Paste your LayerOne API key';
   f.clearApiKey.checked = false;

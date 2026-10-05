@@ -1,7 +1,7 @@
 // Configuration. Precedence: built-in defaults < environment (.env locally, Worker
 // variables/secrets on Cloudflare) < values saved from the in-app Settings panel.
 
-export const SETTINGS_FIELDS = ['mode', 'baseUrl', 'chatPath', 'apiKey', 'authHeader', 'authScheme', 'model', 'timeoutMs', 'upstreamUrl', 'upstreamProvider'];
+export const SETTINGS_FIELDS = ['mode', 'baseUrl', 'chatPath', 'apiKey', 'authHeader', 'authScheme', 'model', 'timeoutMs', 'upstreamUrl', 'upstreamProvider', 'pace'];
 
 // Key sent to the built-in simulated gateway during a dry run.
 export const DRY_RUN_KEY = 'dry-run-demo-key';
@@ -32,6 +32,8 @@ export function envConfig(env = {}) {
     // Where LayerOne forwards requests. Display only, for when LayerOne does not report it.
     upstreamUrl: env.LAYERONE_UPSTREAM_URL || '',
     upstreamProvider: env.LAYERONE_UPSTREAM_PROVIDER || '',
+    // How fast steps play on screen (and, in Dry run, how long the stand-ins take).
+    pace: ['fast', 'normal', 'slow'].includes(env.DEMO_PACE) ? env.DEMO_PACE : 'normal',
     // ALLOW_UI_SETTINGS=false makes the Settings panel read-only.
     settingsLocked: /^(0|false|no)$/i.test(env.ALLOW_UI_SETTINGS || ''),
     // When set, saving/testing/resetting settings requires this password.
@@ -67,6 +69,7 @@ export function publicConfig(cfg, origin) {
     endpoint: { method: 'POST', url: endpointUrl(cfg, origin) },
     upstream: configuredUpstream(cfg, origin),
     model: cfg.model,
+    pace: cfg.pace,
     authHeader: cfg.authHeader,
     authConfigured: cfg.mode === 'mock' || Boolean(cfg.apiKey),
     configured: cfg.mode === 'mock' || Boolean(cfg.baseUrl),

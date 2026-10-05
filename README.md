@@ -50,6 +50,19 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 
 * The **browser never talks to LayerOne directly**. The Worker plays the web application. It holds the API key, makes the HTTPS call, and records each hop. Auth headers are masked in every trace.
 * Each run is a **trace** with seven steps (user → web application → LayerOne → AI model → back). The Worker streams a snapshot after every step, so the page animates as the request moves.
+
+### What is tracked in real time
+
+With a real LayerOne connection:
+
+* **Live, with real timings:** everything the web application does: sending the request, waiting on LayerOne (a stopwatch counts the real wait), receiving the response, and capturing the audit record. The endpoint cards show LayerOne's real HTTP status and latency.
+* **Shown from LayerOne's report:** the steps *inside* LayerOne (check the request → call the AI model → check the answer). They all happen within the single request the web application sends, so the demo learns about them when LayerOne responds: which rules ran, what was removed, and where it forwarded the request. The page then plays them back one hop at a time and says so under the lanes.
+
+Showing LayerOne's inner steps as they happen would need LayerOne to stream progress events or expose an events/audit API. Ask Booz Allen whether the preview offers either. Dry run behaves the same way, so rehearsals match the real thing.
+
+### Presentation pace
+
+**⚙ Settings → Presentation pace** (Fast / Normal / Slow, or the `DEMO_PACE` variable) sets how quickly LayerOne's inner steps play back. In Dry run it also sets how long the stand-ins take. On Normal, a dry run takes about 9 seconds from Send to answer, Slow about 15, Fast about 3.5. In Live, LayerOne's real response time is always used; only the playback speed changes.
 * **Governance evidence** is pulled out generically: `X-LayerOne-*` / `X-Vellox-*` headers, any `layerone` / `governance` object in the body, and any non-standard response fields. If the gateway returns no explicit decision, one is inferred from the HTTP status and labeled as inferred.
 * The newest 500 runs are kept. *Technical details* has *Download full trace (JSON)* and *Copy as cURL*.
 
@@ -83,6 +96,7 @@ The header badge always shows **Dry run** or **Live: LayerOne**. Dry run also sh
 Click **⚙ Settings** (or the mode badge) to change, without redeploying:
 
 * **Mode:** Dry run or Live
+* **Presentation pace:** Fast, Normal or Slow
 * **LayerOne gateway:** base URL, chat path, model, API key, auth header and scheme, timeout. A preview shows the exact endpoint requests will hit.
 * **AI model endpoint (display only):** what to show as "LayerOne → AI Model" when LayerOne doesn't report it
 
@@ -111,6 +125,7 @@ Set these as Worker **Variables and Secrets** in the dashboard (or in `.env` whe
 | `LAYERONE_TIMEOUT_MS` | `60000` | Request timeout |
 | `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` | — | Model endpoint LayerOne forwards to, shown when LayerOne doesn't report it |
 | `DEMO_SYSTEM_PROMPT` | benefits claims assistant | System message the web application sends |
+| `DEMO_PACE` | `normal` | Presentation pace: `fast`, `normal` or `slow` |
 | `SETTINGS_PASSWORD` | — | Password required to change Settings. Use a **Secret** |
 | `ALLOW_UI_SETTINGS` | `true` | `false` makes the Settings panel read-only |
 

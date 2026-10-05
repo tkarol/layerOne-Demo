@@ -3,7 +3,7 @@
 // gateway (request checks, response checks, tamper-evident evidence chain)
 // so the demo can be exercised end to end without preview credentials.
 import { mockModelUrl } from './config.js';
-import { json, jitter, randomHex, sha256, sleep } from './util.js';
+import { json, jitter, paceFactor, randomHex, sha256, sleep } from './util.js';
 
 const POLICY_VERSION = 'sim-2026.10';
 
@@ -112,6 +112,8 @@ async function sealRecord(fields, storage) {
 
 export async function handleMockChat(request, { origin, fetchFn, storage }) {
   const started = Date.now();
+  const pace = request.headers.get('x-demo-pace') || 'normal';
+  const wait = (min, max) => sleep(jitter(min, max) * paceFactor(pace));
   const requestId = `l1req_${randomHex(6)}`;
   const evidenceId = `ev_${randomHex(8)}`;
 
@@ -125,7 +127,7 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const userText = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
   const { policies, sanitized } = requestPolicies(userText);
-  await sleep(jitter(120, 300)); // policy evaluation
+  await wait(700, 1000); // request checks
 
   const blocked = policies.find((p) => p.result === 'block');
   const baseRecord = {
@@ -177,7 +179,7 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
   try {
     upstreamRes = await fetchFn(upstreamUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Demo-Pace': pace },
       body: JSON.stringify({ ...body, messages: messages.map((m) => (m.role === 'user' ? { ...m, content: sanitized } : m)) }),
     });
     upstreamBody = await upstreamRes.json();
@@ -193,7 +195,7 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
     latency_ms: Date.now() - upstreamStarted,
   };
   const checked = responsePolicies(upstreamBody.choices?.[0]?.message?.content ?? '');
-  await sleep(jitter(60, 160)); // response checks
+  await wait(500, 800); // response checks
   const output = checked.output;
   const allPolicies = [...policies, ...checked.policies];
   const decision = allPolicies.some((p) => p.result === 'redact') ? 'redacted' : 'allowed';

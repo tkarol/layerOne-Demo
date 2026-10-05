@@ -15,6 +15,8 @@ export function buildRequest({ prompt, traceId, origin }, cfg) {
     'X-Demo-Client': 'claims-assistant-web-app',
     ...cfg.extraHeaders,
   };
+  // Dry run only: tell the built-in stand-ins how slowly to work. Never sent to LayerOne.
+  if (cfg.mode === 'mock') headers['X-Demo-Pace'] = cfg.pace || 'normal';
   const key = cfg.mode === 'mock' ? DRY_RUN_KEY : cfg.apiKey;
   if (key) headers[cfg.authHeader] = cfg.authScheme ? `${cfg.authScheme} ${key}` : key;
   return {

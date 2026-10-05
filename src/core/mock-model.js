@@ -1,6 +1,6 @@
 // SIMULATED AI model endpoint (OpenAI-compatible) that the dry-run LayerOne
 // stand-in forwards to. It is also reachable directly at /mock/model/v1/chat/completions.
-import { json, jitter, randomHex, sleep } from './util.js';
+import { json, jitter, paceFactor, randomHex, sleep } from './util.js';
 
 // Canned answers standing in for a real model. The "record lookup" answer
 // deliberately includes PII, as a model with access to a records system might.
@@ -50,7 +50,7 @@ export async function handleMockModel(request) {
   }
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const prompt = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
-  await sleep(jitter(450, 1100)); // model "thinking" time
+  await sleep(jitter(1500, 2200) * paceFactor(request.headers.get('x-demo-pace'))); // model "thinking" time
   const content = simulatedModel(prompt);
   const promptTokens = Math.ceil(JSON.stringify(messages).length / 4);
   const completionTokens = Math.ceil(content.length / 4);

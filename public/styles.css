@@ -131,7 +131,8 @@ textarea:focus { outline: 3px solid var(--accent-soft); border-color: var(--acce
 .ep-note.bad { color: var(--bad); }
 
 /* Step 2: request and response lanes */
-.lanes { display: grid; gap: 14px; margin-bottom: 20px; }
+.lanes { display: grid; gap: 14px; margin-bottom: 10px; }
+.lane-note { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
 .lane { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px 14px; background: var(--panel-2); }
 .lane-label { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
 .lane-row { display: grid; grid-template-columns: 1fr 64px 1fr 64px 1fr; align-items: center; }
@@ -260,6 +261,11 @@ pre.code { background: var(--code-bg); color: var(--code-text); border-radius: 8
 .mode-opt b { display: block; font-size: 15px; }
 .mode-opt small { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .live-fields.dim { opacity: 0.55; }
+.pace { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
+.pace label { padding: 7px 16px; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--panel-2); border-right: 1px solid var(--border); }
+.pace label:last-child { border-right: none; }
+.pace label:has(input:checked) { background: var(--accent); color: var(--on-accent); }
+.pace input { position: absolute; opacity: 0; pointer-events: none; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
 .grid2 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; min-width: 0; }
 .grid2 label.full { grid-column: 1 / -1; }

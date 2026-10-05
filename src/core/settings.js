@@ -41,6 +41,10 @@ export function validate(input, current) {
   if (input.upstreamUrl !== undefined) next.upstreamUrl = str(input.upstreamUrl);
   if (input.upstreamProvider !== undefined) next.upstreamProvider = str(input.upstreamProvider);
   if (input.timeoutMs !== undefined) next.timeoutMs = Number(input.timeoutMs);
+  if (input.pace !== undefined) {
+    if (['fast', 'normal', 'slow'].includes(input.pace)) next.pace = input.pace;
+    else errors.pace = 'Choose fast, normal or slow';
+  }
 
   if (next.mode === 'live' && !next.baseUrl) errors.baseUrl = 'Required for live mode';
   else if (next.baseUrl && !isHttpUrl(next.baseUrl)) errors.baseUrl = 'Must be an http(s) URL';
@@ -75,6 +79,7 @@ export function publicSettings(cfg, origin, { savedInUi }) {
     timeoutMs: cfg.timeoutMs,
     upstreamUrl: cfg.upstreamUrl,
     upstreamProvider: cfg.upstreamProvider,
+    pace: cfg.pace,
     apiKeySet: Boolean(cfg.apiKey),
     apiKeyHint: cfg.apiKey ? `…${cfg.apiKey.slice(-4)}` : null,
     endpoint: endpointUrl(cfg, origin),

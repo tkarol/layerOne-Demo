@@ -3,6 +3,9 @@ const encoder = new TextEncoder();
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const jitter = (min, max) => Math.round(min + Math.random() * (max - min));
+
+// Dry-run timing multiplier for the X-Demo-Pace header.
+export const paceFactor = (pace) => ({ fast: 0.3, normal: 1, slow: 1.7 })[pace] ?? 1;
 export const byteLength = (s) => encoder.encode(s).length;
 export const now = () => performance.now();
 
