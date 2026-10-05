@@ -3,6 +3,7 @@
 // customer profiles (white-labeling), step editing and a guided "Play the day".
 import { readTraceStream, LEAK_RE, REDACTED_RE } from './stream.js';
 import { openCustomize, authHeaders } from './customize.js';
+import { mountDataApp } from './data-app.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -72,6 +73,8 @@ function render() {
     return;
   }
   const wf = currentWorkflow();
+  const isData = app.type === 'data';
+  const compare = state.compare && !isData; // the database app runs one way at a time
   const color = app.brand?.color || '#0f766e';
   const logo = app.brand?.logo ? `<img class="brand-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`;
   root.innerHTML = `
@@ -84,7 +87,7 @@ function render() {
       <div class="demo-actions">
         ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
         <button class="demo-btn" id="presentBtn" title="Full-screen presenter view">⛶ Present</button>
-        ${features().play ? `<button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(firstName(app.person.name))}'s day</button>` : ''}
+        ${features().play && !isData ? `<button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(firstName(app.person.name))}'s day</button>` : ''}
       </div>
     </div>
 
@@ -99,23 +102,30 @@ function render() {
         .join('')}
     </div>
 
-    <div class="appwin ${state.protected || state.compare ? '' : 'unprotected'}" style="--app:${esc(color)};--app-ink:${inkFor(color)}">
+    <div class="appwin ${state.protected || compare ? '' : 'unprotected'}" style="--app:${esc(color)};--app-ink:${inkFor(color)}">
       <header class="appwin-bar">
         <div class="appwin-brand">${logo}<b>${esc(app.org)}</b><span class="product">${esc(app.product)}</span>${state.customer ? '' : '<span class="fictional">fictional</span>'}</div>
         <div class="appwin-tools">
-          <label class="l1-switch ${state.compare ? 'disabled' : ''}" title="Turn LayerOne on or off for this app">
-            <input type="checkbox" id="l1Toggle" ${state.protected ? 'checked' : ''} ${state.compare ? 'disabled' : ''} />
+          <label class="l1-switch ${compare ? 'disabled' : ''}" title="Turn LayerOne on or off for this app">
+            <input type="checkbox" id="l1Toggle" ${state.protected ? 'checked' : ''} ${compare ? 'disabled' : ''} />
             <span class="track"><span class="knob"></span></span>
-            <span class="l1-label">🛡️ LayerOne <b>${state.compare ? 'ON & OFF' : state.protected ? 'ON' : 'OFF'}</b></span>
+            <span class="l1-label">🛡️ LayerOne <b>${compare ? 'ON & OFF' : state.protected ? 'ON' : 'OFF'}</b></span>
           </label>
-          <button class="compare-btn ${state.compare ? 'active' : ''}" id="compareBtn" aria-pressed="${state.compare}">⇆ Compare</button>
+          ${isData ? '' : `<button class="compare-btn ${compare ? 'active' : ''}" id="compareBtn" aria-pressed="${compare}">⇆ Compare</button>`}
           <div class="who"><span class="avatar">${esc(app.person.initials)}</span><span><b>${esc(app.person.name)}</b><small>${esc(app.person.role)}</small></span></div>
         </div>
       </header>
-      ${!state.protected && !state.compare ? '<div class="ribbon">⚠️ LayerOne is OFF. AI requests go straight to the model: nothing is checked, removed, or recorded.</div>' : ''}
-      ${state.compare ? '<div class="ribbon compare">⇆ Compare mode: each AI action runs twice, with LayerOne and without it, side by side.</div>' : ''}
+      ${!state.protected && !compare ? `<div class="ribbon">⚠️ LayerOne is OFF. ${isData ? 'The AI’s database queries run unchecked, including deletes.' : 'AI requests go straight to the model: nothing is checked, removed, or recorded.'}</div>` : ''}
+      ${compare ? '<div class="ribbon compare">⇆ Compare mode: each AI action runs twice, with LayerOne and without it, side by side.</div>' : ''}
 
-      <div class="appwin-body">
+      ${isData ? '<div class="appwin-body data-body"><div id="dataRoot"></div></div>' : renderDayBody(app, wf)}
+    </div>`;
+  wire();
+  if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, paceMs: () => pacePick(350, 800, 1200), person: app.person });
+}
+
+function renderDayBody(app, wf) {
+  return `<div class="appwin-body">
         <aside class="day">
           <div class="day-title">${esc(firstName(app.person.name))}'s day</div>
           <ol class="day-list">
@@ -132,9 +142,7 @@ function render() {
         </aside>
 
         <section class="work">${state.editing ? renderEditor(wf) : renderWork(wf)}</section>
-      </div>
-    </div>`;
-  wire();
+      </div>`;
 }
 
 function renderWork(wf) {
@@ -316,7 +324,7 @@ function wire() {
     remember();
     render();
   });
-  $('#compareBtn').onclick = () => {
+  if ($('#compareBtn')) $('#compareBtn').onclick = () => {
     state.compare = !state.compare;
     remember();
     render();
@@ -362,7 +370,7 @@ function wire() {
 
 function selectApp(id) {
   state.appId = id;
-  state.workflowId = currentApp().workflows[0].id;
+  state.workflowId = (currentApp().workflows[0]?.id ?? null);
   state.showHidden = false;
   state.editing = false;
   remember();
@@ -430,7 +438,7 @@ async function reloadApps() {
   state.apps = data.apps;
   state.customer = data.customer;
   if (!currentApp()) state.appId = state.apps[0].id;
-  if (!currentWorkflow()) state.workflowId = currentApp().workflows[0].id;
+  if (!currentWorkflow()) state.workflowId = (currentApp().workflows[0]?.id ?? null);
   state.results = {};
   state.editing = false;
   updateTitle();
@@ -626,7 +634,7 @@ export async function initSample() {
     return;
   }
   if (!currentApp()) state.appId = state.apps[0].id;
-  if (!currentWorkflow()) state.workflowId = currentApp().workflows[0].id;
+  if (!currentWorkflow()) state.workflowId = (currentApp().workflows[0]?.id ?? null);
   updateTitle();
   render();
   // Settings may change the approved model name or pace; keep in sync.

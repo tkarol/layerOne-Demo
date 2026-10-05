@@ -11,6 +11,8 @@
 // All organizations, people, cases and numbers here are fictional. Customer
 // profiles (src/core/profiles.js) can rename and rebrand them.
 
+import { DATA_APP } from './data-app.js';
+
 // A long, realistic-looking document for the token-limit workflows.
 function longDocument({ title, pages, sections }) {
   const out = [`${title}\n`];
@@ -500,5 +502,8 @@ export const SAMPLE_APPS = [
     ],
   },
 ];
+
+// The interactive database app has its own screen (public/data-app.js) and API (src/core/data-app.js).
+SAMPLE_APPS.push(DATA_APP);
 
 export const APP_IDS = SAMPLE_APPS.map((a) => a.id);

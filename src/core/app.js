@@ -8,6 +8,7 @@ import { createTrace, runWorkflow } from './workflow.js';
 import { handleMockChat } from './mock-layerone.js';
 import { handleMockModel, handleMockJudge } from './mock-model.js';
 import { validate, publicSettings, toSaved, testConnection } from './settings.js';
+import { handleDataApi } from './data-app.js';
 import { json, safeEqual } from './util.js';
 
 const summarize = (t) => ({
@@ -154,6 +155,9 @@ export function createApp({ env, storage }) {
         // ?default=1 returns the un-customized apps (used as defaults in the Customize dialog).
         return json(200, publicApps(url.searchParams.get('default') ? null : await getActiveProfile(storage)));
       }
+
+      // ----- Customer Hub: the interactive database sample app -----
+      if (pathname === '/api/data' || pathname.startsWith('/api/data/')) return handleDataApi(request, { storage, pathname, method, readJson });
 
       // ----- Customer profiles (white-labeling) -----
       if (pathname === '/api/profiles' || pathname.startsWith('/api/profiles/')) {
