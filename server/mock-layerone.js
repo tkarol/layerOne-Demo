@@ -3,6 +3,7 @@
 // gateway (request checks, response checks, tamper-evident evidence chain)
 // so the demo can be exercised end to end without preview credentials.
 import crypto from 'node:crypto';
+import { mockModelUrl } from './config.js';
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -82,44 +83,6 @@ function requestPolicies(text) {
   return { policies, sanitized: pii.text };
 }
 
-// Canned answers standing in for a real model. The "record lookup" answer
-// deliberately includes PII, as a model with access to a records system might.
-function simulatedModel(prompt) {
-  if (/look ?up|on file|record for|identity/i.test(prompt)) {
-    return [
-      'Record found for claimant Robert Chen (claim #VA-20419):',
-      '',
-      '- SSN: 987-65-4321',
-      '- Date of birth: 09/30/1975',
-      '- Phone on file: (555) 867-5309',
-      '- Status: Under review, awaiting medical records',
-      '',
-      'You can confirm his identity by asking him to verify the details above.',
-    ].join('\n');
-  }
-  if (/status update|approved|claimant/i.test(prompt)) {
-    const who = prompt.match(/claimant ([A-Z][a-z]+ [A-Z][a-z]+)/)?.[1] || 'the claimant';
-    return [
-      `Status update — ${who}`,
-      '',
-      'The claim has been approved pending one remaining signature on the release form.',
-      'Once the signed form is received, payment processing typically begins within 5–7 business days.',
-      'Identity details were withheld from this update.',
-    ].join('\n');
-  }
-  if (/claim|benefit|medical|form/i.test(prompt)) {
-    return [
-      'Next steps for a claim missing a medical records release form:',
-      '',
-      '1. Send the claimant the release form (VA Form 21-4142) with a 30-day response deadline.',
-      '2. Mark the claim as "pending evidence" so the processing clock is paused, not closed.',
-      '3. Follow up by phone after 10 business days if no response is received.',
-      '4. Once returned, request records from the listed providers and resume review.',
-    ].join('\n');
-  }
-  return `Simulated AI model response to: "${prompt.slice(0, 120)}"`;
-}
-
 function responsePolicies(rawOutput) {
   const pii = redactPii(rawOutput);
   return {
@@ -182,7 +145,7 @@ export async function handleMockChat(req, res, rawBody) {
   };
 
   if (blocked) {
-    const record = sealRecord({ ...baseRecord, decision: 'blocked', output_sha256: null, policies });
+    const record = sealRecord({ ...baseRecord, decision: 'blocked', upstream_url: null, output_sha256: null, policies });
     res.writeHead(403, {
       'Content-Type': 'application/json',
       'X-LayerOne-Request-Id': requestId,
@@ -198,27 +161,59 @@ export async function handleMockChat(req, res, rawBody) {
           code: blocked.id,
           message: `Blocked by LayerOne rule ${blocked.id} (${blocked.name}): ${blocked.detail}. The AI model was not called.`,
         },
-        layerone: { simulated: true, decision: 'blocked', evidence_id: evidenceId, request_id: requestId, policies, record },
+        layerone: {
+          simulated: true,
+          decision: 'blocked',
+          evidence_id: evidenceId,
+          request_id: requestId,
+          upstream: { method: 'POST', url: mockModelUrl(), provider: 'Simulated AI model', model: body.model, called: false },
+          policies,
+          record,
+        },
       }),
     );
   }
 
-  await sleep(jitter(450, 1100)); // upstream model latency
-  const checked = responsePolicies(simulatedModel(sanitized));
+  // Forward the cleaned request to the AI model, exactly as a gateway would.
+  const upstreamUrl = mockModelUrl();
+  const upstreamStarted = Date.now();
+  let upstreamRes, upstreamBody;
+  try {
+    upstreamRes = await fetch(upstreamUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, messages: messages.map((m) => (m.role === 'user' ? { ...m, content: sanitized } : m)) }),
+    });
+    upstreamBody = await upstreamRes.json();
+  } catch (err) {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: { type: 'upstream_error', message: `AI model unreachable: ${err.message}` } }));
+  }
+  const upstream = {
+    method: 'POST',
+    url: upstreamUrl,
+    provider: 'Simulated AI model',
+    model: body.model,
+    status: upstreamRes.status,
+    latency_ms: Date.now() - upstreamStarted,
+  };
+  const checked = responsePolicies(upstreamBody.choices?.[0]?.message?.content ?? '');
   await sleep(jitter(60, 160)); // response checks
   const output = checked.output;
   const allPolicies = [...policies, ...checked.policies];
   const decision = allPolicies.some((p) => p.result === 'redact') ? 'redacted' : 'allowed';
-  const record = sealRecord({ ...baseRecord, decision, output_sha256: sha256(output), policies: allPolicies });
+  const record = sealRecord({ ...baseRecord, decision, upstream_url: upstream.url, output_sha256: sha256(output), policies: allPolicies });
 
   const promptTokens = Math.ceil(JSON.stringify(messages).length / 4);
-  const completionTokens = Math.ceil(output.length / 4);
+  const completionTokens = upstreamBody.usage?.completion_tokens ?? Math.ceil(output.length / 4);
   res.writeHead(200, {
     'Content-Type': 'application/json',
     'X-LayerOne-Request-Id': requestId,
     'X-LayerOne-Evidence-Id': evidenceId,
     'X-LayerOne-Decision': decision,
     'X-LayerOne-Policy-Version': POLICY_VERSION,
+    'X-LayerOne-Upstream-Url': upstream.url,
+    'X-LayerOne-Upstream-Provider': upstream.provider,
     'X-LayerOne-Gateway-Ms': String(Date.now() - started),
   });
   res.end(
@@ -235,6 +230,7 @@ export async function handleMockChat(req, res, rawBody) {
         evidence_id: evidenceId,
         request_id: requestId,
         sanitized_prompt: sanitized !== userText ? sanitized : undefined,
+        upstream,
         policies: allPolicies,
         record,
       },

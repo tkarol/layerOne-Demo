@@ -4,6 +4,8 @@ A customer-facing demo app for **Booz Allen Vellox LayerOne**, the governance an
 
 ![Demo console](docs/screenshot.png)
 
+![Endpoints and request/response lanes](docs/endpoints.png)
+
 ## How it works
 
 ```
@@ -22,7 +24,11 @@ A customer-facing demo app for **Booz Allen Vellox LayerOne**, the governance an
 The demo is framed as a **benefits-claims web application** whose AI assistant sits behind LayerOne. The page reads top to bottom:
 
 1. **Ask the claims assistant something.** Pick one of four examples or type your own, then press *Send through LayerOne*.
-2. **Follow the request and the response.** Two lanes light up hop by hop:
+2. **Follow the request and the response.** At the top, two endpoint cards show **both URLs in the chain**:
+   * **Web Application → LayerOne**: the gateway URL the app calls, with HTTP status and latency.
+   * **LayerOne → AI Model**: where LayerOne forwarded the request. It is struck through and marked *Not called* when LayerOne blocks a request.
+
+   Below that, two lanes light up hop by hop:
    * **Request:** Web Application → LayerOne (checks the request) → AI Model
    * **Response:** AI Model → LayerOne (checks the answer) → Web Application
 
@@ -67,15 +73,26 @@ docker run --rm -p 3000:3000 --env-file .env layerone-demo
 | `LAYERONE_MODEL` | `demo-model` | Model/route LayerOne should use upstream |
 | `LAYERONE_EXTRA_HEADERS` | `{}` | JSON of extra headers (agent ID, policy set, …) |
 | `LAYERONE_TIMEOUT_MS` | `60000` | Request timeout |
+| `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` | — | Model endpoint LayerOne forwards to, shown when LayerOne doesn't report it |
 | `DEMO_SYSTEM_PROMPT` | benefits claims assistant | System message the web application sends |
 | `PORT` / `HOST` | `3000` / `127.0.0.1` | Use `HOST=0.0.0.0` to open from another device |
+
+### Showing the LayerOne → AI model endpoint
+
+The web application only talks to LayerOne, so it can only show where LayerOne sent the request if LayerOne says so. The demo checks these places in order and labels the source in the UI:
+
+1. **Reported by LayerOne** in the response: an `upstream` (or `route` / `target`) object inside the `layerone` / `governance` body field with `url`, `provider`, `model`, `status`, `latency_ms`, or the headers `X-LayerOne-Upstream-Url`, `X-LayerOne-Upstream-Provider`, `X-LayerOne-Upstream-Model`.
+2. **From demo settings**: `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` in `.env`. This is display only; the demo never calls that URL itself.
+3. Otherwise the card says LayerOne did not report it.
+
+In practice mode the simulated gateway makes a real HTTP call to a simulated model endpoint (`/mock/model/v1/chat/completions`, in `server/mock-model.js`) and reports it, so both hops are genuine network calls.
 
 ### If your LayerOne API differs
 
 LayerOne is in limited preview, and the request format here is an **assumption**. The demo sends an OpenAI-compatible chat-completions request, which matches LayerOne's "sits between agents and models without changing agent code" positioning. Confirm the exact route, auth scheme, and any governance response fields with your Booz Allen contact. Everything wire-format-specific is in [`server/layerone.js`](server/layerone.js):
 
 * `buildRequest()`: URL, headers, body
-* `extractGovernance()`: where to find the decision, evidence ID, and policy results
+* `extractGovernance()`: where to find the decision, evidence ID, policy results, and upstream endpoint
 * `extractOutput()`: where the model text lives
 
 ## Demo scenarios

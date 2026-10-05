@@ -40,6 +40,18 @@
       <!-- 2. Watch -->
       <section class="card">
         <h2><span class="num">2</span> Follow the request and the response</h2>
+        <div class="endpoints">
+          <div class="ep">
+            <div class="ep-hop">🖥️ Web Application <span class="arrow">→</span> 🛡️ LayerOne</div>
+            <code class="ep-url"><span class="method">POST</span> <span id="epGateway">…</span></code>
+            <div class="ep-note" id="epGatewayNote"></div>
+          </div>
+          <div class="ep">
+            <div class="ep-hop">🛡️ LayerOne <span class="arrow">→</span> ✦ AI Model</div>
+            <code class="ep-url" id="epUpstreamBox"><span class="method" id="epUpstreamMethod">POST</span> <span id="epUpstream">…</span></code>
+            <div class="ep-note" id="epUpstreamNote"></div>
+          </div>
+        </div>
         <div class="lanes">
           <div class="lane">
             <div class="lane-label">Request: on the way to the AI model</div>
@@ -103,7 +115,7 @@
 
       <!-- Technical -->
       <details class="card tech" id="tech" hidden>
-        <summary>Technical details <span class="muted">(endpoint, raw request &amp; response, timing)</span></summary>
+        <summary>Technical details <span class="muted">(endpoints, raw request &amp; response, timing)</span></summary>
         <div id="techBody"></div>
       </details>
 

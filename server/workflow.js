@@ -1,7 +1,7 @@
 // Runs one demo request end to end and records each hop as a trace step.
 import crypto from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { config, endpointUrl } from './config.js';
+import { config, endpointUrl, configuredUpstream } from './config.js';
 import { buildRequest, redactHeaders, send, parseBody, extractGovernance, extractOutput } from './layerone.js';
 
 const STEPS = [
@@ -23,6 +23,7 @@ export function createTrace({ prompt, scenario }) {
     scenario: scenario || 'custom',
     prompt,
     endpoint: { method: 'POST', url: endpointUrl() },
+    upstream: configuredUpstream(),
     steps: STEPS.map((s) => ({ ...s, status: 'pending', startedAt: null, durationMs: null, detail: null })),
     request: null,
     response: null,
@@ -107,6 +108,12 @@ export async function runWorkflow(trace, store) {
   start('validate');
   const gov = extractGovernance({ status: res.status, headers, body });
   trace.governance = gov;
+  if (gov.upstream) {
+    trace.upstream = { ...gov.upstream, source: 'reported' };
+    if (gov.upstream.called) gatewayStep.detail += ` · LayerOne forwarded to ${gov.upstream.method} ${gov.upstream.url}`;
+  } else if (trace.upstream) {
+    trace.upstream = { ...trace.upstream, called: gov.decision !== 'blocked' };
+  }
   const evidence = gov.evidenceId ? ` · evidence ${gov.evidenceId}` : '';
   if (gov.decision === 'blocked') {
     // The gateway is where the request stopped; mark that hop, not the app.

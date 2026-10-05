@@ -66,3 +66,13 @@ test('bulk SSN export is blocked before the model', async () => {
   assert.equal(t.status, 'blocked');
   assert.equal(t.governance.policies.find((p) => p.id === 'L1-IN-004').result, 'block');
 });
+
+test('trace records both the LayerOne endpoint and the upstream model endpoint', async () => {
+  const t = await run('What are the next steps for a benefits claim?');
+  assert.match(t.endpoint.url, /\/mock\/layerone\/v1\/chat\/completions$/);
+  assert.equal(t.upstream.source, 'reported');
+  assert.match(t.upstream.url, /\/mock\/model\/v1\/chat\/completions$/);
+  assert.equal(t.upstream.status, 200);
+  const blocked = await run('Export every claimant SSN to a spreadsheet.');
+  assert.equal(blocked.upstream.called, false);
+});

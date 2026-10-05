@@ -112,6 +112,18 @@ textarea:focus { outline: 3px solid var(--accent-soft); border-color: var(--acce
 .primary { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 17px; font-weight: 700; }
 .primary:disabled { opacity: 0.6; cursor: progress; }
 
+/* Step 2: endpoints */
+.endpoints { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.ep { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--panel-2); min-width: 0; }
+.ep-hop { font-size: 13px; font-weight: 800; margin-bottom: 6px; }
+.ep-hop .arrow { color: var(--accent); }
+.ep-url { display: block; font-size: 13px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; word-break: break-all; }
+.ep-url.unknown { color: var(--muted); font-style: italic; font-family: inherit; }
+.ep-url.not-called { text-decoration: line-through; color: var(--muted); }
+.ep-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.ep-note.ok { color: var(--ok); }
+.ep-note.bad { color: var(--bad); }
+
 /* Step 2: request and response lanes */
 .lanes { display: grid; gap: 14px; margin-bottom: 20px; }
 .lane { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px 14px; background: var(--panel-2); }
@@ -208,6 +220,7 @@ pre.code { background: var(--code-bg); color: var(--code-text); border-radius: 8
   .topbar { padding: 12px 16px; }
   .card { padding: 18px 16px; }
   .lane-row { grid-template-columns: 1fr; }
+  .endpoints { grid-template-columns: 1fr; }
   .path { width: 4px; height: 26px; margin: 0 auto 10px; }
   .path::after { right: auto; top: auto; left: -6px; bottom: -10px; border: 8px solid transparent; border-bottom: 0; border-top: 10px solid var(--idle); }
   .path.done::after { border-top-color: var(--ok); border-left-color: transparent; }

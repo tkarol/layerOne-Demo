@@ -82,8 +82,24 @@ export function extractGovernance({ status, headers, body }) {
     else decision = 'error';
   }
 
+  // Where LayerOne sent the request: from a body object or headers, if reported.
+  const up = l1.upstream || l1.route || l1.target || {};
+  const upstreamUrl = up.url || up.endpoint || headers['x-layerone-upstream-url'] || headers['x-layerone-upstream'] || null;
+  const upstream = upstreamUrl
+    ? {
+        method: up.method || 'POST',
+        url: upstreamUrl,
+        provider: up.provider || headers['x-layerone-upstream-provider'] || headers['x-layerone-provider'] || null,
+        model: up.model || headers['x-layerone-upstream-model'] || null,
+        status: up.status ?? null,
+        latencyMs: up.latency_ms ?? up.latencyMs ?? null,
+        called: up.called !== false,
+      }
+    : null;
+
   return {
     decision: String(decision).toLowerCase(),
+    upstream,
     inferred: !reported,
     evidenceId: headers['x-layerone-evidence-id'] || l1.evidence_id || l1.evidenceId || null,
     gatewayRequestId: headers['x-layerone-request-id'] || l1.request_id || null,

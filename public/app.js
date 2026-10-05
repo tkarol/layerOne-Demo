@@ -204,6 +204,56 @@ function renderVerdict(t, o, req, res) {
   v.innerHTML = `<h3>${esc(msg[0])}</h3><p>${esc(msg[1])}</p>${meta.length ? `<div class="meta">${meta.join(' · ')}</div>` : ''}`;
 }
 
+// ---------- step 2: endpoints ----------
+function renderEndpoints(t) {
+  const c = state.config;
+  if (!c) return;
+  const mock = c.mode === 'mock';
+  const gatewayUrl = t?.endpoint?.url || c.endpoint.url;
+  $('#epGateway').textContent = gatewayUrl || '(LAYERONE_BASE_URL not set)';
+  const gNote = $('#epGatewayNote');
+  if (t?.response) {
+    gNote.textContent = `Called · HTTP ${t.response.status} in ${fmtMs(t.response.latencyMs)}`;
+    gNote.className = 'ep-note ok';
+  } else if (t && t.status === 'error') {
+    gNote.textContent = 'Could not be reached';
+    gNote.className = 'ep-note bad';
+  } else {
+    gNote.textContent = mock ? 'Built-in stand-in for LayerOne (practice mode)' : 'Your LayerOne gateway';
+    gNote.className = 'ep-note';
+  }
+
+  const up = t?.upstream || c.upstream;
+  const box = $('#epUpstreamBox');
+  const uNote = $('#epUpstreamNote');
+  if (!up) {
+    $('#epUpstreamMethod').textContent = '';
+    $('#epUpstream').textContent = 'LayerOne did not report where it sent the request';
+    box.className = 'ep-url unknown';
+    uNote.textContent = 'Set LAYERONE_UPSTREAM_URL in .env to show the configured model endpoint.';
+    uNote.className = 'ep-note';
+    return;
+  }
+  $('#epUpstreamMethod').textContent = up.method || 'POST';
+  $('#epUpstream').textContent = up.url;
+  const blocked = outcome(t) === 'blocked' || up.called === false;
+  box.className = `ep-url ${t && blocked ? 'not-called' : ''}`;
+  const parts = [];
+  if (up.provider) parts.push(up.provider);
+  if (up.model) parts.push(`model "${up.model}"`);
+  const src = { reported: mock ? 'reported by the simulated gateway' : 'reported by LayerOne', config: 'from demo settings (.env)', simulated: 'simulated' }[up.source] || '';
+  if (t && blocked) {
+    uNote.textContent = 'Not called. LayerOne blocked the request first.';
+    uNote.className = 'ep-note bad';
+  } else if (t?.response && up.source === 'reported') {
+    uNote.textContent = [`Called${up.status ? ` · HTTP ${up.status}` : ''}${up.latencyMs != null ? ` in ${fmtMs(up.latencyMs)}` : ''}`, ...parts, src].join(' · ');
+    uNote.className = 'ep-note ok';
+  } else {
+    uNote.textContent = [...parts, src].filter(Boolean).join(' · ');
+    uNote.className = 'ep-note';
+  }
+}
+
 // ---------- step 3: details by direction ----------
 const RESULT = { pass: ['✓', 'Passed'], redact: ['✂', 'Removed'], block: ['✕', 'Blocked'] };
 function checkList(list) {
@@ -275,8 +325,10 @@ function renderTech(t) {
     .join('');
   const record = t.governance?.record || t.governance?.extensions?.layerone?.record;
   $('#techBody').innerHTML = `
-    <div class="label">Endpoint called</div>
+    <div class="label">Web Application → LayerOne</div>
     <div class="endpoint mono"><span class="method">${esc(t.endpoint.method)}</span> ${esc(t.endpoint.url)}</div>
+    <div class="label">LayerOne → AI Model</div>
+    <div class="endpoint mono">${t.upstream ? `<span class="method">${esc(t.upstream.method || 'POST')}</span> ${esc(t.upstream.url)}${t.upstream.called === false ? ' <span class="muted">(not called)</span>' : ''}` : '<span class="muted">Not reported by LayerOne</span>'}</div>
     <div class="label">Step by step</div>
     <ol class="steps">${steps}</ol>
     ${t.request ? `<div class="label">Request sent to LayerOne <span class="muted">(API key hidden)</span></div>${codeBlock({ headers: t.request.headers, body: t.request.body })}` : ''}
@@ -319,6 +371,7 @@ async function select(id) {
 
 function render() {
   const t = state.traces.get(state.selectedId);
+  renderEndpoints(t);
   renderJourney(t);
   renderResult(t);
   renderTech(t);

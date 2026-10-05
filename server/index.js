@@ -7,6 +7,7 @@ import { SCENARIOS } from './scenarios.js';
 import { TraceStore } from './store.js';
 import { createTrace, runWorkflow } from './workflow.js';
 import { handleMockChat } from './mock-layerone.js';
+import { handleMockModel } from './mock-model.js';
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const MIME = {
@@ -65,6 +66,10 @@ export function createApp(store = new TraceStore(config.dataFile)) {
       if (req.method === 'POST' && pathname.startsWith('/mock/layerone/')) {
         if (config.mode !== 'mock') return json(res, 404, { error: 'Mock gateway disabled in live mode' });
         return handleMockChat(req, res, await readBody(req));
+      }
+      if (req.method === 'POST' && pathname.startsWith('/mock/model/')) {
+        if (config.mode !== 'mock') return json(res, 404, { error: 'Mock model disabled in live mode' });
+        return handleMockModel(req, res, await readBody(req));
       }
 
       if (pathname === '/api/health') return json(res, 200, { ok: true });

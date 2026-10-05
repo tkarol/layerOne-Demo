@@ -44,6 +44,10 @@ export const config = {
   extraHeaders: parseJson(env.LAYERONE_EXTRA_HEADERS, {}),
   timeoutMs: Number(env.LAYERONE_TIMEOUT_MS || 60000),
   systemPrompt: env.DEMO_SYSTEM_PROMPT || 'You are a benefits claims assistant helping caseworkers process claims.',
+  // Where LayerOne forwards requests. Only used for display when LayerOne does not
+  // report its upstream in the response (e.g. https://api.openai.com/v1/chat/completions).
+  upstreamUrl: env.LAYERONE_UPSTREAM_URL || '',
+  upstreamProvider: env.LAYERONE_UPSTREAM_PROVIDER || '',
   dataFile: env.TRACE_FILE || path.join(ROOT, 'data', 'traces.jsonl'),
 };
 
@@ -54,10 +58,22 @@ export function endpointUrl() {
   return base + config.chatPath;
 }
 
+export function mockModelUrl() {
+  return `http://127.0.0.1:${config.port}/mock/model/v1/chat/completions`;
+}
+
+// Best known target of the LayerOne → AI model hop before any response arrives.
+export function configuredUpstream() {
+  if (config.mode === 'mock') return { method: 'POST', url: mockModelUrl(), provider: 'Simulated AI model', model: config.model, source: 'simulated' };
+  if (config.upstreamUrl) return { method: 'POST', url: config.upstreamUrl, provider: config.upstreamProvider || null, model: config.model, source: 'config' };
+  return null;
+}
+
 export function publicConfig() {
   return {
     mode: config.mode,
     endpoint: { method: 'POST', url: endpointUrl() },
+    upstream: configuredUpstream(),
     model: config.model,
     authHeader: config.authHeader,
     authConfigured: Boolean(config.apiKey),
