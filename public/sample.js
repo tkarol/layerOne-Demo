@@ -59,6 +59,21 @@ function markup(text) {
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
 
+// The app picker starts collapsed to the current app; remembered per browser.
+function pickerOpen() {
+  try {
+    return localStorage.getItem('l1-picker') === 'open';
+  } catch {
+    return false;
+  }
+}
+function setPicker(open) {
+  try {
+    localStorage.setItem('l1-picker', open ? 'open' : 'closed');
+  } catch {}
+  render();
+}
+
 // Optional features, turned on in Settings (both off by default).
 const features = () => state.config?.features || { play: false, customize: false };
 
@@ -79,10 +94,12 @@ function render() {
   const logo = app.brand?.logo ? `<img class="brand-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`;
   root.innerHTML = `
     <div class="demo-bar">
-      <div class="prepared">${
-        state.customer
-          ? `Prepared for <b>${esc(state.customer.name)}</b>`
-          : '<span class="muted">Default demo</span>'
+      <div class="prepared">${state.customer ? `<span class="for">Prepared for <b>${esc(state.customer.name)}</b></span>` : ''}${
+        pickerOpen()
+          ? ''
+          : `<span class="app-picker-bar"><span class="muted">Sample app:</span>
+            <span class="current-app" style="--app:${esc(color)}">${app.brand?.logo ? `<img class="card-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`}<b>${esc(app.org)}</b><small>${esc(app.sector)}</small></span>
+            ${state.apps.length > 1 ? `<button class="link-btn" id="pickerToggle">Switch app (${state.apps.length}) ▾</button>` : ''}</span>`
       }</div>
       <div class="demo-actions">
         ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
@@ -91,7 +108,8 @@ function render() {
       </div>
     </div>
 
-    <div class="app-switch" role="tablist" aria-label="Sample application">
+
+    <div class="app-switch" role="tablist" aria-label="Sample application" ${pickerOpen() ? '' : 'hidden'}>
       ${state.apps
         .map(
           (a) => `<button role="tab" class="app-card ${a.id === app.id ? 'active' : ''}" data-app="${esc(a.id)}" aria-selected="${a.id === app.id}" style="--app:${esc(a.brand?.color || '#0f766e')}">
@@ -100,6 +118,7 @@ function render() {
           </button>`,
         )
         .join('')}
+      <button class="link-btn picker-hide" id="pickerHide">Hide ▴</button>
     </div>
 
     <div class="appwin ${state.protected || compare ? '' : 'unprotected'}" style="--app:${esc(color)};--app-ink:${inkFor(color)}">
@@ -317,7 +336,18 @@ function wireTraceLinks(root = document) {
 }
 
 function wire() {
-  document.querySelectorAll('.app-card').forEach((b) => (b.onclick = () => !state.play && selectApp(b.dataset.app)));
+  document.querySelectorAll('.app-card').forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (state.play) return;
+        try {
+          localStorage.setItem('l1-picker', 'closed');
+        } catch {}
+        selectApp(b.dataset.app);
+      }),
+  );
+  $('#pickerToggle')?.addEventListener('click', () => setPicker(true));
+  $('#pickerHide')?.addEventListener('click', () => setPicker(false));
   document.querySelectorAll('.day-item').forEach((b) => (b.onclick = () => !state.play && selectWorkflow(b.dataset.wf)));
   $('#l1Toggle')?.addEventListener('change', (e) => {
     state.protected = e.target.checked;

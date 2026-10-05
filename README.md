@@ -74,6 +74,7 @@ With LayerOne the data is removed, the request is blocked, or the answer is held
 * **See what LayerOne did →** under each result opens that exact request in *Behind the scenes*.
 * **Presenter notes** under each step give a one-line talk track for ON and OFF.
 * **Reveal hidden text** on the injection emails shows the audience the instruction the reader can't see.
+* **Kept simple on first view:** the intro tips (*How to use this*), the app picker (*Switch app*) and the presenter notes start collapsed. In Customer Hub, only the newest answer is open, with older ones as one-line summaries. The query and LayerOne's checks, the database activity log and the demo note open on click.
 
 ### Customer Hub: an AI agent on a real database
 
