@@ -21,8 +21,9 @@
 
     <main class="page">
       <p class="intro">
-        Every message the AI agent sends goes through <b>LayerOne</b> first. LayerOne checks it against your rules. Then it
-        lets the message through, cleans it up, or blocks it, and keeps an audit record either way.
+        This claims-assistant web application sends every AI request through <b>LayerOne</b>. LayerOne checks the request on
+        its way to the AI model, then checks the answer on its way back. It removes personal information such as Social
+        Security numbers, blocks risky requests, and keeps an audit record of everything.
       </p>
       <p id="mockNote" class="mock-note" hidden>
         Practice mode: requests go to a built-in stand-in, not the real LayerOne.
@@ -30,7 +31,7 @@
 
       <!-- 1. Ask -->
       <section class="card">
-        <h2><span class="num">1</span> Ask the AI agent something</h2>
+        <h2><span class="num">1</span> Ask the claims assistant something</h2>
         <div id="examples" class="examples"></div>
         <textarea id="prompt" rows="3" placeholder="Type a question, or pick an example above…"></textarea>
         <button id="send" class="primary">Send through LayerOne</button>
@@ -38,24 +39,57 @@
 
       <!-- 2. Watch -->
       <section class="card">
-        <h2><span class="num">2</span> What LayerOne did</h2>
-        <div class="journey">
-          <div class="stop" data-stop="agent">
-            <div class="stop-icon">💬</div>
-            <b>AI agent</b>
-            <small data-caption>Waiting</small>
+        <h2><span class="num">2</span> Follow the request and the response</h2>
+        <div class="lanes">
+          <div class="lane">
+            <div class="lane-label">Request: on the way to the AI model</div>
+            <div class="lane-row">
+              <div class="stop" data-stop="req-app">
+                <div class="stop-icon">🖥️</div>
+                <b>Web Application</b>
+                <span class="sub">Claims assistant</span>
+                <small data-caption>Waiting</small>
+              </div>
+              <div class="path" data-path="req-1"><i></i></div>
+              <div class="stop layerone" data-stop="req-l1">
+                <div class="stop-icon">🛡️</div>
+                <b>LayerOne</b>
+                <span class="sub">Checks the request</span>
+                <small data-caption>Waiting</small>
+              </div>
+              <div class="path" data-path="req-2"><i></i></div>
+              <div class="stop" data-stop="req-model">
+                <div class="stop-icon">✦</div>
+                <b>AI Model</b>
+                <span class="sub">Receives the request</span>
+                <small data-caption>Waiting</small>
+              </div>
+            </div>
           </div>
-          <div class="path" data-path="in"><i></i></div>
-          <div class="stop layerone" data-stop="layerone">
-            <div class="stop-icon">🛡️</div>
-            <b>LayerOne</b>
-            <small data-caption>Waiting</small>
-          </div>
-          <div class="path" data-path="model"><i></i></div>
-          <div class="stop" data-stop="model">
-            <div class="stop-icon">✦</div>
-            <b>AI model</b>
-            <small data-caption>Waiting</small>
+          <div class="lane">
+            <div class="lane-label">Response: on the way back</div>
+            <div class="lane-row">
+              <div class="stop" data-stop="res-model">
+                <div class="stop-icon">✦</div>
+                <b>AI Model</b>
+                <span class="sub">Writes the answer</span>
+                <small data-caption>Waiting</small>
+              </div>
+              <div class="path" data-path="res-1"><i></i></div>
+              <div class="stop layerone" data-stop="res-l1">
+                <div class="stop-icon">🛡️</div>
+                <b>LayerOne</b>
+                <span class="sub">Checks the answer</span>
+                <small data-caption>Waiting</small>
+              </div>
+              <div class="path" data-path="res-2"><i></i></div>
+              <div class="stop" data-stop="res-app">
+                <div class="stop-icon">🖥️</div>
+                <b>Web Application</b>
+                <span class="sub">Shows the answer</span>
+                <small data-caption>Waiting</small>
+              </div>
+            </div>
           </div>
         </div>
         <div id="verdict" class="verdict idle">Send a request to see what happens.</div>
@@ -63,7 +97,7 @@
 
       <!-- 3. Result -->
       <section class="card" id="resultCard" hidden>
-        <h2><span class="num">3</span> The details</h2>
+        <h2><span class="num">3</span> What LayerOne checked</h2>
         <div id="result"></div>
       </section>
 

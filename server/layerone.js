@@ -12,7 +12,7 @@ export function buildRequest({ prompt, traceId }) {
     'Content-Type': 'application/json',
     Accept: 'application/json',
     'X-Request-Id': traceId,
-    'X-Demo-Client': 'layerone-demo-console',
+    'X-Demo-Client': 'claims-assistant-web-app',
     ...config.extraHeaders,
   };
   if (config.apiKey) {

@@ -5,13 +5,13 @@ import { config, endpointUrl } from './config.js';
 import { buildRequest, redactHeaders, send, parseBody, extractGovernance, extractOutput } from './layerone.js';
 
 const STEPS = [
-  { key: 'client', label: 'Request received from demo UI', actor: 'Browser → Demo App' },
-  { key: 'prepare', label: 'Agent builds model request', actor: 'Demo App' },
-  { key: 'outbound', label: 'Request sent to LayerOne gateway', actor: 'Demo App → LayerOne' },
-  { key: 'gateway', label: 'LayerOne applies policy & calls model', actor: 'LayerOne → Model' },
-  { key: 'inbound', label: 'Response received from LayerOne', actor: 'LayerOne → Demo App' },
-  { key: 'validate', label: 'Governance evidence captured', actor: 'Demo App' },
-  { key: 'deliver', label: 'Result returned to demo UI', actor: 'Demo App → Browser' },
+  { key: 'client', label: 'User submits the request', actor: 'User → Web Application' },
+  { key: 'prepare', label: 'Web application builds the AI request', actor: 'Web Application' },
+  { key: 'outbound', label: 'Request sent to LayerOne', actor: 'Web Application → LayerOne' },
+  { key: 'gateway', label: 'LayerOne checks the request, calls the AI model, checks the answer', actor: 'LayerOne ⇄ AI Model' },
+  { key: 'inbound', label: 'Response received from LayerOne', actor: 'LayerOne → Web Application' },
+  { key: 'validate', label: 'Audit record captured', actor: 'Web Application' },
+  { key: 'deliver', label: 'Answer shown to the user', actor: 'Web Application → User' },
 ];
 
 export function createTrace({ prompt, scenario }) {

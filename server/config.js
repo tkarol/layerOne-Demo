@@ -43,7 +43,7 @@ export const config = {
   model: env.LAYERONE_MODEL || 'demo-model',
   extraHeaders: parseJson(env.LAYERONE_EXTRA_HEADERS, {}),
   timeoutMs: Number(env.LAYERONE_TIMEOUT_MS || 60000),
-  systemPrompt: env.DEMO_SYSTEM_PROMPT || 'You are a helpful mission-support assistant.',
+  systemPrompt: env.DEMO_SYSTEM_PROMPT || 'You are a benefits claims assistant helping caseworkers process claims.',
   dataFile: env.TRACE_FILE || path.join(ROOT, 'data', 'traces.jsonl'),
 };
 

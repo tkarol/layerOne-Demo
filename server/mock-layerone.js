@@ -1,7 +1,7 @@
 // SIMULATED LayerOne gateway for rehearsals and offline demos.
 // It is NOT Booz Allen's product: it imitates the shape of a governance
-// gateway (input policies, output validation, tamper-evident evidence chain)
-// so the console can be exercised end to end without preview credentials.
+// gateway (request checks, response checks, tamper-evident evidence chain)
+// so the demo can be exercised end to end without preview credentials.
 import crypto from 'node:crypto';
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -12,17 +12,54 @@ const POLICY_VERSION = 'sim-2026.10';
 let prevRecordHash = '0'.repeat(64);
 
 const PII_PATTERNS = [
-  { kind: 'SSN', re: /\b\d{3}-\d{2}-\d{4}\b/g },
-  { kind: 'EMAIL', re: /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g },
-  { kind: 'CARD', re: /\b(?:\d[ -]?){15,16}\b/g },
+  { kind: 'SSN', label: 'Social Security number', re: /\b\d{3}-\d{2}-\d{4}\b/g },
+  { kind: 'DOB', label: 'date of birth', re: /\b(0?[1-9]|1[0-2])\/(0?[1-9]|[12]\d|3[01])\/(19|20)\d{2}\b/g },
+  { kind: 'PHONE', label: 'phone number', re: /(?:\(\d{3}\)\s?|\b\d{3}[-.])\d{3}[-.]\d{4}\b/g },
+  { kind: 'EMAIL', label: 'email address', re: /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g },
+  { kind: 'CARD', label: 'card number', re: /\b(?:\d{4}[ -]){3}\d{4}\b/g },
 ];
-const PII_LABELS = { SSN: 'Social Security number', EMAIL: 'email address', CARD: 'card number' };
 const INJECTION = /\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,40}\b(instructions?|rules?|prompts?)\b|reveal (your|the) system prompt/i;
 const MARKING = /\b(TOP SECRET|SECRET|CONFIDENTIAL)\s*\/\/|\b(NOFORN|TS\/\/SCI|ORCON)\b/;
+const BULK_PII = /\b(all|every|each|list|export|dump|download)\b.{0,60}\b(ssns?|social security( numbers?)?)\b/i;
 
-function inputPolicies(text) {
+// Replace every PII match with a [REDACTED-KIND] token and describe what was removed.
+function redactPii(text) {
+  const found = [];
+  let out = text;
+  for (const { kind, label, re } of PII_PATTERNS) {
+    out = out.replace(re, () => {
+      found.push(label);
+      return `[REDACTED-${kind}]`;
+    });
+  }
+  const counts = {};
+  for (const l of found) counts[l] = (counts[l] || 0) + 1;
+  const summary = Object.entries(counts)
+    .map(([l, n]) => (n > 1 ? `${n} ${l}s` : `1 ${l}`))
+    .join(', ');
+  return { text: out, count: found.length, summary };
+}
+
+function requestPolicies(text) {
   const policies = [];
-  let sanitized = text;
+
+  const bulk = BULK_PII.test(text);
+  policies.push({
+    id: 'L1-IN-004',
+    name: 'Bulk personal-data requests',
+    stage: 'input',
+    result: bulk ? 'block' : 'pass',
+    detail: bulk ? 'Asked for Social Security numbers in bulk' : 'No bulk data requests',
+  });
+
+  const pii = redactPii(text);
+  policies.push({
+    id: 'L1-IN-003',
+    name: 'Personal information in the request',
+    stage: 'input',
+    result: pii.count ? 'redact' : 'pass',
+    detail: pii.count ? `Removed ${pii.summary}` : 'No personal information found',
+  });
 
   const injected = INJECTION.test(text);
   policies.push({
@@ -42,67 +79,68 @@ function inputPolicies(text) {
     detail: marked ? 'Classification marking found; this AI model is not approved for classified data' : 'No classification markings',
   });
 
-  const found = [];
-  for (const { kind, re } of PII_PATTERNS) {
-    sanitized = sanitized.replace(re, () => {
-      found.push(kind);
-      return `[REDACTED-${kind}]`;
-    });
-  }
-  policies.push({
-    id: 'L1-IN-003',
-    name: 'Personal information',
-    stage: 'input',
-    result: found.length ? 'redact' : 'pass',
-    detail: found.length ? `Removed ${found.length} item(s): ${[...new Set(found)].map((k) => PII_LABELS[k]).join(', ')}` : 'No personal information found',
-  });
-
-  return { policies, sanitized };
+  return { policies, sanitized: pii.text };
 }
 
+// Canned answers standing in for a real model. The "record lookup" answer
+// deliberately includes PII, as a model with access to a records system might.
 function simulatedModel(prompt) {
-  if (/logistic|port|supply|supplies/i.test(prompt)) {
+  if (/look ?up|on file|record for|identity/i.test(prompt)) {
     return [
-      '- **Storm-surge closures:** port operations may halt 24–72 hours, creating vessel queues and berth backlogs.',
-      '- **Inland transport disruption:** flooded roads and rail cut the onward link from quay to distribution sites.',
-      '- **Fuel & power shortages:** cranes, reefers and trucks compete for limited fuel and generator capacity.',
-      '- **Labor & safety constraints:** evacuations reduce available crews; pre-positioning stock is the main mitigation.',
+      'Record found for claimant Robert Chen (claim #VA-20419):',
+      '',
+      '- SSN: 987-65-4321',
+      '- Date of birth: 09/30/1975',
+      '- Phone on file: (555) 867-5309',
+      '- Status: Under review, awaiting medical records',
+      '',
+      'You can confirm his identity by asking him to verify the details above.',
     ].join('\n');
   }
-  if (/email/i.test(prompt)) {
+  if (/status update|approved|claimant/i.test(prompt)) {
+    const who = prompt.match(/claimant ([A-Z][a-z]+ [A-Z][a-z]+)/)?.[1] || 'the claimant';
     return [
-      'Subject: Case 4471 – Status Update',
+      `Status update — ${who}`,
       '',
-      'Team,',
-      '',
-      'Quick update on case 4471: the review is on track and the next milestone is scheduled for this week.',
-      'Please direct questions to the point of contact ([REDACTED-EMAIL]). Identifying details have been withheld per data-handling policy.',
-      '',
-      'Thanks,',
-      'Program Office',
+      'The claim has been approved pending one remaining signature on the release form.',
+      'Once the signed form is received, payment processing typically begins within 5–7 business days.',
+      'Identity details were withheld from this update.',
     ].join('\n');
   }
-  return `Simulated model response to: "${prompt.slice(0, 120)}"`;
+  if (/claim|benefit|medical|form/i.test(prompt)) {
+    return [
+      'Next steps for a claim missing a medical records release form:',
+      '',
+      '1. Send the claimant the release form (VA Form 21-4142) with a 30-day response deadline.',
+      '2. Mark the claim as "pending evidence" so the processing clock is paused, not closed.',
+      '3. Follow up by phone after 10 business days if no response is received.',
+      '4. Once returned, request records from the listed providers and resume review.',
+    ].join('\n');
+  }
+  return `Simulated AI model response to: "${prompt.slice(0, 120)}"`;
 }
 
-function outputPolicies(output) {
-  const leaked = PII_PATTERNS.some(({ re }) => new RegExp(re.source).test(output));
-  return [
-    {
-      id: 'L1-OUT-001',
-      name: 'Personal information in the answer',
-      stage: 'output',
-      result: leaked ? 'block' : 'pass',
-      detail: leaked ? 'The answer contains personal information' : 'The answer contains no personal information',
-    },
-    {
-      id: 'L1-OUT-002',
-      name: 'Answer is safe and well-formed',
-      stage: 'output',
-      result: 'pass',
-      detail: 'The answer passed format and safety checks',
-    },
-  ];
+function responsePolicies(rawOutput) {
+  const pii = redactPii(rawOutput);
+  return {
+    output: pii.text,
+    policies: [
+      {
+        id: 'L1-OUT-001',
+        name: 'Personal information in the answer',
+        stage: 'output',
+        result: pii.count ? 'redact' : 'pass',
+        detail: pii.count ? `Removed ${pii.summary} from the AI’s answer` : 'No personal information in the answer',
+      },
+      {
+        id: 'L1-OUT-002',
+        name: 'Answer is safe and well-formed',
+        stage: 'output',
+        result: 'pass',
+        detail: 'The answer passed format and safety checks',
+      },
+    ],
+  };
 }
 
 function sealRecord(fields) {
@@ -127,7 +165,7 @@ export async function handleMockChat(req, res, rawBody) {
 
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const userText = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
-  const { policies, sanitized } = inputPolicies(userText);
+  const { policies, sanitized } = requestPolicies(userText);
   await sleep(jitter(120, 300)); // policy evaluation
 
   const blocked = policies.find((p) => p.result === 'block');
@@ -136,7 +174,7 @@ export async function handleMockChat(req, res, rawBody) {
     request_id: requestId,
     client_request_id: req.headers['x-request-id'] || null,
     timestamp: new Date().toISOString(),
-    agent: req.headers['x-demo-client'] || 'unknown-agent',
+    client_app: req.headers['x-demo-client'] || 'unknown-app',
     model: body.model,
     provider: 'simulated-provider',
     policy_version: POLICY_VERSION,
@@ -166,8 +204,10 @@ export async function handleMockChat(req, res, rawBody) {
   }
 
   await sleep(jitter(450, 1100)); // upstream model latency
-  const output = simulatedModel(sanitized);
-  const allPolicies = [...policies, ...outputPolicies(output)];
+  const checked = responsePolicies(simulatedModel(sanitized));
+  await sleep(jitter(60, 160)); // response checks
+  const output = checked.output;
+  const allPolicies = [...policies, ...checked.policies];
   const decision = allPolicies.some((p) => p.result === 'redact') ? 'redacted' : 'allowed';
   const record = sealRecord({ ...baseRecord, decision, output_sha256: sha256(output), policies: allPolicies });
 

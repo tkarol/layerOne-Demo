@@ -1,5 +1,5 @@
 const $ = (sel) => document.querySelector(sel);
-const state = { config: null, scenarios: [], traces: new Map(), history: [], selectedId: null, scenario: null };
+const state = { config: null, scenarios: [], traces: new Map(), history: [], selectedId: null, scenario: null, reveal: null };
 
 // ---------- helpers ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -41,7 +41,7 @@ function outcome(t) {
   if (t.status === 'error' && t.governance?.decision !== 'blocked') return 'error';
   return t.governance?.decision || t.status;
 }
-const OUTCOME_LABEL = { allowed: 'Allowed', redacted: 'Cleaned up', blocked: 'Blocked', error: 'Error', running: 'Sending…' };
+const OUTCOME_LABEL = { allowed: 'Clean', redacted: 'Info removed', blocked: 'Blocked', error: 'Error', running: 'Sending…' };
 
 // ---------- theme ----------
 function initTheme() {
@@ -71,104 +71,194 @@ function renderExamples() {
   });
 }
 
-// ---------- step 2: journey + verdict ----------
+// ---------- step 2: request & response lanes + verdict ----------
+const REQ_STAGES = new Set(['input', 'request', 'pre', 'inbound']);
+const RES_STAGES = new Set(['output', 'response', 'post', 'outbound']);
+const RESPONSE_ORDER = ['res-model', 'res-1', 'res-l1', 'res-2', 'res-app'];
+const REVEAL_MS = 260;
+
+function splitPolicies(policies = []) {
+  return {
+    req: policies.filter((p) => REQ_STAGES.has(String(p.stage).toLowerCase())),
+    res: policies.filter((p) => RES_STAGES.has(String(p.stage).toLowerCase())),
+    other: policies.filter((p) => !REQ_STAGES.has(String(p.stage).toLowerCase()) && !RES_STAGES.has(String(p.stage).toLowerCase())),
+  };
+}
+
+// Short caption for a LayerOne box, from the rules checked in that direction.
+function checkCaption(list, fallback) {
+  const block = list.find((p) => p.result === 'block');
+  if (block) return ['blocked', 'Blocked'];
+  const removed = list.filter((p) => p.result === 'redact');
+  if (removed.length) return ['warn', removed.map((p) => p.detail.replace(/ from the AI’s answer$/, '')).join('; ')];
+  if (list.length) return ['done', `${list.length} checks passed`];
+  return fallback;
+}
+
+// Animate the response lane hop by hop once the answer arrives (presentation only).
+function revealStep(t) {
+  const r = state.reveal;
+  if (!r || r.id !== t?.id) return Infinity;
+  const n = Math.floor((performance.now() - r.start) / REVEAL_MS);
+  if (n >= RESPONSE_ORDER.length) {
+    state.reveal = null;
+    return Infinity;
+  }
+  setTimeout(render, REVEAL_MS / 2);
+  return n;
+}
+
 function renderJourney(t) {
   const o = outcome(t);
   const st = (key) => t?.steps.find((s) => s.key === key)?.status;
-  const running = (...keys) => keys.some((k) => st(k) === 'running');
+  const waiting = t && ['client', 'prepare', 'outbound', 'gateway'].some((k) => st(k) === 'running');
+  const { req, res } = splitPolicies(t?.governance?.policies);
+  const view = {};
+  const idle = ['', 'Waiting'];
+  for (const k of ['req-app', 'req-l1', 'req-model', 'res-model', 'res-l1', 'res-app']) view[k] = idle;
+  for (const k of ['req-1', 'req-2', 'res-1', 'res-2']) view[k] = '';
 
-  const stops = { agent: ['', 'Waiting'], layerone: ['', 'Waiting'], model: ['', 'Waiting'] };
-  const paths = { in: '', model: '' };
   if (t) {
-    stops.agent = running('client', 'prepare', 'outbound') ? ['active', 'Sending…'] : ['done', 'Sent request'];
-    if (running('gateway', 'outbound')) {
-      paths.in = 'active';
-      stops.layerone = ['active', 'Checking…'];
-    } else if (st('gateway') === 'error') {
-      paths.in = 'blocked';
-      stops.layerone = ['blocked', 'Unreachable'];
-    } else if (st('gateway')) {
-      paths.in = 'done';
-      stops.layerone = { allowed: ['done', 'Approved'], redacted: ['warn', 'Cleaned up'], blocked: ['blocked', 'Blocked'] }[o] || ['active', 'Checking…'];
-      if (o === 'error') stops.layerone = ['blocked', 'Error'];
-    }
-    if (o === 'allowed' || o === 'redacted') {
-      paths.model = 'done';
-      stops.model = ['done', 'Answered'];
+    view['req-app'] = ['done', 'Sent the request'];
+    view['req-1'] = 'done';
+    if (waiting) {
+      view['req-1'] = st('gateway') === 'running' ? 'done' : 'active';
+      view['req-l1'] = ['active', 'Checking…'];
+      view['req-2'] = 'active';
+      view['req-model'] = ['active', 'Working…'];
+    } else if (o === 'error' && !t.response) {
+      view['req-1'] = 'blocked';
+      view['req-l1'] = ['blocked', 'Could not reach LayerOne'];
     } else if (o === 'blocked') {
-      paths.model = 'cut';
-      stops.model = ['skipped', 'Never reached'];
+      view['req-l1'] = checkCaption(req, ['blocked', 'Blocked']);
+      view['req-l1'] = ['blocked', view['req-l1'][1]];
+      view['req-2'] = 'cut';
+      view['req-model'] = ['skipped', 'Never reached'];
+      view['res-model'] = ['skipped', 'Never called'];
+      view['res-1'] = 'cut';
+      view['res-l1'] = ['blocked', 'Sent a block notice'];
+      view['res-2'] = 'blocked';
+      view['res-app'] = ['done', 'Showed the block notice'];
+    } else if (o === 'error') {
+      view['req-l1'] = ['blocked', `Error (HTTP ${t.response.status})`];
+      view['res-l1'] = ['blocked', 'Returned an error'];
+      view['res-2'] = 'blocked';
+      view['res-app'] = ['done', 'Showed the error'];
+    } else {
+      view['req-l1'] = checkCaption(req, ['done', 'Passed']);
+      view['req-2'] = 'done';
+      view['req-model'] = ['done', view['req-l1'][0] === 'warn' ? 'Got the cleaned request' : 'Got the request'];
+      view['res-model'] = ['done', 'Sent its answer'];
+      view['res-1'] = 'done';
+      view['res-l1'] = checkCaption(res, ['done', 'Passed']);
+      view['res-2'] = 'done';
+      view['res-app'] = ['done', view['res-l1'][0] === 'warn' ? 'Showed the cleaned answer' : 'Showed the answer'];
     }
-    if (o !== 'running') stops.agent = ['done', o === 'blocked' ? 'Told it was blocked' : o === 'error' ? 'Got an error' : 'Got the answer'];
-  }
-  for (const [key, [cls, caption]] of Object.entries(stops)) {
-    const el = document.querySelector(`[data-stop="${key}"]`);
-    el.className = `stop ${key === 'layerone' ? 'layerone' : ''} ${cls}`;
-    el.querySelector('[data-caption]').textContent = caption;
-  }
-  for (const [key, cls] of Object.entries(paths)) document.querySelector(`[data-path="${key}"]`).className = `path ${cls}`;
 
+    // Hold back the response lane while it animates in.
+    const shown = o === 'running' ? -1 : revealStep(t);
+    RESPONSE_ORDER.forEach((k, i) => {
+      if (i < shown) return;
+      if (i === shown) view[k] = k.startsWith('res-') && k.length === 5 ? 'active' : ['active', '…'];
+      else view[k] = k.length === 5 ? '' : idle;
+    });
+  }
+
+  for (const [key, val] of Object.entries(view)) {
+    if (typeof val === 'string') {
+      document.querySelector(`[data-path="${key}"]`).className = `path ${val}`;
+    } else {
+      const el = document.querySelector(`[data-stop="${key}"]`);
+      el.className = `stop ${key.endsWith('l1') ? 'layerone' : ''} ${val[0]}`;
+      el.querySelector('[data-caption]').textContent = val[1];
+    }
+  }
+  renderVerdict(t, state.reveal?.id === t?.id ? 'running' : o, req, res);
+}
+
+function renderVerdict(t, o, req, res) {
   const v = $('#verdict');
   v.className = `verdict ${t ? o : 'idle'}`;
   if (!t) {
-    v.textContent = 'Send a request to see what happens.';
+    v.textContent = 'Pick an example and press Send to see what happens.';
     return;
   }
   const g = t.governance || {};
-  const policies = g.policies || [];
-  const blocker = policies.find((p) => p.result === 'block');
-  const cleaned = policies.filter((p) => p.result === 'redact');
-  const msg = {
-    running: ['Checking with LayerOne…', 'The request is on its way to LayerOne.'],
-    allowed: ['✅ Allowed', policies.length ? `LayerOne checked ${policies.length} rules. All passed, so the AI answered.` : 'LayerOne approved the request, so the AI answered.'],
-    redacted: ['✂️ Allowed, with sensitive info removed', `LayerOne took out sensitive details before the AI saw the request.${cleaned[0]?.detail ? ` ${cleaned[0].detail}.` : ''}`],
-    blocked: ['🛑 Blocked', `LayerOne stopped this request, so the AI never saw it.${blocker ? ` Reason: ${blocker.name}. ${blocker.detail}.` : ''}`],
-    error: ['⚠️ Something went wrong', t.error || 'The request could not be completed.'],
-  }[o];
+  const all = g.policies || [];
+  const blocker = all.find((p) => p.result === 'block');
+  const inRemoved = req.filter((p) => p.result === 'redact');
+  const outRemoved = res.filter((p) => p.result === 'redact');
+  let msg;
+  if (o === 'running') msg = ['Following the request…', 'The request is going through LayerOne to the AI model and back.'];
+  else if (o === 'blocked') msg = ['🛑 Blocked before it reached the AI model', `LayerOne stopped this request, so the AI model never saw it.${blocker ? ` Reason: ${blocker.detail}.` : ''}`];
+  else if (o === 'error') msg = ['⚠️ Something went wrong', t.error || 'The request could not be completed.'];
+  else if (inRemoved.length && outRemoved.length) msg = ['✂️ Personal information removed both ways', `${inRemoved[0].detail} from the request, and ${outRemoved[0].detail.replace(/^Removed /, '').replace(/ from the AI’s answer$/, '')} from the AI model’s answer.`];
+  else if (inRemoved.length) msg = ['✂️ Personal information removed before the AI model saw it', `${inRemoved[0].detail}. The AI model only received the cleaned request.`];
+  else if (outRemoved.length) msg = ['✂️ LayerOne caught personal information in the AI’s answer', `The AI model’s answer contained personal information. ${outRemoved[0].detail}, before it reached the web application.`];
+  else if (o === 'redacted') msg = ['✂️ Allowed, with sensitive information removed', 'LayerOne removed sensitive details from this exchange.'];
+  else msg = ['✅ Clean both ways', all.length ? `LayerOne ran ${all.length} checks on the request and the answer. Everything passed.` : 'LayerOne approved the request and the answer.'];
+
   const meta = [];
-  if (g.evidenceId) meta.push(`🔒 Audit record saved: <span class="mono">${esc(g.evidenceId)}</span>`);
-  if (t.totalMs) meta.push(`Took ${fmtMs(t.totalMs)}`);
+  if (g.evidenceId && o !== 'running') meta.push(`🔒 Audit record saved: <span class="mono">${esc(g.evidenceId)}</span>`);
+  if (t.totalMs && o !== 'running') meta.push(`Took ${fmtMs(t.totalMs)}`);
   v.innerHTML = `<h3>${esc(msg[0])}</h3><p>${esc(msg[1])}</p>${meta.length ? `<div class="meta">${meta.join(' · ')}</div>` : ''}`;
 }
 
-// ---------- step 3: details ----------
+// ---------- step 3: details by direction ----------
+const RESULT = { pass: ['✓', 'Passed'], redact: ['✂', 'Removed'], block: ['✕', 'Blocked'] };
+function checkList(list) {
+  if (!list.length) return '';
+  return `<div class="label">Rules checked</div><ul class="checks">${list
+    .map((p) => {
+      const r = p.result || p.status || 'pass';
+      const [ic, word] = RESULT[r] || ['•', r];
+      return `<li class="${esc(r)}"><span class="ic">${ic}</span><span><b>${esc(p.name || p.id)}</b> · ${esc(word)}</span><small>${esc(p.detail || '')}</small></li>`;
+    })
+    .join('')}</ul>`;
+}
+
 function renderResult(t) {
   const card = $('#resultCard');
-  if (!t || t.status === 'running') {
+  if (!t || t.status === 'running' || state.reveal?.id === t.id) {
     card.hidden = true;
     return;
   }
   card.hidden = false;
   const o = outcome(t);
   const g = t.governance || {};
+  const { req, res, other } = splitPolicies(g.policies);
   const sanitized = g.extensions?.layerone?.sanitized_prompt;
-  const RESULT = { pass: ['✓', 'Passed'], redact: ['✂', 'Cleaned up'], block: ['✕', 'Blocked'] };
 
-  const sent = sanitized
-    ? `<div class="compare">
-         <div><div class="label">You sent</div><pre class="box">${esc(t.prompt)}</pre></div>
-         <div><div class="label">The AI received</div><pre class="box">${markRedactions(sanitized)}</pre></div>
-       </div>`
-    : `<div class="label">You sent</div><pre class="box">${esc(t.prompt)}</pre>`;
+  const received =
+    o === 'blocked'
+      ? '<pre class="box stopped">Nothing. LayerOne blocked the request.</pre>'
+      : sanitized
+        ? `<pre class="box">${markRedactions(sanitized)}</pre>`
+        : '<p class="same">The same text. Nothing needed removing.</p>';
+
+  const requestSide = `
+    <div class="direction">Request: Web Application → LayerOne → AI Model</div>
+    <div class="compare">
+      <div><div class="label">Typed in the web application</div><pre class="box">${esc(t.prompt)}</pre></div>
+      <div><div class="label">What the AI model received</div>${received}</div>
+    </div>
+    ${checkList(req)}`;
 
   const answer =
     o === 'blocked'
-      ? `<div class="label">LayerOne's response</div><pre class="box stopped">${esc(t.output || 'Request blocked.')}</pre>`
+      ? `<div class="label">What the web application received</div><pre class="box stopped">${esc(t.output || 'Request blocked.')}</pre>`
       : o === 'error'
         ? `<div class="label">Error</div><pre class="box stopped">${esc(t.error || t.output || 'Unknown error')}</pre>`
-        : `<div class="label">The AI's answer</div><pre class="box answer">${markRedactions(t.output || '')}</pre>`;
+        : `<div class="label">What the web application received</div><pre class="box answer">${markRedactions(t.output || '')}</pre>`;
 
-  const checks = g.policies?.length
-    ? `<div class="label">Rules LayerOne checked</div><ul class="checks">${g.policies
-        .map((p) => {
-          const r = p.result || p.status || 'pass';
-          const [ic, word] = RESULT[r] || ['•', r];
-          return `<li class="${esc(r)}"><span class="ic">${ic}</span><span><b>${esc(p.name || p.id)}</b> · ${esc(word)}</span><small>${esc(p.detail || '')}</small></li>`;
-        })
-        .join('')}</ul>`
-    : '';
+  const responseSide = `
+    <div class="direction">Response: AI Model → LayerOne → Web Application</div>
+    ${o === 'blocked' ? '<p class="same">The AI model was never called, so there was no answer to check.</p>' : ''}
+    ${answer}
+    ${checkList(res)}`;
 
-  $('#result').innerHTML = sent + answer + checks;
+  const otherSide = other.length ? `<div class="direction">Other checks</div>${checkList(other)}` : '';
+  $('#result').innerHTML = requestSide + responseSide + otherSide;
 }
 
 // ---------- technical details ----------
@@ -254,6 +344,8 @@ async function send() {
 }
 
 function onTrace(trace) {
+  const prev = state.traces.get(trace.id);
+  if (prev?.status === 'running' && trace.status !== 'running' && trace.response) state.reveal = { id: trace.id, start: performance.now() };
   state.traces.set(trace.id, trace);
   const idx = state.history.findIndex((h) => h.id === trace.id);
   if (idx >= 0) state.history[idx] = summarize(trace);
