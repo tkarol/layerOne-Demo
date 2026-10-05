@@ -136,12 +136,15 @@
         </div>
         <div class="s-body">
           <p id="settingsLocked" class="s-locked" hidden>Settings are locked on this server (ALLOW_UI_SETTINGS=false).</p>
+          <div class="grid2" id="passwordRow" hidden>
+            <label class="full">Settings password<input name="settingsPassword" type="password" autocomplete="current-password" placeholder="Required to change settings on this deployment" /><small class="err" data-err="settingsPassword"></small></label>
+          </div>
 
           <div class="s-section-title">Where should requests go?</div>
           <div class="modes">
             <label class="mode-opt">
               <input type="radio" name="mode" value="mock" />
-              <span><b>Dry run</b><small>Uses a built-in stand-in for LayerOne and the AI model. Nothing leaves this computer, and no credentials are needed.</small></span>
+              <span><b>Dry run</b><small>Uses built-in stand-ins for LayerOne and the AI model. Nothing is sent to LayerOne or any AI provider, and no credentials are needed.</small></span>
             </label>
             <label class="mode-opt">
               <input type="radio" name="mode" value="live" />
@@ -174,7 +177,7 @@
           <div id="testResult" class="test-result" hidden></div>
         </div>
         <div class="s-foot">
-          <button type="button" id="settingsReset" class="link-btn">Reset to .env defaults</button>
+          <button type="button" id="settingsReset" class="link-btn">Reset to defaults</button>
           <span class="spacer"></span>
           <button type="button" id="settingsTest" class="secondary">Test connection</button>
           <button type="submit" id="settingsSave" class="save">Save</button>

@@ -1,8 +1,6 @@
-// SIMULATED AI model endpoint (OpenAI-compatible) that the simulated LayerOne
-// gateway forwards to, so the "LayerOne → AI model" hop is a real HTTP call.
-import crypto from 'node:crypto';
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// SIMULATED AI model endpoint (OpenAI-compatible) that the dry-run LayerOne
+// stand-in forwards to. It is also reachable directly at /mock/model/v1/chat/completions.
+import { json, jitter, randomHex, sleep } from './util.js';
 
 // Canned answers standing in for a real model. The "record lookup" answer
 // deliberately includes PII, as a model with access to a records system might.
@@ -43,29 +41,25 @@ export function simulatedModel(prompt) {
   return `Simulated AI model response to: "${prompt.slice(0, 120)}"`;
 }
 
-export async function handleMockModel(req, res, rawBody) {
+export async function handleMockModel(request) {
   let body;
   try {
-    body = JSON.parse(rawBody || '{}');
+    body = await request.json();
   } catch {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: { message: 'Body must be JSON' } }));
+    return json(400, { error: { message: 'Body must be JSON' } });
   }
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const prompt = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
-  await sleep(450 + Math.random() * 650); // model "thinking" time
+  await sleep(jitter(450, 1100)); // model "thinking" time
   const content = simulatedModel(prompt);
   const promptTokens = Math.ceil(JSON.stringify(messages).length / 4);
   const completionTokens = Math.ceil(content.length / 4);
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(
-    JSON.stringify({
-      id: `chatcmpl-${crypto.randomBytes(6).toString('hex')}`,
-      object: 'chat.completion',
-      created: Math.floor(Date.now() / 1000),
-      model: body.model,
-      choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
-    }),
-  );
+  return json(200, {
+    id: `chatcmpl-${randomHex(6)}`,
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model: body.model,
+    choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
+  });
 }

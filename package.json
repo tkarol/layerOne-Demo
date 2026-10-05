@@ -1,15 +1,17 @@
 {
   "name": "layerone-demo",
   "version": "0.1.0",
-  "description": "Customer-facing demo console that sends real requests through Booz Allen Vellox LayerOne and traces the full workflow.",
+  "description": "Customer-facing demo that sends real requests through Booz Allen Vellox LayerOne and traces the full workflow. Deploys as a single Cloudflare Worker.",
   "type": "module",
   "private": true,
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
+    "start": "node src/node-server.js",
+    "dev": "node --watch src/node-server.js",
+    "dev:worker": "npx wrangler dev",
+    "deploy": "npx wrangler deploy",
     "test": "node --test \"test/**/*.test.js\""
   }
 }

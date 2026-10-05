@@ -1,16 +1,11 @@
-// SIMULATED LayerOne gateway for rehearsals and offline demos.
+// SIMULATED LayerOne gateway for rehearsals and offline demos ("Dry run").
 // It is NOT Booz Allen's product: it imitates the shape of a governance
 // gateway (request checks, response checks, tamper-evident evidence chain)
 // so the demo can be exercised end to end without preview credentials.
-import crypto from 'node:crypto';
 import { mockModelUrl } from './config.js';
-
-const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const jitter = (min, max) => Math.round(min + Math.random() * (max - min));
+import { json, jitter, randomHex, sha256, sleep } from './util.js';
 
 const POLICY_VERSION = 'sim-2026.10';
-let prevRecordHash = '0'.repeat(64);
 
 const PII_PATTERNS = [
   { kind: 'SSN', label: 'Social Security number', re: /\b\d{3}-\d{2}-\d{4}\b/g },
@@ -106,24 +101,25 @@ function responsePolicies(rawOutput) {
   };
 }
 
-function sealRecord(fields) {
-  const record = { ...fields, prev_record_hash: prevRecordHash };
-  record.record_hash = sha256(JSON.stringify(record));
-  prevRecordHash = record.record_hash;
+// Each record includes the hash of the previous one, so tampering breaks the chain.
+async function sealRecord(fields, storage) {
+  const prev = (await storage.getChainHead()) || '0'.repeat(64);
+  const record = { ...fields, prev_record_hash: prev };
+  record.record_hash = await sha256(JSON.stringify(record));
+  await storage.setChainHead(record.record_hash);
   return record;
 }
 
-export async function handleMockChat(req, res, rawBody) {
+export async function handleMockChat(request, { origin, fetchFn, storage }) {
   const started = Date.now();
-  const requestId = `l1req_${crypto.randomBytes(6).toString('hex')}`;
-  const evidenceId = `ev_${crypto.randomBytes(8).toString('hex')}`;
+  const requestId = `l1req_${randomHex(6)}`;
+  const evidenceId = `ev_${randomHex(8)}`;
 
   let body;
   try {
-    body = JSON.parse(rawBody || '{}');
+    body = await request.json();
   } catch {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: { type: 'invalid_request', message: 'Body must be JSON' } }));
+    return json(400, { error: { type: 'invalid_request', message: 'Body must be JSON' } });
   }
 
   const messages = Array.isArray(body.messages) ? body.messages : [];
@@ -135,27 +131,21 @@ export async function handleMockChat(req, res, rawBody) {
   const baseRecord = {
     evidence_id: evidenceId,
     request_id: requestId,
-    client_request_id: req.headers['x-request-id'] || null,
+    client_request_id: request.headers.get('x-request-id'),
     timestamp: new Date().toISOString(),
-    client_app: req.headers['x-demo-client'] || 'unknown-app',
+    client_app: request.headers.get('x-demo-client') || 'unknown-app',
     model: body.model,
     provider: 'simulated-provider',
     policy_version: POLICY_VERSION,
-    prompt_sha256: sha256(userText),
+    prompt_sha256: await sha256(userText),
   };
+  const upstreamUrl = mockModelUrl(origin);
 
   if (blocked) {
-    const record = sealRecord({ ...baseRecord, decision: 'blocked', upstream_url: null, output_sha256: null, policies });
-    res.writeHead(403, {
-      'Content-Type': 'application/json',
-      'X-LayerOne-Request-Id': requestId,
-      'X-LayerOne-Evidence-Id': evidenceId,
-      'X-LayerOne-Decision': 'blocked',
-      'X-LayerOne-Policy-Version': POLICY_VERSION,
-      'X-LayerOne-Gateway-Ms': String(Date.now() - started),
-    });
-    return res.end(
-      JSON.stringify({
+    const record = await sealRecord({ ...baseRecord, decision: 'blocked', upstream_url: null, output_sha256: null, policies }, storage);
+    return json(
+      403,
+      {
         error: {
           type: 'policy_violation',
           code: blocked.id,
@@ -166,28 +156,33 @@ export async function handleMockChat(req, res, rawBody) {
           decision: 'blocked',
           evidence_id: evidenceId,
           request_id: requestId,
-          upstream: { method: 'POST', url: mockModelUrl(), provider: 'Simulated AI model', model: body.model, called: false },
+          upstream: { method: 'POST', url: upstreamUrl, provider: 'Simulated AI model', model: body.model, called: false },
           policies,
           record,
         },
-      }),
+      },
+      {
+        'X-LayerOne-Request-Id': requestId,
+        'X-LayerOne-Evidence-Id': evidenceId,
+        'X-LayerOne-Decision': 'blocked',
+        'X-LayerOne-Policy-Version': POLICY_VERSION,
+        'X-LayerOne-Gateway-Ms': String(Date.now() - started),
+      },
     );
   }
 
   // Forward the cleaned request to the AI model, exactly as a gateway would.
-  const upstreamUrl = mockModelUrl();
   const upstreamStarted = Date.now();
   let upstreamRes, upstreamBody;
   try {
-    upstreamRes = await fetch(upstreamUrl, {
+    upstreamRes = await fetchFn(upstreamUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, messages: messages.map((m) => (m.role === 'user' ? { ...m, content: sanitized } : m)) }),
     });
     upstreamBody = await upstreamRes.json();
   } catch (err) {
-    res.writeHead(502, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: { type: 'upstream_error', message: `AI model unreachable: ${err.message}` } }));
+    return json(502, { error: { type: 'upstream_error', message: `AI model unreachable: ${err.message}` } });
   }
   const upstream = {
     method: 'POST',
@@ -202,23 +197,17 @@ export async function handleMockChat(req, res, rawBody) {
   const output = checked.output;
   const allPolicies = [...policies, ...checked.policies];
   const decision = allPolicies.some((p) => p.result === 'redact') ? 'redacted' : 'allowed';
-  const record = sealRecord({ ...baseRecord, decision, upstream_url: upstream.url, output_sha256: sha256(output), policies: allPolicies });
+  const record = await sealRecord(
+    { ...baseRecord, decision, upstream_url: upstream.url, output_sha256: await sha256(output), policies: allPolicies },
+    storage,
+  );
 
   const promptTokens = Math.ceil(JSON.stringify(messages).length / 4);
   const completionTokens = upstreamBody.usage?.completion_tokens ?? Math.ceil(output.length / 4);
-  res.writeHead(200, {
-    'Content-Type': 'application/json',
-    'X-LayerOne-Request-Id': requestId,
-    'X-LayerOne-Evidence-Id': evidenceId,
-    'X-LayerOne-Decision': decision,
-    'X-LayerOne-Policy-Version': POLICY_VERSION,
-    'X-LayerOne-Upstream-Url': upstream.url,
-    'X-LayerOne-Upstream-Provider': upstream.provider,
-    'X-LayerOne-Gateway-Ms': String(Date.now() - started),
-  });
-  res.end(
-    JSON.stringify({
-      id: `chatcmpl-${crypto.randomBytes(6).toString('hex')}`,
+  return json(
+    200,
+    {
+      id: `chatcmpl-${randomHex(6)}`,
       object: 'chat.completion',
       created: Math.floor(Date.now() / 1000),
       model: body.model,
@@ -234,6 +223,15 @@ export async function handleMockChat(req, res, rawBody) {
         policies: allPolicies,
         record,
       },
-    }),
+    },
+    {
+      'X-LayerOne-Request-Id': requestId,
+      'X-LayerOne-Evidence-Id': evidenceId,
+      'X-LayerOne-Decision': decision,
+      'X-LayerOne-Policy-Version': POLICY_VERSION,
+      'X-LayerOne-Upstream-Url': upstream.url,
+      'X-LayerOne-Upstream-Provider': upstream.provider,
+      'X-LayerOne-Gateway-Ms': String(Date.now() - started),
+    },
   );
 }

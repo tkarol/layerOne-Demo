@@ -92,6 +92,7 @@ button { font: inherit; cursor: pointer; color: var(--text); }
 .settings-btn:hover, .icon-btn:hover { border-color: var(--accent); }
 .badge.live { background: var(--ok-soft); color: var(--ok); }
 .badge.mock { background: var(--warn-soft); color: var(--warn); }
+.badge.offline { background: var(--bad-soft); color: var(--bad); }
 .icon-btn { background: none; border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; }
 
 /* Page */
@@ -251,6 +252,7 @@ pre.code { background: var(--code-bg); color: var(--code-text); border-radius: 8
 .dim-note { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12px; margin-left: 6px; }
 .s-hint { margin: -2px 0 8px; font-size: 13px; color: var(--muted); }
 .s-locked { background: var(--warn-soft); color: var(--warn); padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-top: 14px; }
+#passwordRow { margin-top: 14px; }
 .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mode-opt { display: flex; gap: 10px; align-items: flex-start; border: 2px solid var(--border); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--panel-2); }
 .mode-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }

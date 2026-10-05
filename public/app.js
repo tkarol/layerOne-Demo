@@ -20,14 +20,27 @@ function highlightJson(value) {
 }
 const codeBlock = (v) => `<pre class="code">${highlightJson(v ?? null)}</pre>`;
 
+// Shown when /api answers with something other than JSON, e.g. a static-only
+// host (Cloudflare Pages) serving the page without the Worker backend.
+const NO_BACKEND_MSG =
+  'This page cannot reach its backend, so Send and Settings will not work. If it is hosted on Cloudflare, deploy this repo as a Cloudflare Worker (see "Deploy to Cloudflare" in the README), not as a static Pages site.';
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
-  if (!res.ok) {
-    const err = new Error((await res.json().catch(() => ({}))).error || res.statusText);
-    err.status = res.status;
-    throw err;
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...settingsAuth(path), ...(opts.headers || {}) } });
+  if (!(res.headers.get('content-type') || '').includes('application/json')) {
+    throw Object.assign(new Error(NO_BACKEND_MSG), { status: res.status, noBackend: true });
   }
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { status: res.status, data });
+  return data;
+}
+
+// Optional settings password (SETTINGS_PASSWORD on the server), remembered for this tab.
+function settingsAuth(path) {
+  if (!path.startsWith('/api/settings')) return {};
+  let pw = '';
+  try { pw = sessionStorage.getItem('l1-settings-pw') || ''; } catch {}
+  return pw ? { 'X-Settings-Password': pw } : {};
 }
 
 function toCurl(req) {
@@ -230,7 +243,7 @@ function renderEndpoints(t) {
     gNote.textContent = 'Could not be reached';
     gNote.className = 'ep-note bad';
   } else {
-    gNote.textContent = mock ? 'Dry run: built-in stand-in for LayerOne on this computer' : 'Your LayerOne gateway';
+    gNote.textContent = mock ? 'Dry run: built-in stand-in for LayerOne' : 'Your LayerOne gateway';
     gNote.className = 'ep-note';
   }
 
@@ -412,7 +425,7 @@ function renderConfig() {
   note.hidden = false;
   note.className = 'mode-note';
   if (mock) {
-    note.innerHTML = 'Dry run: requests go to a built-in stand-in for LayerOne. Nothing leaves this computer. <a data-open-settings>Change in Settings</a>';
+    note.innerHTML = 'Dry run: requests go to a built-in stand-in for LayerOne, not the real product. <a data-open-settings>Change in Settings</a>';
   } else if (!c.configured) {
     note.className = 'mode-note bad';
     note.innerHTML = 'Live mode has no LayerOne URL yet. <a data-open-settings>Add it in Settings</a>';
@@ -436,6 +449,7 @@ function toast(msg) {
 // ---------- settings ----------
 const form = () => $('#settingsForm');
 const SETTINGS_FIELDS = ['baseUrl', 'chatPath', 'model', 'apiKey', 'authHeader', 'authScheme', 'timeoutMs', 'upstreamUrl', 'upstreamProvider'];
+const ERROR_FIELDS = [...SETTINGS_FIELDS, 'settingsPassword'];
 
 function readForm() {
   const f = form();
@@ -449,7 +463,7 @@ function readForm() {
 
 function showErrors(errors = {}) {
   const f = form();
-  for (const k of SETTINGS_FIELDS) {
+  for (const k of ERROR_FIELDS) {
     f[k].classList.toggle('invalid', Boolean(errors[k]));
     const slot = f.querySelector(`[data-err="${k}"]`);
     if (slot) slot.textContent = errors[k] || '';
@@ -463,7 +477,7 @@ function updatePreview() {
   const base = f.baseUrl.value.trim().replace(/\/+$/, '');
   const path = f.chatPath.value.trim() || '/v1/chat/completions';
   $('#epPreview').textContent = mock
-    ? 'The built-in dry-run gateway on this computer (nothing leaves this machine)'
+    ? 'The built-in dry-run stand-in for LayerOne (nothing is sent to LayerOne or any AI provider)'
     : base
       ? `POST ${base}${path}`
       : 'Enter the LayerOne base URL above';
@@ -476,6 +490,8 @@ function fillForm(st) {
   f.apiKey.placeholder = st.apiKeySet ? `Saved (ends in ${st.apiKeyHint.slice(1)}). Leave blank to keep it.` : 'Paste your LayerOne API key';
   f.clearApiKey.checked = false;
   $('#clearKeyRow').hidden = !st.apiKeySet;
+  $('#passwordRow').hidden = !st.passwordRequired;
+  f.settingsPassword.value = '';
   $('#settingsLocked').hidden = !st.locked;
   $('#settingsLocked').textContent = st.lockedReason || 'Settings are locked on this server (ALLOW_UI_SETTINGS=false).';
   for (const el of f.querySelectorAll('input, #settingsSave, #settingsTest, #settingsReset')) el.disabled = st.locked;
@@ -484,15 +500,13 @@ function fillForm(st) {
   updatePreview();
 }
 
-const RESTART_MSG = 'The demo server is running an older version than this page, so Settings is not available yet. Stop the server (Ctrl+C) and run npm start again, then reload this page.';
-
 async function openSettings() {
   try {
     fillForm(await api('/api/settings'));
   } catch (err) {
     // Still open the panel, read-only, and say why, rather than failing silently.
     const c = state.config || {};
-    fillForm({ mode: c.mode || 'mock', chatPath: '', model: c.model || '', authHeader: c.authHeader || '', locked: true, lockedReason: err.status === 404 ? RESTART_MSG : `Could not load settings from the server: ${err.message}` });
+    fillForm({ mode: c.mode || 'mock', chatPath: '', model: c.model || '', authHeader: c.authHeader || '', locked: true, lockedReason: err.noBackend ? NO_BACKEND_MSG : `Could not load settings from the server: ${err.message}` });
   }
   $('#settings').showModal();
 }
@@ -507,6 +521,7 @@ async function testSettings() {
   out.scrollIntoView({ block: 'nearest' });
   btn.disabled = true;
   try {
+    rememberPassword();
     const r = await api('/api/settings/test', { method: 'POST', body: JSON.stringify(readForm()) });
     if (r.errors) {
       showErrors(r.errors);
@@ -523,11 +538,18 @@ async function testSettings() {
       : `${r.ok ? '✓ Connected' : '✕ Reached the server, but it returned an error'} · HTTP ${r.status} ${esc(r.statusText)} in ${fmtMs(r.latencyMs)} ${hint ? `· ${esc(hint)}` : ''}
          <small>${esc(r.url)}${r.upstream?.url ? ` → ${esc(r.upstream.url)}` : ''}${r.reply ? ` · Reply: "${esc(r.reply)}"` : ''}</small>`;
   } catch (err) {
+    if (err.status === 401) showErrors({ settingsPassword: err.message });
     out.className = 'test-result bad';
     out.textContent = err.message;
   } finally {
     btn.disabled = false;
   }
+}
+
+function rememberPassword() {
+  const pw = form().settingsPassword.value;
+  if (!pw) return;
+  try { sessionStorage.setItem('l1-settings-pw', pw); } catch {}
 }
 
 async function saveSettings(e) {
@@ -536,18 +558,22 @@ async function saveSettings(e) {
   btn.disabled = true;
   showErrors();
   try {
-    const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(readForm()) });
-    const data = await res.json();
-    if (!res.ok) {
-      showErrors(data.errors);
+    rememberPassword();
+    let data;
+    try {
+      data = await api('/api/settings', { method: 'PUT', body: JSON.stringify(readForm()) });
+    } catch (err) {
+      showErrors(err.data?.errors);
+      if (err.status === 401) showErrors({ settingsPassword: err.message });
       const out = $('#testResult');
       out.hidden = false;
       out.className = 'test-result bad';
-      out.textContent = data.errors ? 'Fix the highlighted fields.' : data.error;
+      out.textContent = err.data?.errors ? 'Fix the highlighted fields.' : err.message;
       (form().querySelector('.invalid') || out).scrollIntoView({ block: 'center' });
       return;
     }
     $('#settings').close();
+    state.selectedId = null; // show the newly configured endpoints, not a past request's
     state.config = await api('/api/config');
     renderConfig();
     render();
@@ -565,13 +591,21 @@ function initSettings() {
   form().addEventListener('submit', saveSettings);
   form().addEventListener('input', updatePreview);
   $('#settingsReset').onclick = async () => {
-    if (!confirm('Discard settings saved from this screen and go back to the .env values?')) return;
-    const { settings } = await api('/api/settings', { method: 'DELETE' });
+    if (!confirm('Discard settings saved from this page and go back to the defaults (Worker variables, or .env locally)?')) return;
+    rememberPassword();
+    let settings;
+    try {
+      ({ settings } = await api('/api/settings', { method: 'DELETE' }));
+    } catch (err) {
+      if (err.status === 401) showErrors({ settingsPassword: err.message });
+      toast(err.message);
+      return;
+    }
     fillForm(settings);
     state.config = await api('/api/config');
     renderConfig();
     render();
-    toast('Settings reset to the .env values.');
+    toast('Settings reset to the defaults.');
   };
 }
 
@@ -584,9 +618,32 @@ async function send() {
   try {
     const preset = state.scenarios.find((s) => s.id === state.scenario);
     const scenario = preset && preset.prompt === prompt ? preset.id : 'custom';
-    const { id } = await api('/api/run', { method: 'POST', body: JSON.stringify({ prompt, scenario }) });
-    state.selectedId = id;
-    render();
+    const res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, scenario }) });
+    if (!(res.headers.get('content-type') || '').includes('text/event-stream')) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || NO_BACKEND_MSG);
+    }
+    // The server streams a snapshot of the trace after every step.
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      let i;
+      while ((i = buffer.indexOf('\n\n')) >= 0) {
+        const frame = buffer.slice(0, i);
+        buffer = buffer.slice(i + 2);
+        const data = frame.split('\n').filter((l) => l.startsWith('data: ')).map((l) => l.slice(6)).join('');
+        if (!data) continue;
+        const trace = JSON.parse(data);
+        if (state.selectedId !== trace.id) {
+          state.selectedId = trace.id;
+          state.traces.delete(trace.id);
+        }
+        onTrace(trace);
+      }
+    }
   } catch (err) {
     alert(`Request failed: ${err.message}`);
   } finally {
@@ -627,30 +684,29 @@ async function init() {
     render();
   };
 
-  const stream = new EventSource('/api/stream');
-  stream.addEventListener('trace', (e) => onTrace(JSON.parse(e.data)));
-  stream.addEventListener('config', (e) => {
-    state.config = JSON.parse(e.data);
-    renderConfig();
-    render();
-  });
   initSettings();
-  [state.config, state.scenarios, state.history] = await Promise.all([api('/api/config'), api('/api/scenarios'), api('/api/traces')]);
-
-  renderConfig();
-  // Catch a server that was not restarted after an update (new page, old API).
-  api('/api/settings').catch((err) => {
-    if (err.status !== 404) return;
+  try {
+    [state.config, state.scenarios, state.history] = await Promise.all([api('/api/config'), api('/api/scenarios'), api('/api/traces')]);
+  } catch (err) {
     const note = $('#modeNote');
     note.hidden = false;
     note.className = 'mode-note bad';
-    note.textContent = RESTART_MSG;
-  });
+    note.textContent = err.noBackend ? NO_BACKEND_MSG : `Could not load the demo: ${err.message}`;
+    $('#modeBadge').textContent = 'Not connected';
+    $('#modeBadge').className = 'badge offline';
+    return;
+  }
+
+  renderConfig();
 
   renderExamples();
   renderHistory();
-  if (state.history[0]) select(state.history[0].id);
-  else render();
+  // Reopen the latest request only if it used the endpoint that is configured now.
+  const latest = state.history[0] && (await api(`/api/traces/${state.history[0].id}`).catch(() => null));
+  if (latest && latest.endpoint?.url === state.config.endpoint.url) {
+    state.traces.set(latest.id, latest);
+    select(latest.id);
+  } else render();
 }
 
 init();

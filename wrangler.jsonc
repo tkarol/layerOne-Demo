@@ -1,0 +1,25 @@
+// Cloudflare Workers configuration. Deploy with `npx wrangler deploy`, or connect
+// this repo in the Cloudflare dashboard (Workers & Pages → Create → Import a repository).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "layerone-demo",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+
+  // The page (public/) is served as static assets; /api/* and /mock/* run the Worker.
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+
+  // Settings and request history. Created automatically on first deploy.
+  "durable_objects": {
+    "bindings": [{ "name": "STORE", "class_name": "DemoStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DemoStore"] }],
+
+  "observability": { "enabled": true },
+
+  // Keep variables and secrets set in the Cloudflare dashboard when redeploying.
+  // Optional defaults: LAYERONE_BASE_URL, LAYERONE_MODEL, LAYERONE_UPSTREAM_URL, ...
+  // (all of which can also be changed from ⚙ Settings in the page). Put the API key
+  // in a secret (`npx wrangler secret put LAYERONE_API_KEY`), never in this file.
+  "keep_vars": true
+}

@@ -1,13 +1,13 @@
 // LayerOne adapter. Everything that depends on the gateway's wire format lives
 // here, so if your LayerOne deployment exposes a different request/response
 // schema, this is the only file to change.
-import { config, endpointUrl, DRY_RUN_KEY } from './config.js';
+import { endpointUrl, DRY_RUN_KEY } from './config.js';
 
 const OPENAI_FIELDS = new Set(['id', 'object', 'created', 'model', 'choices', 'usage', 'system_fingerprint', 'service_tier']);
 const GOVERNANCE_HEADER = /^x-(layerone|vellox|l1|governance|policy|evidence|guardrail)/i;
 const SENSITIVE_HEADER = /(authorization|api[-_]?key|token|secret|cookie)/i;
 
-export function buildRequest({ prompt, traceId }, cfg = config) {
+export function buildRequest({ prompt, traceId, origin }, cfg) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -19,7 +19,7 @@ export function buildRequest({ prompt, traceId }, cfg = config) {
   if (key) headers[cfg.authHeader] = cfg.authScheme ? `${cfg.authScheme} ${key}` : key;
   return {
     method: 'POST',
-    url: endpointUrl(cfg),
+    url: endpointUrl(cfg, origin),
     headers,
     body: {
       model: cfg.model,
@@ -39,21 +39,32 @@ function mask(value) {
   return `${scheme}${secret.slice(0, 4)}••••••••${secret.slice(-4)}`;
 }
 
-export function redactHeaders(headers) {
+export function redactHeaders(headers, authHeader = 'Authorization') {
   return Object.fromEntries(
     Object.entries(headers).map(([k, v]) =>
-      SENSITIVE_HEADER.test(k) || k.toLowerCase() === config.authHeader.toLowerCase() ? [k, mask(v)] : [k, v],
+      SENSITIVE_HEADER.test(k) || k.toLowerCase() === authHeader.toLowerCase() ? [k, mask(v)] : [k, v],
     ),
   );
 }
 
-export async function send(req, timeoutMs = config.timeoutMs) {
-  return fetch(req.url, {
+// `fetchFn` routes dry-run calls to the built-in stand-ins and everything else to the network.
+export async function send(req, timeoutMs, fetchFn = fetch) {
+  return fetchFn(req.url, {
     method: req.method,
     headers: req.headers,
     body: JSON.stringify(req.body),
     signal: AbortSignal.timeout(timeoutMs),
   });
+}
+
+// Plain-English reason for a failed fetch (Node and Cloudflare word these differently).
+export function describeFetchError(err, timeoutMs) {
+  if (err?.name === 'TimeoutError' || err?.name === 'AbortError') return `No response within ${timeoutMs} ms`;
+  const msg = String(err?.cause?.message || err?.message || err);
+  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo|internal error|DNS/i.test(msg)) return `The host could not be reached (DNS lookup or connection failed)`;
+  if (/ECONNREFUSED/i.test(msg)) return 'The connection was refused (nothing is listening at that address)';
+  if (/certificate|SSL|TLS/i.test(msg)) return `TLS/certificate problem: ${msg}`;
+  return msg;
 }
 
 export function parseBody(text) {

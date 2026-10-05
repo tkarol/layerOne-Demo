@@ -1,122 +1,132 @@
-# LayerOne Demo Console
+# LayerOne Demo
 
-A customer-facing demo app for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. A demo web application sends a real request through LayerOne to the AI model and back. It shows the exact endpoint being hit and the full request and response. It traces every hop of the workflow live and keeps a history of every run.
+A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. A demo web application (a benefits-claims assistant) sends a real request through LayerOne to the AI model and back. The page shows both endpoints in the chain, traces every hop in both directions, and keeps a history of every run.
 
-![Demo console](docs/screenshot.png)
+Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings and history. There is no separate server to run.
+
+![Demo](docs/screenshot.png)
 
 ![Endpoints and request/response lanes](docs/endpoints.png)
 
 ![Settings panel](docs/settings.png)
 
+## Deploy to Cloudflare
+
+> **Deploy this as a Worker, not a static Pages site.** A Pages site only serves the page, so Send and Settings have no backend to talk to. The page shows *"This page cannot reach its backend"* when that happens.
+
+### First time (about 5 minutes, all in the browser)
+
+1. Sign in to the [Cloudflare dashboard](https://dash.cloudflare.com) and open **Workers & Pages**.
+2. Click **Create**. On the **Workers** tab, choose **Import a repository**. If asked, connect GitHub.
+3. Pick the **`layerOne-Demo`** repository.
+4. Set the branch to **`claude/relaxed-ritchie-gblmjb`**, or `main` once this is merged. Leave the build settings at their defaults; the deploy command is `npx wrangler deploy`.
+5. Click **Deploy**. When it finishes, Cloudflare gives you a link like `https://layerone-demo.<your-subdomain>.workers.dev`. Open it. The demo starts in **Dry run**, so you can try all four examples straight away.
+
+Every push to that branch redeploys automatically. Cloudflare creates the storage (a Durable Object) on the first deploy; there's nothing to set up.
+
+If you already have a **Pages** project for this repo, you can delete it once the Worker is up. The Worker URL replaces it.
+
+### Connect to LayerOne
+
+Open the demo, click **⚙ Settings**, choose **Live**, and enter your LayerOne URL and API key. Click **Test connection**, then **Save**. That's it.
+
+Alternatively, set the API key as a secret so it never has to be typed into the page: in the dashboard, open the Worker, go to **Settings → Variables and Secrets → Add**, choose type **Secret**, name it `LAYERONE_API_KEY`, and paste the value.
+
+### Protect the link
+
+A `workers.dev` link is public: anyone with it can use the demo and open Settings. Before you share it or put a real API key in it:
+
+* **Restrict who can open it (recommended).** In the Worker's **Settings → Domains & Routes**, turn on **Cloudflare Access** for the `workers.dev` route, then allow your email (or your team's domain). Visitors must sign in first. Access is free for up to 50 users.
+* **Require a password to change settings.** Add a **Secret** named `SETTINGS_PASSWORD`. Anyone can still view the demo and send requests, but changing Settings needs the password.
+* **Or lock settings entirely.** Add a variable `ALLOW_UI_SETTINGS` = `false`.
+
 ## How it works
 
 ```
- Browser (demo UI)  ──►  Web Application (Node server)  ──HTTPS──►  LayerOne gateway  ──►  Model provider
-        ▲                       │   records every step                │ policy, validation,
-        └──── live trace (SSE) ─┘   to data/traces.jsonl              │ evidence record
+ Browser (the page)  ──►  Cloudflare Worker (web application)  ──HTTPS──►  LayerOne  ──►  AI model
+                              │ holds the API key, records each hop          │ checks request & answer,
+                              └ settings + history in a Durable Object       │ keeps an audit record
 ```
 
-* The **browser never talks to LayerOne directly**. The Node server plays the web application. It holds the API key, makes the HTTPS call, and records each hop. Customers see real traffic, but credentials never reach the screen. Auth headers are masked in every trace.
-* Each run is a **trace** with seven steps (user → web application → LayerOne → AI model → back). Each step has its own timing and detail. Updates stream to every open browser over Server-Sent Events, so a second screen or projector stays in sync.
+* The **browser never talks to LayerOne directly**. The Worker plays the web application. It holds the API key, makes the HTTPS call, and records each hop. Auth headers are masked in every trace.
+* Each run is a **trace** with seven steps (user → web application → LayerOne → AI model → back). The Worker streams a snapshot after every step, so the page animates as the request moves.
 * **Governance evidence** is pulled out generically: `X-LayerOne-*` / `X-Vellox-*` headers, any `layerone` / `governance` object in the body, and any non-standard response fields. If the gateway returns no explicit decision, one is inferred from the HTTP status and labeled as inferred.
-* Traces are appended to `data/traces.jsonl` and survive restarts. *Technical details* has *Download full trace (JSON)* and *Copy as cURL*, so you can replay the same call from a terminal.
+* The newest 500 runs are kept. *Technical details* has *Download full trace (JSON)* and *Copy as cURL*.
 
 ### What the customer sees
 
-The demo is framed as a **benefits-claims web application** whose AI assistant sits behind LayerOne. The page reads top to bottom:
+The page reads top to bottom:
 
-1. **Ask the claims assistant something.** Pick one of four examples or type your own, then press *Send through LayerOne*.
-2. **Follow the request and the response.** At the top, two endpoint cards show **both URLs in the chain**:
-   * **Web Application → LayerOne**: the gateway URL the app calls, with HTTP status and latency.
-   * **LayerOne → AI Model**: where LayerOne forwarded the request. It is struck through and marked *Not called* when LayerOne blocks a request.
+1. **Ask the claims assistant something.** Pick one of four examples or type your own.
+2. **Follow the request and the response.**
+   * Two endpoint cards show **both URLs in the chain**. *Web Application → LayerOne* is the URL the app calls, with status and latency. *LayerOne → AI Model* is where LayerOne forwarded the request; it's marked *Not called* when a request is blocked.
+   * Two lanes light up hop by hop. **Request:** Web Application → LayerOne → AI Model. **Response:** AI Model → LayerOne → Web Application.
+   * A plain-English verdict gives the outcome and the audit record ID.
+3. **What LayerOne checked**, split by direction. For the request: what was typed next to what the AI model actually received. For the response: what the web application got back (removed items highlighted). Both list the rules checked.
 
-   Below that, two lanes light up hop by hop:
-   * **Request:** Web Application → LayerOne (checks the request) → AI Model
-   * **Response:** AI Model → LayerOne (checks the answer) → Web Application
+**Technical details** stays collapsed until someone asks. **Recent requests** reopens any earlier run.
 
-   Each LayerOne box says what it did, for example *4 checks passed*, *Removed 1 Social Security number…* or *Blocked*. Underneath, a plain-English verdict gives the outcome and the audit record ID.
-3. **What LayerOne checked**, split by direction. For the request, it shows what was typed next to what the AI model actually received, plus the rules checked. For the response, it shows what the web application received (removed items highlighted), plus the rules checked.
+In Live mode the request and response sides are filled in from the `stage` field on each policy result LayerOne returns (`input`/`request` vs `output`/`response`).
 
-**Technical details** stays collapsed until someone asks. It holds the exact endpoint, step-by-step timing, the raw request (API key hidden) and response, the audit record, *Copy as cURL*, and *Download full trace (JSON)*. **Recent requests** at the bottom reopens any earlier run.
-
-In live mode the request and response sides are filled in from the `stage` field on each policy result LayerOne returns (`input`/`request` vs `output`/`response`).
-
-## Quick start
-
-Requires Node 20+. There are no npm dependencies.
-
-```bash
-npm start                      # http://localhost:3000, starts in Dry run
-```
-
-Then open **⚙ Settings** to switch to Live and enter your LayerOne URL and API key. You can also preset them in `.env` (`cp .env.example .env`).
-
-### Dry run vs Live
+## Dry run vs Live
 
 | | Dry run | Live |
 | --- | --- | --- |
-| Requests go to | A built-in stand-in for LayerOne, which forwards to a built-in stand-in AI model, both on this computer | Your LayerOne gateway |
-| Network | Nothing leaves the machine | HTTPS to LayerOne |
+| Requests go to | Built-in stand-ins for LayerOne and the AI model, inside the demo itself | Your LayerOne gateway |
 | Credentials | None needed | LayerOne API key |
-| Good for | Rehearsing, offline demos, demos before preview access | The real thing |
+| Good for | Rehearsing, demos before preview access, demos without a connection | The real thing |
 
-The header badge always shows **Dry run** or **Live: LayerOne**. Dry run also shows a note under the intro, so the stand-in is never mistaken for the real product in front of a customer.
+The header badge always shows **Dry run** or **Live: LayerOne**. Dry run also shows a note under the intro, so the stand-in is never mistaken for the real product.
 
-### Settings panel
+## Settings panel
 
-Click **⚙ Settings** (or the mode badge) to change, without restarting:
+Click **⚙ Settings** (or the mode badge) to change, without redeploying:
 
 * **Mode:** Dry run or Live
-* **LayerOne gateway:** base URL, chat path, model, API key, auth header and scheme, timeout. A live preview shows the exact endpoint requests will hit.
+* **LayerOne gateway:** base URL, chat path, model, API key, auth header and scheme, timeout. A preview shows the exact endpoint requests will hit.
 * **AI model endpoint (display only):** what to show as "LayerOne → AI Model" when LayerOne doesn't report it
 
-**Test connection** sends one small request using the values in the form, without saving them, and reports the HTTP status, latency and reply. If it fails, you get the reason (connection refused, timeout, 401 "check the API key", 404 "check the URL and path"). **Save** applies the settings immediately and updates every open browser. **Reset to .env defaults** discards what was saved from the UI.
+**Test connection** sends one small request using the values in the form, without saving them. It reports the HTTP status, latency and reply, or a plain reason it failed: host not found, connection refused, timeout, 401 "check the API key", 404 "check the URL and path". **Save** applies the settings immediately. **Reset to defaults** discards what was saved from the page.
 
 How settings are handled:
 
-* Precedence: built-in defaults < `.env` / environment < values saved from the UI.
-* UI-saved values are stored in `data/settings.json` (git-ignored, file mode 600). That **includes the API key in plain text**, so treat the file like `.env`.
-* The API key is never sent back to the browser. The form only shows that a key is saved and its last four characters. Leave the field blank to keep it.
-* If you change the LayerOne **host** without re-entering the key, the saved key is dropped. It is never forwarded to a different server.
-* On a shared or exposed host (`HOST=0.0.0.0`), set `ALLOW_UI_SETTINGS=false` to make the panel read-only.
+* Precedence: built-in defaults < Worker variables and secrets (or `.env` locally) < values saved from the page.
+* Values saved from the page are stored in the Worker's Durable Object (a JSON file when running locally), **including the API key if you type it in**. If you'd rather the key never be stored there, leave it blank in Settings and use the `LAYERONE_API_KEY` secret.
+* The API key is never sent back to the browser. The form only shows that a key is saved and its last four characters.
+* If you change the LayerOne **host** without re-entering the key, the saved key is dropped. It's never forwarded to a different server.
 
-Docker:
+## Configuration
 
-```bash
-docker build -t layerone-demo .
-docker run --rm -p 3000:3000 --env-file .env layerone-demo
-```
-
-## Configuration (`.env`)
+Set these as Worker **Variables and Secrets** in the dashboard (or in `.env` when running locally). All are optional; most can be changed from Settings instead.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `LAYERONE_MODE` | `live` if a base URL is set, else `mock` | `live`, or `mock` for Dry run |
 | `LAYERONE_BASE_URL` | — | Gateway base URL |
 | `LAYERONE_CHAT_PATH` | `/v1/chat/completions` | Chat route on the gateway |
-| `LAYERONE_API_KEY` | — | Credential (server-side only) |
+| `LAYERONE_API_KEY` | — | Credential. Use a **Secret** |
 | `LAYERONE_AUTH_HEADER` / `LAYERONE_AUTH_SCHEME` | `Authorization` / `Bearer` | e.g. `x-api-key` with an empty scheme |
 | `LAYERONE_MODEL` | `demo-model` | Model/route LayerOne should use upstream |
 | `LAYERONE_EXTRA_HEADERS` | `{}` | JSON of extra headers (agent ID, policy set, …) |
 | `LAYERONE_TIMEOUT_MS` | `60000` | Request timeout |
 | `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` | — | Model endpoint LayerOne forwards to, shown when LayerOne doesn't report it |
 | `DEMO_SYSTEM_PROMPT` | benefits claims assistant | System message the web application sends |
+| `SETTINGS_PASSWORD` | — | Password required to change Settings. Use a **Secret** |
 | `ALLOW_UI_SETTINGS` | `true` | `false` makes the Settings panel read-only |
-| `PORT` / `HOST` | `3000` / `127.0.0.1` | Use `HOST=0.0.0.0` to open from another device |
+
+`wrangler.jsonc` sets `keep_vars`, so variables you add in the dashboard survive redeploys.
 
 ### Showing the LayerOne → AI model endpoint
 
-The web application only talks to LayerOne, so it can only show where LayerOne sent the request if LayerOne says so. The demo checks these places in order and labels the source in the UI:
+The web application only talks to LayerOne, so it can only show where LayerOne sent the request if LayerOne says so. The demo checks, in order, and labels the source in the UI:
 
 1. **Reported by LayerOne** in the response: an `upstream` (or `route` / `target`) object inside the `layerone` / `governance` body field with `url`, `provider`, `model`, `status`, `latency_ms`, or the headers `X-LayerOne-Upstream-Url`, `X-LayerOne-Upstream-Provider`, `X-LayerOne-Upstream-Model`.
-2. **From demo settings**: `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` in `.env`. This is display only; the demo never calls that URL itself.
+2. **From demo settings**: the AI model endpoint in Settings, or `LAYERONE_UPSTREAM_URL`. Display only; the demo never calls that URL.
 3. Otherwise the card says LayerOne did not report it.
-
-In Dry run the simulated gateway makes a real HTTP call to a simulated model endpoint (`/mock/model/v1/chat/completions`, in `server/mock-model.js`) and reports it, so both hops are genuine network calls.
 
 ### If your LayerOne API differs
 
-LayerOne is in limited preview, and the request format here is an **assumption**. The demo sends an OpenAI-compatible chat-completions request, which matches LayerOne's "sits between agents and models without changing agent code" positioning. Confirm the exact route, auth scheme, and any governance response fields with your Booz Allen contact. Everything wire-format-specific is in [`server/layerone.js`](server/layerone.js):
+LayerOne is in limited preview, and the request format here is an **assumption**. The demo sends an OpenAI-compatible chat-completions request, which matches LayerOne's "sits between agents and models without changing agent code" positioning. Confirm the exact route, auth scheme, and any governance response fields with your Booz Allen contact. Everything wire-format-specific is in [`src/core/layerone.js`](src/core/layerone.js):
 
 * `buildRequest()`: URL, headers, body
 * `extractGovernance()`: where to find the decision, evidence ID, policy results, and upstream endpoint
@@ -133,22 +143,35 @@ All four tell one story about protecting personal information in a claims workfl
 | AI answer leaks an SSN | The request is clean, but the AI model's answer (a "record lookup") contains an SSN, DOB and phone. LayerOne removes them **on the way back**, before they reach the web application. |
 | Bulk SSN export | Someone asks for every claimant's SSN. LayerOne **blocks it**, and the AI model is never called. |
 
-What happens in Live mode depends on the policies configured in your LayerOne tenant. The Dry run gateway (`server/mock-layerone.js`) uses regex detectors for SSNs, dates of birth, phone numbers, emails and card numbers. It forwards to a stand-in model (`server/mock-model.js`) whose replies are canned; the record-lookup reply deliberately contains PII. It also produces a hash-chained audit record, so you can rehearse the story. Edit the examples in `server/scenarios.js`.
+What happens in Live mode depends on the policies configured in your LayerOne tenant. The Dry run gateway (`src/core/mock-layerone.js`) uses regex detectors for SSNs, dates of birth, phone numbers, emails and card numbers. It forwards to a stand-in model (`src/core/mock-model.js`, also reachable at `/mock/model/v1/chat/completions`) whose replies are canned; the record-lookup reply deliberately contains PII. It also produces a hash-chained audit record. Edit the examples in `src/core/scenarios.js`.
+
+## Project layout
+
+| Path | |
+| --- | --- |
+| `public/` | The page (HTML, CSS, JS), served as static assets |
+| `src/worker.js` | Cloudflare Worker entry + Durable Object storage |
+| `src/core/` | The backend, shared by the Worker and the local server: routing, LayerOne adapter, workflow, settings, dry-run stand-ins |
+| `src/node-server.js`, `src/storage/file.js` | Optional local server for testing on your own machine |
+| `wrangler.jsonc` | Cloudflare configuration |
 
 ## API
 
 | Route | |
 | --- | --- |
-| `POST /api/run` `{prompt, scenario?}` | Start a run, returns `{id}` (202) |
-| `GET /api/stream` | SSE stream of trace updates |
+| `POST /api/run` `{prompt, scenario?}` | Run a request; streams trace snapshots as server-sent events |
 | `GET /api/traces` · `GET /api/traces/:id` · `GET /api/traces/:id/export` · `DELETE /api/traces` | History |
-| `GET /api/config` | Mode, endpoint, model (no secrets) |
-| `GET /api/settings` · `PUT /api/settings` · `DELETE /api/settings` | Read, save, or reset runtime settings (API key never returned) |
+| `GET /api/config` | Mode, endpoints, model (no secrets) |
+| `GET /api/settings` · `PUT /api/settings` · `DELETE /api/settings` | Read, save, or reset settings (API key never returned) |
 | `POST /api/settings/test` | Test draft settings without saving |
 
-## Development
+## Running locally (optional)
+
+Not needed for Cloudflare, but handy for development. Requires Node 20+; there are no npm dependencies.
 
 ```bash
-npm run dev    # restart on change
-npm test       # end-to-end smoke tests against the simulated gateway
+npm start            # local Node server on http://localhost:3000
+npm run dev:worker   # the real Cloudflare runtime locally, via wrangler
+npm test             # end-to-end tests against the dry-run stand-ins
+npm run deploy       # deploy from your machine instead of the dashboard (runs wrangler deploy)
 ```

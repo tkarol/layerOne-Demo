@@ -4,30 +4,35 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 
-process.env.LAYERONE_MODE = 'mock';
-process.env.TRACE_FILE = path.join(os.tmpdir(), `layerone-demo-test-${process.pid}.jsonl`);
-process.env.SETTINGS_FILE = path.join(os.tmpdir(), `layerone-demo-test-settings-${process.pid}.json`);
-const { start } = await import('../server/index.js');
+const env = {
+  LAYERONE_MODE: 'mock',
+  TRACE_FILE: path.join(os.tmpdir(), `layerone-demo-test-${process.pid}.jsonl`),
+  SETTINGS_FILE: path.join(os.tmpdir(), `layerone-demo-test-settings-${process.pid}.json`),
+};
+const { createServer } = await import('../src/node-server.js');
 
 let server;
 let base;
 
 before(async () => {
-  server = await start({ port: 0, host: '127.0.0.1' });
+  server = createServer({ env });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
 });
 after(() => server.close());
 
+// /api/run streams trace snapshots as server-sent events; return the last one.
 async function run(prompt) {
   const res = await fetch(`${base}/api/run`, { method: 'POST', body: JSON.stringify({ prompt }) });
-  assert.equal(res.status, 202);
-  const { id } = await res.json();
-  for (let i = 0; i < 100; i++) {
-    const trace = await (await fetch(`${base}/api/traces/${id}`)).json();
-    if (trace.status !== 'running') return trace;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  throw new Error('trace did not finish');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/event-stream/);
+  const frames = (await res.text()).split('\n\n').filter(Boolean).map((f) => JSON.parse(f.replace(/^data: /, '')));
+  assert.ok(frames.length > 3, 'expected several live updates');
+  const last = frames.at(-1);
+  assert.notEqual(last.status, 'running');
+  const stored = await (await fetch(`${base}/api/traces/${last.id}`)).json();
+  assert.equal(stored.id, last.id);
+  return last;
 }
 
 test('benign prompt is allowed and fully traced', async () => {
@@ -114,4 +119,20 @@ test('settings can switch to live and back, never exposing the API key', async (
 
   const reset = await settings('DELETE');
   assert.equal(reset.data.settings.mode, 'mock');
+});
+
+test('SETTINGS_PASSWORD protects changes but not reading', async () => {
+  const locked = createServer({ env: { ...env, SETTINGS_PASSWORD: 'demo-pass', SETTINGS_FILE: `${env.SETTINGS_FILE}.pw` } });
+  await new Promise((resolve) => locked.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${locked.address().port}/api/settings`;
+  try {
+    const read = await (await fetch(url)).json();
+    assert.equal(read.passwordRequired, true);
+    const denied = await fetch(url, { method: 'PUT', body: JSON.stringify({ mode: 'mock' }) });
+    assert.equal(denied.status, 401);
+    const ok = await fetch(url, { method: 'PUT', headers: { 'X-Settings-Password': 'demo-pass' }, body: JSON.stringify({ mode: 'mock' }) });
+    assert.equal(ok.status, 200);
+  } finally {
+    locked.close();
+  }
 });

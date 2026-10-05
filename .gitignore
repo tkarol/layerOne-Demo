@@ -3,3 +3,5 @@ node_modules/
 data/*.jsonl
 data/settings.json
 .DS_Store
+.wrangler/
+.dev.vars
