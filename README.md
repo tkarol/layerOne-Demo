@@ -15,7 +15,7 @@ A customer-facing demo app for **Booz Allen Vellox LayerOne**, the governance an
 * The **browser never talks to LayerOne directly**. The Node server acts as the agent. It holds the API key, makes the HTTPS call, and records each hop. Customers see real traffic, but credentials never reach the screen. Auth headers are masked in every trace.
 * Each run is a **trace** with seven steps (UI → agent → LayerOne → model → back). Each step has its own timing and detail. Updates stream to every open browser over Server-Sent Events, so a second screen or projector stays in sync.
 * **Governance evidence** is pulled out generically: `X-LayerOne-*` / `X-Vellox-*` headers, any `layerone` / `governance` object in the body, and any non-standard response fields. If the gateway returns no explicit decision, one is inferred from the HTTP status and labeled as inferred.
-* Traces are appended to `data/traces.jsonl` and survive restarts. Any trace can be exported as JSON from the *Raw trace* tab. The *Request* tab has a copy-as-cURL button, so you can show the same call from a terminal.
+* Traces are appended to `data/traces.jsonl` and survive restarts. *Technical details* has *Download full trace (JSON)* and *Copy as cURL*, so you can replay the same call from a terminal.
 
 ### What the customer sees
 
