@@ -438,7 +438,7 @@ async function reloadApps() {
 }
 
 function updateTitle() {
-  document.title = state.customer ? `LayerOne Demo · ${state.customer.name}` : 'LayerOne Demo';
+  document.title = state.customer ? `Vellox LayerOne Demo · ${state.customer.name}` : 'Vellox LayerOne Demo · Booz Allen';
   const chip = $('#customerChip');
   if (chip) {
     chip.hidden = !state.customer;

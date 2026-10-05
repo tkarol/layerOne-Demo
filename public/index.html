@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LayerOne Demo</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='15' fill='white' text-anchor='middle'%3EL1%3C/text%3E%3C/svg%3E" />
+    <title>Vellox LayerOne Demo · Booz Allen</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000000'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='15' fill='white' text-anchor='middle'%3EL1%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="sample.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="logo">L1</span>
-        <h1>LayerOne Demo</h1>
+        <!-- Official logo: put the white (reversed) Booz Allen logo at public/brand/logo.svg; until then the text below is shown. -->
+        <img class="brand-logo-img" src="brand/logo.svg" alt="Booz Allen" onerror="this.remove()" />
+        <span class="wordmark">Booz Allen</span>
+        <span class="brand-sep" aria-hidden="true"></span>
+        <h1>Vellox LayerOne<small>Demo</small></h1>
         <span id="customerChip" class="customer-chip" hidden></span>
       </div>
       <nav class="view-tabs" role="tablist" aria-label="View">

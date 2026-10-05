@@ -1,69 +1,74 @@
 :root {
-  --bg: #f4f6fa;
+  --bg: #f4f4f4;
   --panel: #ffffff;
-  --panel-2: #f8fafc;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --muted: #64748b;
-  --accent: #2563eb;
+  --panel-2: #fafafa;
+  --border: #e3e3e3;
+  --text: #0a0a0a;
+  --muted: #5e5e5e;
+  --accent: #0a0a0a;
   --on-accent: #ffffff;
-  --accent-soft: #dbeafe;
+  --accent-soft: #ebebeb;
   --ok: #16a34a;
   --ok-soft: #dcfce7;
   --warn: #d97706;
   --warn-soft: #fef3c7;
   --bad: #dc2626;
   --bad-soft: #fee2e2;
-  --idle: #cbd5e1;
-  --code-bg: #0f172a;
-  --code-text: #e2e8f0;
-  --shadow: 0 1px 2px rgb(15 23 42 / 6%), 0 4px 16px rgb(15 23 42 / 4%);
+  --idle: #d4d4d4;
+  --code-bg: #0a0a0a;
+  --code-text: #e8e8e8;
+  --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 4px 16px rgb(0 0 0 / 4%);
+  /* Booz Allen look: monochrome chrome. Swap these to adjust the brand. */
+  --chrome: #000000;
+  --on-chrome: #ffffff;
+  --chrome-line: rgb(255 255 255 / 18%);
+  --chrome-muted: #b5b5b5;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0b1020;
-    --panel: #121a2e;
-    --panel-2: #0f1628;
-    --border: #23304d;
-    --text: #e5ecf7;
-    --muted: #8b9bb8;
-    --accent: #60a5fa;
-  --on-accent: #0b1020;
-    --accent-soft: #1e3a5f;
+    --bg: #0a0a0a;
+    --panel: #141414;
+    --panel-2: #1a1a1a;
+    --border: #2e2e2e;
+    --text: #f4f4f4;
+    --muted: #a6a6a6;
+    --accent: #f4f4f4;
+  --on-accent: #0a0a0a;
+    --accent-soft: #2a2a2a;
     --ok: #4ade80;
     --ok-soft: #12351f;
     --warn: #fbbf24;
     --warn-soft: #3a2d0c;
     --bad: #f87171;
     --bad-soft: #3d1414;
-    --idle: #334155;
-    --code-bg: #0a0f1d;
-    --code-text: #dbe4f3;
+    --idle: #3a3a3a;
+    --code-bg: #000000;
+    --code-text: #e8e8e8;
     --shadow: none;
     color-scheme: dark;
   }
 }
 :root[data-theme='dark'] {
-  --bg: #0b1020;
-  --panel: #121a2e;
-  --panel-2: #0f1628;
-  --border: #23304d;
-  --text: #e5ecf7;
-  --muted: #8b9bb8;
-  --accent: #60a5fa;
-  --on-accent: #0b1020;
-  --accent-soft: #1e3a5f;
+  --bg: #0a0a0a;
+  --panel: #141414;
+  --panel-2: #1a1a1a;
+  --border: #2e2e2e;
+  --text: #f4f4f4;
+  --muted: #a6a6a6;
+  --accent: #f4f4f4;
+  --on-accent: #0a0a0a;
+  --accent-soft: #2a2a2a;
   --ok: #4ade80;
   --ok-soft: #12351f;
   --warn: #fbbf24;
   --warn-soft: #3a2d0c;
   --bad: #f87171;
   --bad-soft: #3d1414;
-  --idle: #334155;
-  --code-bg: #0a0f1d;
-  --code-text: #dbe4f3;
+  --idle: #3a3a3a;
+  --code-bg: #000000;
+  --code-text: #e8e8e8;
   --shadow: none;
   color-scheme: dark;
 }
@@ -74,7 +79,7 @@ html, body { margin: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 16px/1.55 'Avenir Next', 'Helvetica Neue', 'Segoe UI', Helvetica, Arial, system-ui, sans-serif;
 }
 code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 h1, h2, h3 { margin: 0; }
@@ -82,18 +87,25 @@ button { font: inherit; cursor: pointer; color: var(--text); }
 .muted { color: var(--muted); font-weight: 400; }
 
 /* Header */
-.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--border); }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand h1 { font-size: 19px; }
-.customer-chip { font-size: 13px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
-.logo { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-weight: 800; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 24px; background: var(--chrome); color: var(--on-chrome); border-bottom: 1px solid var(--chrome-line); }
+.brand { display: flex; align-items: center; gap: 14px; }
+.wordmark { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+.brand-logo-img { height: 26px; width: auto; display: block; }
+.brand-logo-img + .wordmark { display: none; }
+.brand-sep { width: 1px; height: 28px; background: var(--chrome-line); }
+.brand h1 { font-size: 16px; font-weight: 700; line-height: 1.15; }
+.brand h1 small { display: block; font-size: 12px; font-weight: 500; color: var(--chrome-muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.customer-chip { font-size: 13px; font-weight: 700; color: var(--on-chrome); border: 1px solid var(--chrome-line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 .top-right { display: flex; align-items: center; gap: 10px; }
-.view-tabs { display: flex; gap: 4px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; margin-right: auto; margin-left: 24px; }
-.view-tabs button { border: none; background: none; border-radius: 7px; padding: 7px 14px; font-size: 14px; font-weight: 700; color: var(--muted); }
-.view-tabs button.active { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.view-tabs { display: flex; gap: 4px; border: 1px solid var(--chrome-line); border-radius: 10px; padding: 3px; margin-right: auto; margin-left: 24px; }
+.view-tabs button { border: none; background: none; border-radius: 7px; padding: 7px 14px; font-size: 14px; font-weight: 700; color: var(--chrome-muted); }
+.view-tabs button:hover { color: var(--on-chrome); }
+.view-tabs button.active { background: var(--on-chrome); color: var(--chrome); }
 .badge { font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; white-space: nowrap; border: none; cursor: pointer; }
 .settings-btn { border: 1px solid var(--border); background: var(--panel-2); border-radius: 8px; padding: 6px 12px; font-size: 14px; font-weight: 600; }
 .settings-btn:hover, .icon-btn:hover { border-color: var(--accent); }
+.topbar .settings-btn, .topbar .icon-btn { background: transparent; border-color: var(--chrome-line); color: var(--on-chrome); }
+.topbar .settings-btn:hover, .topbar .icon-btn:hover { border-color: var(--on-chrome); }
 .badge.live { background: var(--ok-soft); color: var(--ok); }
 .badge.mock { background: var(--warn-soft); color: var(--warn); }
 .badge.offline { background: var(--bad-soft); color: var(--bad); }

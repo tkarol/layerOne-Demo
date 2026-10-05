@@ -1,4 +1,4 @@
-# LayerOne Demo
+# Vellox LayerOne Demo
 
 A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. It has two tabs:
 
@@ -18,6 +18,13 @@ Everything ships as **one Cloudflare Worker**: the page, the backend, and the st
 ![Endpoints and request/response lanes](docs/endpoints.png)
 
 ![Settings panel](docs/settings.png)
+
+## Branding
+
+The demo shell (header, tabs, buttons, Settings) uses a monochrome Booz Allen look: black and white, with a text lockup **Booz Allen | Vellox LayerOne**. Green, amber and red are kept, because they carry meaning (allowed, removed, blocked). The sample apps keep their own fictional brands.
+
+* **Official logo:** save the white (reversed) Booz Allen logo as `public/brand/logo.svg`. It replaces the text wordmark automatically; until then, the text is shown. Use the approved file from Booz Allen's brand team rather than a recreation.
+* **Colors:** the tokens at the top of `public/styles.css` (`--chrome`, `--accent`, and the rest) control the whole shell, with separate values for dark mode.
 
 ## Deploy to Cloudflare
 
