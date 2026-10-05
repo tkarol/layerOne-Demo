@@ -215,6 +215,7 @@ body.present .story, body.present .email-body, body.present .ai-output, body.pre
 
 .data-grid { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(0, 1.25fr); gap: 20px; align-items: start; }
 .assistant, .db, .db-log { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--panel); min-width: 0; }
+.db { border: none; background: none; padding: 0 4px; }
 .assistant h3, .db h3, .db-log h3 { margin: 0 0 6px; font-size: 16px; }
 .small { font-size: 13px; }
 .chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 8px 0 10px; }
@@ -416,3 +417,16 @@ body.present .story, body.present .email-body, body.present .ai-output, body.pre
   .cbubble { max-width: 92%; }
   .cx-check { margin: 0; }
 }
+
+/* Customer Hub: the table is drawn inside a database cylinder */
+.db-icon { width: 1.1em; height: 1.1em; vertical-align: -0.18em; flex: none; }
+.ticon .db-icon { width: 22px; height: 22px; }
+.db-cyl { --edge: #64748b; --cap: color-mix(in srgb, #64748b 24%, var(--panel)); --body: color-mix(in srgb, #64748b 10%, var(--panel)); margin: 6px 0 12px; transition: filter 0.3s; }
+.db-cyl.hit { --edge: var(--bad); --cap: color-mix(in srgb, var(--bad) 22%, var(--panel)); --body: color-mix(in srgb, var(--bad) 8%, var(--panel)); }
+.db-cap { position: relative; z-index: 1; height: 64px; border: 2px solid var(--edge); border-radius: 50%; background: var(--cap); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; color: var(--text); }
+.db-cap .db-icon { width: 22px; height: 22px; color: var(--edge); }
+.db-cap b { text-transform: uppercase; letter-spacing: 0.08em; font-size: 13px; }
+.db-cap span { color: var(--muted); font-size: 13px; }
+.db-body { margin-top: -32px; padding: 42px 14px 40px; background: var(--body); border: 2px solid var(--edge); border-top: none; border-radius: 0 0 50% 50% / 0 0 30px 30px; }
+.db-body .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 2px 6px; }
+.db-body .db-table tr:last-child td { border-bottom: none; }
