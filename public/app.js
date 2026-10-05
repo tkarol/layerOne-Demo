@@ -22,7 +22,11 @@ const codeBlock = (v) => `<pre class="code">${highlightJson(v ?? null)}</pre>`;
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+  if (!res.ok) {
+    const err = new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
@@ -473,14 +477,23 @@ function fillForm(st) {
   f.clearApiKey.checked = false;
   $('#clearKeyRow').hidden = !st.apiKeySet;
   $('#settingsLocked').hidden = !st.locked;
+  $('#settingsLocked').textContent = st.lockedReason || 'Settings are locked on this server (ALLOW_UI_SETTINGS=false).';
   for (const el of f.querySelectorAll('input, #settingsSave, #settingsTest, #settingsReset')) el.disabled = st.locked;
   $('#testResult').hidden = true;
   showErrors();
   updatePreview();
 }
 
+const RESTART_MSG = 'The demo server is running an older version than this page, so Settings is not available yet. Stop the server (Ctrl+C) and run npm start again, then reload this page.';
+
 async function openSettings() {
-  fillForm(await api('/api/settings'));
+  try {
+    fillForm(await api('/api/settings'));
+  } catch (err) {
+    // Still open the panel, read-only, and say why, rather than failing silently.
+    const c = state.config || {};
+    fillForm({ mode: c.mode || 'mock', chatPath: '', model: c.model || '', authHeader: c.authHeader || '', locked: true, lockedReason: err.status === 404 ? RESTART_MSG : `Could not load settings from the server: ${err.message}` });
+  }
   $('#settings').showModal();
 }
 
@@ -625,6 +638,14 @@ async function init() {
   [state.config, state.scenarios, state.history] = await Promise.all([api('/api/config'), api('/api/scenarios'), api('/api/traces')]);
 
   renderConfig();
+  // Catch a server that was not restarted after an update (new page, old API).
+  api('/api/settings').catch((err) => {
+    if (err.status !== 404) return;
+    const note = $('#modeNote');
+    note.hidden = false;
+    note.className = 'mode-note bad';
+    note.textContent = RESTART_MSG;
+  });
 
   renderExamples();
   renderHistory();
