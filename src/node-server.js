@@ -46,6 +46,7 @@ export function createServer({ env = process.env } = {}) {
   const storage = new FileStorage({
     settingsFile: env.SETTINGS_FILE || path.join(ROOT, 'data', 'settings.json'),
     tracesFile: env.TRACE_FILE || path.join(ROOT, 'data', 'traces.jsonl'),
+    kvFile: env.PROFILES_FILE || path.join(ROOT, 'data', 'profiles.json'),
   });
   const handle = createApp({ env, storage });
 

@@ -3,7 +3,7 @@
 // anything else so the platform can serve the static page from /public.
 import { envConfig, mergeSaved, publicConfig } from './config.js';
 import { SCENARIOS } from './scenarios.js';
-import { publicApps, findWorkflow } from './sample-apps.js';
+import { publicApps, findWorkflow, getActiveProfile, listProfiles, validateProfile } from './profiles.js';
 import { createTrace, runWorkflow } from './workflow.js';
 import { handleMockChat } from './mock-layerone.js';
 import { handleMockModel, handleMockJudge } from './mock-model.js';
@@ -90,6 +90,15 @@ export function createApp({ env, storage }) {
     });
   }
 
+  // Changing settings or customer profiles honors ALLOW_UI_SETTINGS and SETTINGS_PASSWORD.
+  function checkChangeAllowed(request, cfg) {
+    if (cfg.settingsLocked) return json(403, { error: 'Settings are locked on this server (ALLOW_UI_SETTINGS=false)' });
+    if (cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
+      return json(401, { error: 'Enter the settings password to make changes', passwordRequired: true });
+    }
+    return null;
+  }
+
   async function handle(request, { waitUntil } = {}) {
     const url = new URL(request.url);
     const { pathname } = url;
@@ -101,8 +110,8 @@ export function createApp({ env, storage }) {
       if (method === 'POST' && pathname.startsWith('/mock/layerone/')) {
         return handleMockChat(request, { origin, fetchFn: makeFetch(origin), storage });
       }
-      if (method === 'POST' && pathname.startsWith('/mock/model/')) return handleMockModel(request);
-      if (method === 'POST' && pathname.startsWith('/mock/judge/')) return handleMockJudge(request);
+      if (method === 'POST' && pathname.startsWith('/mock/model/')) return handleMockModel(request, { storage });
+      if (method === 'POST' && pathname.startsWith('/mock/judge/')) return handleMockJudge(request, { storage });
 
       if (!pathname.startsWith('/api/')) return null;
 
@@ -115,10 +124,8 @@ export function createApp({ env, storage }) {
         const cfg = await currentConfig();
         const saved = await storage.getSettings();
         if (method === 'GET' && pathname === '/api/settings') return json(200, publicSettings(cfg, origin, { savedInUi: Boolean(saved) }));
-        if (cfg.settingsLocked) return json(403, { error: 'Settings are locked on this server (ALLOW_UI_SETTINGS=false)' });
-        if (cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
-          return json(401, { error: 'Enter the settings password to make changes', passwordRequired: true });
-        }
+        const denied = checkChangeAllowed(request, cfg);
+        if (denied) return denied;
         if (method === 'POST' && pathname === '/api/settings/test') {
           return json(200, await testConnection(await readJson(request), cfg, { origin, fetchFn: makeFetch(origin) }));
         }
@@ -143,10 +150,47 @@ export function createApp({ env, storage }) {
       }
 
       // ----- Sample applications -----
-      if (pathname === '/api/apps' && method === 'GET') return json(200, publicApps());
+      if (pathname === '/api/apps' && method === 'GET') {
+        // ?default=1 returns the un-customized apps (used as defaults in the Customize dialog).
+        return json(200, publicApps(url.searchParams.get('default') ? null : await getActiveProfile(storage)));
+      }
+
+      // ----- Customer profiles (white-labeling) -----
+      if (pathname === '/api/profiles' || pathname.startsWith('/api/profiles/')) {
+        const cfg = await currentConfig();
+        const id = pathname.split('/')[3];
+        if (method === 'GET' && !id) {
+          return json(200, { active: (await storage.getKV('profile:active')) || null, profiles: await listProfiles(storage), locked: cfg.settingsLocked, passwordRequired: Boolean(cfg.settingsPassword) });
+        }
+        if (method === 'GET') {
+          const profile = await storage.getKV(`profile:${id}`);
+          return profile ? json(200, profile) : json(404, { error: 'Profile not found' });
+        }
+        const denied = checkChangeAllowed(request, cfg);
+        if (denied) return denied;
+        if (id === 'active' && method === 'PUT') {
+          const { id: activeId } = await readJson(request);
+          if (activeId && !(await storage.getKV(`profile:${activeId}`))) return json(404, { error: 'Profile not found' });
+          if (activeId) await storage.putKV('profile:active', activeId);
+          else await storage.deleteKV('profile:active');
+          return json(200, { active: activeId || null });
+        }
+        if ((method === 'POST' && !id) || (method === 'PUT' && id)) {
+          if (id && !(await storage.getKV(`profile:${id}`))) return json(404, { error: 'Profile not found' });
+          const { profile, errors, ok } = validateProfile(await readJson(request), id);
+          if (!ok) return json(400, { error: 'Some fields are invalid', errors });
+          await storage.putKV(`profile:${profile.id}`, profile);
+          return json(200, profile);
+        }
+        if (method === 'DELETE' && id) {
+          await storage.deleteKV(`profile:${id}`);
+          if ((await storage.getKV('profile:active')) === id) await storage.deleteKV('profile:active');
+          return json(200, { ok: true });
+        }
+      }
       if (pathname === '/api/app/run' && method === 'POST') {
         const body = await readJson(request);
-        const found = findWorkflow(body.app, body.workflow);
+        const found = findWorkflow(body.app, body.workflow, await getActiveProfile(storage));
         if (!found) return json(404, { error: 'Unknown sample app or workflow' });
         const cfg = await currentConfig();
         const { app, workflow } = found;
@@ -164,6 +208,7 @@ export function createApp({ env, storage }) {
             system: app.system,
             model: ai.model,
             maxTokens: ai.maxTokens,
+            demoWorkflow: `${app.id}:${workflow.id}`,
           },
           cfg,
           origin,

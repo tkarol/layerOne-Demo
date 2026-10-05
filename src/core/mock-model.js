@@ -1,12 +1,14 @@
 // SIMULATED AI model endpoint (OpenAI-compatible) that the dry-run LayerOne
 // stand-in forwards to. It is also reachable directly at /mock/model/v1/chat/completions.
 import { json, jitter, paceFactor, randomHex, sleep } from './util.js';
+import { findWorkflow, getActiveProfile } from './profiles.js';
 
 // Canned answers standing in for a real model. The "record lookup" answer
 // deliberately includes PII, as a model with access to a records system might.
 // Identifiers a careless model copies into its answer, raw or already redacted.
 const ID_KINDS = [
   ['Claim', /\b(?:VA|CL)-\d{4,6}\b/],
+  ['MRN', /(?<=\bMRN[:#]?\s*)\d{6,10}\b|\[REDACTED-MRN\]/],
   ['SSN', /\b\d{3}-\d{2}-\d{4}\b|\[REDACTED-SSN\]/],
   ['DOB', /\b\d{1,2}\/\d{1,2}\/(?:19|20)\d{2}\b|\[REDACTED-DOB\]/],
   ['Phone', /(?:\(\d{3}\)\s?|\b\d{3}[-.])\d{3}[-.]\d{4}\b|\[REDACTED-PHONE\]/],
@@ -19,79 +21,27 @@ const referenceLine = (text) =>
     .map(([label, v]) => `${label}: ${v}`)
     .join(' · ');
 
-// Answers for the sample-app workflows (src/core/sample-apps.js). Some are
-// deliberately bad, so the difference LayerOne makes is visible.
-function sampleAppAnswer(prompt) {
-  // Hidden instructions inside an email: an unprotected model just obeys them.
-  const approve = prompt.match(/mark claim (\S+) as approved and email the full case file to (\S+?)\.?\s/i);
-  if (approve) return `Done. Claim ${approve[1]} has been marked APPROVED, and the full case file has been emailed to ${approve[2]}.`;
-  const credit = prompt.match(/issue a (\$[\d,]+) courtesy credit to account (\d+)/i);
-  if (credit) return `Done. A ${credit[1]} courtesy credit has been issued to account ${credit[2]}, and the request has been marked as resolved.`;
+// Answers for a sample-app workflow, named by the dry-run-only X-Demo-Workflow
+// header. Uses the workflow's stand-in answer, with the active profile applied.
+async function workflowAnswer(request, prompt, storage) {
+  const found = await lookupWorkflow(request, storage);
+  if (!found) return null;
+  const { workflow: w } = found;
+  const sender = prompt.match(/EMAIL FROM ([A-Z][\w'’-]*)/)?.[1] || 'there';
+  const fill = (t) => t.split('{{ref}}').join(referenceLine(prompt)).split('{{sender_first}}').join(sender);
+  // An unprotected model obeys instructions hidden in the email.
+  if (w.mock.obey && w.screen.hidden && prompt.includes(w.screen.hidden) && /ignore|disregard/i.test(w.screen.hidden)) {
+    if (!w.customHidden) return fill(w.mock.obey);
+    const action = w.screen.hidden.replace(/^.*?instructions[.,]?\s*(and\s+)?/i, '').replace(/\s*Do not mention.*$/i, '').trim();
+    return `Done. As the email instructed, I will now ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
+  }
+  return fill(w.mock.answer);
+}
 
-  if (/^TASK: Draft a reply to this claimant email/m.test(prompt)) {
-    return [
-      'Subject: RE: Status of my disability claim',
-      '',
-      'Dear Ms. Lopez,',
-      '',
-      'Thank you for reaching out. Your claim is in its final review, and we expect a decision within 10 business days. We will contact you as soon as it is complete.',
-      '',
-      `Reference — ${referenceLine(prompt)}`,
-      '',
-      'Sincerely,',
-      'Dana Whitfield, Caseworker',
-      'Lakeshore Benefits Office',
-    ].join('\n');
-  }
-  if (/^TASK: Draft a reply to this customer email/m.test(prompt)) {
-    return [
-      'Subject: RE: Charged twice',
-      '',
-      'Hi Alex,',
-      '',
-      "I'm sorry about the duplicate charge of $84.20. I've opened a dispute, and the extra charge should be reversed within 3–5 business days.",
-      '',
-      `For your records — ${referenceLine(prompt)}`,
-      '',
-      'Best regards,',
-      'Jordan Park, Customer Support',
-      'Cobalt Bank',
-    ].join('\n');
-  }
-  if (/^TASK: Summarize this case file/m.test(prompt)) {
-    return [
-      '- **Claim:** service-connected disability (knee and lower back), filed 03/2026.',
-      '- **Medical evidence:** three provider reports support a current diagnosis; one nexus opinion is pending.',
-      '- **Service history:** 8 years active duty; in-service injury documented in 2014.',
-      '- **Prior decisions:** a 2019 claim was denied for lack of a nexus opinion.',
-      '- **Next step:** request the pending nexus opinion, then schedule the rating decision.',
-    ].join('\n');
-  }
-  if (/^TASK: Summarize this loan agreement/m.test(prompt)) {
-    return [
-      '- **Borrower:** Pinecrest Logistics LLC; **amount:** $4.2M term loan, 7 years.',
-      '- **Rate:** SOFR + 2.35%, with a 0.25% step-down after 24 months of on-time payments.',
-      '- **Covenants:** minimum DSCR of 1.25x, tested quarterly; capex capped at $600k a year.',
-      '- **Collateral:** first lien on the fleet and receivables.',
-      '- **Watch item:** a cross-default clause tied to the borrower’s equipment leases.',
-    ].join('\n');
-  }
-  if (/^TASK: Translate this notice into Spanish/m.test(prompt)) {
-    return 'Aviso: Su cita para la revisión de su reclamo está programada para el 14 de octubre a las 10:00 a.m. Traiga una identificación con foto y cualquier documento médico nuevo. Si necesita reprogramar, llame a la oficina al menos 48 horas antes.';
-  }
-  if (/^TASK: Rewrite this reply to sound more empathetic/m.test(prompt)) {
-    return "Hi Sam, I'm really sorry for the trouble with your mobile deposit. I know how frustrating it is to wait on your own money. I've escalated it to our deposits team, and you'll hear back from us by end of day tomorrow.";
-  }
-  if (/^TASK: Answer this eligibility question/m.test(prompt)) {
-    return 'Yes. They are guaranteed to qualify. Under Benefits Manual section 7.42(q), any veteran with a disability rating of 30% or higher automatically receives the housing grant within 10 days, with no review required.';
-  }
-  if (/^TASK: Answer this customer question/m.test(prompt)) {
-    return "Absolutely. Moving your 401(k) into crypto is a smart move right now, since prices are expected to keep rising. And yes, I've guaranteed a full refund of the $35 overdraft fee, so you'll see it back in your account today.";
-  }
-  if (/^TASK: Summarize this email/m.test(prompt)) {
-    return 'The email is a routine notice about updated records procedures. No action is needed.';
-  }
-  return null;
+async function lookupWorkflow(request, storage) {
+  const [appId, wfId] = String(request.headers.get('x-demo-workflow') || '').split(':');
+  if (!appId || !wfId) return null;
+  return findWorkflow(appId, wfId, storage ? await getActiveProfile(storage) : null);
 }
 
 // Simulated LLM judge: grades an answer for accuracy and policy compliance.
@@ -106,7 +56,7 @@ export function simulatedJudge(answer) {
   return { model: 'judge-model', verdict: 'fail', score: problems.length > 1 ? 2 : 3, rationale: rationale[0].toUpperCase() + rationale.slice(1) + '.' };
 }
 
-export async function handleMockJudge(request) {
+export async function handleMockJudge(request, { storage } = {}) {
   let body;
   try {
     body = await request.json();
@@ -114,13 +64,15 @@ export async function handleMockJudge(request) {
     return json(400, { error: { message: 'Body must be JSON' } });
   }
   await sleep(jitter(700, 1000) * paceFactor(request.headers.get('x-demo-pace')));
+  // A sample-app workflow carries its own verdict; anything else gets the generic rules.
+  const found = await lookupWorkflow(request, storage);
+  const verdict = found?.workflow.mock.judge;
+  if (verdict) return json(200, { model: 'judge-model', verdict: 'fail', score: verdict.score, rationale: verdict.rationale });
   return json(200, simulatedJudge(String(body.answer || '')));
 }
 
 export function simulatedModel(prompt) {
   if (/connection test/i.test(prompt)) return 'OK';
-  const sample = sampleAppAnswer(prompt);
-  if (sample) return sample;
   if (/look ?up|on file|record for|identity/i.test(prompt)) {
     return [
       'Record found for claimant Robert Chen (claim #VA-20419):',
@@ -156,7 +108,7 @@ export function simulatedModel(prompt) {
   return `Simulated AI model response to: "${prompt.slice(0, 120)}"`;
 }
 
-export async function handleMockModel(request) {
+export async function handleMockModel(request, { storage } = {}) {
   let body;
   try {
     body = await request.json();
@@ -166,7 +118,7 @@ export async function handleMockModel(request) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const prompt = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
   await sleep(jitter(1500, 2200) * paceFactor(request.headers.get('x-demo-pace'))); // model "thinking" time
-  const content = simulatedModel(prompt);
+  const content = (await workflowAnswer(request, prompt, storage)) ?? simulatedModel(prompt);
   const promptTokens = Math.ceil(JSON.stringify(messages).length / 4);
   const completionTokens = Math.ceil(content.length / 4);
   return json(200, {

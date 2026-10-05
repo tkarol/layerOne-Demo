@@ -16,13 +16,14 @@ const estimateTokens = (text) => Math.ceil(text.length / 4);
 const PII_PATTERNS = [
   { kind: 'CARD', label: 'card number', re: /\b(?:\d{4}[ -]){3}\d{4}\b/g },
   { kind: 'ACCOUNT', label: 'account number', re: /(?<=\b(?:account|acct)(?:\s*(?:number|no\.?|#))?(?:\s+is)?\s*[:#]?\s*)\d{8,12}\b/gi },
+  { kind: 'MRN', label: 'medical record number', re: /(?<=\bMRN[:#]?\s*)\d{6,10}\b/g },
   { kind: 'SSN', label: 'Social Security number', re: /\b\d{3}-\d{2}-\d{4}\b/g },
   { kind: 'DOB', label: 'date of birth', re: /\b(0?[1-9]|1[0-2])\/(0?[1-9]|[12]\d|3[01])\/(19|20)\d{2}\b/g },
   { kind: 'PHONE', label: 'phone number', re: /(?:\(\d{3}\)\s?|\b\d{3}[-.])\d{3}[-.]\d{4}\b/g },
   { kind: 'EMAIL', label: 'email address', re: /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g },
 ];
 const INJECTION = /\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,40}\b(instructions?|rules?|prompts?)\b|reveal (your|the) system prompt/i;
-const MARKING = /\b(TOP SECRET|SECRET|CONFIDENTIAL)\s*\/\/|\b(NOFORN|TS\/\/SCI|ORCON)\b/;
+const MARKING = /\b(?:TOP SECRET|SECRET|CONFIDENTIAL)\s*\/\/[A-Z/ -]*|\b(?:NOFORN|TS\/\/SCI|ORCON)\b|\bCUI(?:\/\/[A-Z-]+)?\b/;
 const BULK_PII = /\b(all|every|each|list|export|dump|download)\b.{0,60}\b(ssns?|social security( numbers?)?)\b/i;
 
 // Replace every PII match with a [REDACTED-KIND] token and describe what was removed.
@@ -99,13 +100,13 @@ function requestPolicies(text, body) {
     detail: injected ? 'Tried to override the AI’s instructions' : 'No trick attempts found',
   });
 
-  const marked = MARKING.test(text);
+  const marking = text.match(MARKING)?.[0]?.trim();
   policies.push({
     id: 'L1-IN-002',
-    name: 'Classified information',
+    name: 'Classified and CUI markings',
     stage: 'input',
-    result: marked ? 'block' : 'pass',
-    detail: marked ? 'Classification marking found; this AI model is not approved for classified data' : 'No classification markings',
+    result: marking ? 'block' : 'pass',
+    detail: marking ? `Found the marking "${marking}"; this AI model is not authorized for classified or controlled (CUI) data` : 'No classification or CUI markings',
   });
 
   return { policies, sanitized: pii.text };
@@ -146,6 +147,8 @@ async function sealRecord(fields, storage) {
 export async function handleMockChat(request, { origin, fetchFn, storage }) {
   const started = Date.now();
   const pace = request.headers.get('x-demo-pace') || 'normal';
+  // Dry run only: which sample-app step this is, so the stand-in model and judge answer for it.
+  const demo = request.headers.get('x-demo-workflow') ? { 'X-Demo-Workflow': request.headers.get('x-demo-workflow') } : {};
   const wait = (min, max) => sleep(jitter(min, max) * paceFactor(pace));
   const requestId = `l1req_${randomHex(6)}`;
   const evidenceId = `ev_${randomHex(8)}`;
@@ -212,7 +215,7 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
   try {
     upstreamRes = await fetchFn(upstreamUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Demo-Pace': pace },
+      headers: { 'Content-Type': 'application/json', 'X-Demo-Pace': pace, ...demo },
       body: JSON.stringify({ ...body, messages: messages.map((m) => (m.role === 'user' ? { ...m, content: sanitized } : m)) }),
     });
     upstreamBody = await upstreamRes.json();
@@ -237,7 +240,7 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
   try {
     const jr = await fetchFn(judgeUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Demo-Pace': pace },
+      headers: { 'Content-Type': 'application/json', 'X-Demo-Pace': pace, ...demo },
       body: JSON.stringify({ model: 'judge-model', question: sanitized, answer: checked.output }),
     });
     judge = { method: 'POST', url: judgeUrl, ...(await jr.json()), status: jr.status, latency_ms: Date.now() - judgeStarted };

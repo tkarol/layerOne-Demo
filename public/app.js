@@ -477,7 +477,7 @@ function renderHistory() {
       const o = h.status === 'running' ? 'running' : h.status === 'error' && h.decision !== 'blocked' ? 'error' : h.decision || h.status;
       return `<li data-id="${esc(h.id)}" class="${h.id === state.selectedId ? 'selected' : ''}">
         <span class="pill ${esc(o)}">${esc(OUTCOME_LABEL[o] || o)}</span>
-        <span class="txt">${h.app ? `<span class="tag">${esc(h.app === 'bank' ? 'Cobalt Bank' : 'Lakeshore')}${h.bypass ? ' · OFF' : ''}</span>` : ''}${esc(h.prompt)}</span>
+        <span class="txt">${h.app ? `<span class="tag">${esc({ benefits: 'Public sector', bank: 'Banking', health: 'Healthcare', defense: 'Defense' }[h.app] || h.app)}${h.bypass ? ' · OFF' : ''}</span>` : ''}${esc(h.prompt)}</span>
         <time>${fmtTime(h.createdAt)}</time>
       </li>`;
     })

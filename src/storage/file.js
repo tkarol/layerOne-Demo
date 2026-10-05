@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export class FileStorage {
-  constructor({ settingsFile, tracesFile }) {
+  constructor({ settingsFile, tracesFile, kvFile }) {
     this.settingsFile = settingsFile;
     this.tracesFile = tracesFile;
+    this.kvFile = kvFile || path.join(path.dirname(settingsFile), 'profiles.json');
+    this.kv = fs.existsSync(this.kvFile) ? JSON.parse(fs.readFileSync(this.kvFile, 'utf8') || '{}') : {};
     this.traces = new Map();
     this.chainHead = null;
     if (fs.existsSync(tracesFile)) {
@@ -51,6 +53,29 @@ export class FileStorage {
   async clearTraces() {
     this.traces.clear();
     if (fs.existsSync(this.tracesFile)) fs.writeFileSync(this.tracesFile, '');
+  }
+
+  // Small key/value store for customer profiles (white-labeling).
+  saveKV() {
+    fs.mkdirSync(path.dirname(this.kvFile), { recursive: true });
+    fs.writeFileSync(this.kvFile, JSON.stringify(this.kv, null, 2));
+  }
+  async getKV(key) {
+    return this.kv[key] ?? null;
+  }
+  async putKV(key, value) {
+    this.kv[key] = value;
+    this.saveKV();
+  }
+  async deleteKV(key) {
+    delete this.kv[key];
+    this.saveKV();
+  }
+  async listKV(prefix) {
+    return Object.entries(this.kv)
+      .filter(([k]) => k.startsWith(prefix))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
   }
 
   async getChainHead() {

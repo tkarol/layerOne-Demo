@@ -2,12 +2,16 @@
 
 A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. It has two tabs:
 
-* **Sample apps:** two everyday work tools, one public sector and one commercial, whose AI features run through LayerOne. Switch LayerOne **off**, or use **Compare**, to show what changes for the employee.
+* **Sample apps:** four everyday work tools (public sector, banking, healthcare, defense) whose AI features run through LayerOne. Switch LayerOne **off**, use **Compare**, or **Play the day** hands-free, and white-label it all for a specific customer.
 * **Behind the scenes:** the mechanics of any request. It shows both endpoints in the chain, traces every hop in both directions, shows LayerOne's checks and audit record, and keeps a history of every run.
 
-Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings and history. There is no separate server to run.
+Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings, customer profiles and history. There is no separate server to run.
 
 ![Sample app: Compare with and without LayerOne](docs/sample-apps.png)
+
+![White-labeled for a customer](docs/white-label.png)
+
+![End-of-day summary after Play the day](docs/play-summary.png)
 
 ![Demo](docs/screenshot.png)
 
@@ -47,15 +51,16 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 
 ## Sample apps
 
-Each app walks through one employee's day. Every step is a real AI feature in the app, and each one exercises a different LayerOne policy:
+Four everyday work tools, one per industry. Each walks through one employee's day, and every step is an AI feature that exercises a different LayerOne policy:
 
-| Time | Lakeshore Benefits Office (public sector): Dana, caseworker | Cobalt Bank (commercial): Jordan, support specialist | LayerOne policy | With LayerOne | Without LayerOne |
-| --- | --- | --- | --- | --- | --- |
-| 9:00 | Reply to a claimant whose email includes an SSN, DOB and phone | Reply to a dispute that includes a card number, account number and phone | **Regex / pattern match** | Personal data removed before the AI sees it | The AI receives it and copies it into the draft |
-| 10:30 | Summarize a 120-page case file | Summarize a 96-page loan agreement | **Max tokens** | Blocked: about 20k tokens against an 8k limit | The whole document is sent, with no size or cost limit |
-| 1:00 | Switch the model picker to DeepSeek-R1 | Same | **Model denylist** | Blocked; the approved model goes through | Data goes to the unapproved model |
-| 2:30 | Eligibility question; the AI cites a rule that doesn't exist and promises approval | Customer question; the AI gives crypto advice and promises a refund | **LLM judge** | A judge model scores the answer and holds it for review | The bad answer is shown as fact |
-| 3:30 | Summarize an email with hidden instructions (approve a claim, send the file to Gmail) | Same (issue a $5,000 credit) | **Prompt injection** | Blocked | The AI "obeys" the hidden text |
+| App (fictional) | Employee | Regex / pattern match | Max tokens | Model denylist | LLM judge | Prompt injection |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Lakeshore Benefits Office** (public sector) | Dana, caseworker | Claimant email with SSN, DOB, phone | 120-page case file | DeepSeek-R1 for a translation | Made-up eligibility rule and a guaranteed approval | Hidden text: approve a claim, email the file to Gmail |
+| **Cobalt Bank** (financial services) | Jordan, support specialist | Dispute with card number, account number, phone | 96-page loan agreement | DeepSeek-R1 for a rewrite | Crypto advice and a promised refund | Hidden text: issue a $5,000 credit |
+| **Riverside Health** (healthcare) | Priya, nurse care coordinator | Patient message with MRN, DOB, phone (PHI) | 200-page patient chart | DeepSeek-R1 for discharge instructions | "Ibuprofen is safe with warfarin" | Hidden text in a referral fax: send the chart out |
+| **Northfield Systems** (defense & aerospace) | Marcus, program analyst | Supplier email with a **CUI//SP-EXPT** marking (blocked) | 150-page test report | DeepSeek-R1 for a status update | An invented ITAR exemption | Hidden text: upload drawings to an outside account |
+
+With LayerOne the data is removed, the request is blocked, or the answer is held for review. Without it, the problem gets through, and the page says exactly what went wrong.
 
 * **LayerOne ON / OFF switch:** OFF sends the same request straight to the AI model, and a red ribbon makes that obvious. OFF runs appear in Behind the scenes with LayerOne marked *switched off*.
 * **Compare:** runs every action both ways, side by side.
@@ -63,11 +68,30 @@ Each app walks through one employee's day. Every step is a real AI feature in th
 * **Presenter notes** under each step give a one-line talk track for ON and OFF.
 * **Reveal hidden text** on the injection emails shows the audience the instruction the reader can't see.
 
-All organizations, people, cases and numbers are fictional. The apps are defined in [`src/core/sample-apps.js`](src/core/sample-apps.js) (story, screen content, the AI request each button sends, and the talk track), so they're easy to edit or extend.
+### Play the day
+
+**▶ Play <name>'s day** runs all five steps in order, hands-free. Each step shows a caption with the story, runs the AI action (in whatever mode is on, so turn on **⇆ Compare** first for the strongest version), then shows the talk track. It ends with an **end-of-day summary**: what LayerOne did at each step, next to what happened without it.
+
+* Controls: **⏸ Pause / ▶ Resume** (Space), **⏭ Next** (→), **■ Stop** (Esc).
+* Timing follows **Presentation pace** in Settings: on Normal, about 15 seconds per step.
+* **⛶ Present** switches to full screen and hides everything but the app, with larger text for a projector.
+
+### Customize for a customer (white-labeling)
+
+**🎨 Customize** creates **customer profiles**. Each profile has:
+
+* **Customer name:** shown as "Prepared for …" in the page and the browser tab.
+* **Which apps to show:** for example only Healthcare, or Banking and Public sector.
+* **Per app:** organization name, product name, employee name and role, **brand color**, and **logo** (upload a PNG/SVG/JPEG/WebP under 150 KB, or paste an https URL). Names carry through everywhere, including the AI's answers and email signatures. Text on the brand bar switches between light and dark to stay readable.
+* **✏️ Edit step:** rewrite any step's title, story, email (sender, subject, body, hidden text), document title or question in the customer's own terms. LayerOne's checks run on whatever you write. In Dry run, the stand-in AI's answer keeps its original wording, with the names updated.
+
+Profiles are saved on the server (in the Durable Object on Cloudflare). Switch between them from the **Profile** menu, or go back to the **Default demo**. **Export** saves a profile as a `.layerone-profile.json` file and **Import** loads one, so you can prepare a customer's demo ahead of time or share it with a colleague. Changing profiles is protected by `SETTINGS_PASSWORD` / `ALLOW_UI_SETTINGS`, like Settings.
+
+The apps are defined in [`src/core/sample-apps.js`](src/core/sample-apps.js) (story, screen content, the AI request each button sends, the stand-in answers and the talk track). Profiles are applied by [`src/core/profiles.js`](src/core/profiles.js).
 
 ### Sample apps in Dry run vs Live
 
-* **Dry run:** the built-in LayerOne stand-in implements all five policies. Its limits are an 8,000-token input cap and a denylist of `deepseek-r1`, `deepseek-chat`, `qwen-max` and `public-free-llm`. It calls a stand-in judge model (`/mock/judge/v1/evaluate`), which appears as its own hop in Behind the scenes. The stand-in model's answers are canned, and some are deliberately bad so the difference is visible.
+* **Dry run:** the built-in LayerOne stand-in implements all five policies (plus CUI/classification markings). Its limits are an 8,000-token input cap and a denylist of `deepseek-r1`, `deepseek-chat`, `qwen-max` and `public-free-llm`. It calls a stand-in judge model (`/mock/judge/v1/evaluate`), which appears as its own hop in Behind the scenes. The stand-in model's answers are canned, and some are deliberately bad so the difference is visible.
 * **Live, LayerOne ON:** the apps send real requests to your LayerOne gateway, with the model name and `max_tokens` set. What happens depends on the policies in your LayerOne tenant, so turn on the equivalent policies (PII patterns, token limit, model denylist, LLM judge, prompt-injection defense) and confirm with Booz Allen that the preview supports each one.
 * **Live, LayerOne OFF:** requests go to the **Direct AI model** set in Settings: any OpenAI-compatible endpoint, with its own key. Requests for a model the direct endpoint can't serve (e.g. DeepSeek), or no direct model at all, fall back to the built-in stand-in, and the result is labeled *simulated*.
 
@@ -200,7 +224,9 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | Path | |
 | --- | --- |
 | `public/` | The page, served as static assets: `sample.js` (Sample apps tab), `app.js` (Behind the scenes and Settings) |
-| `src/core/sample-apps.js` | The two sample apps and their workflows |
+| `src/core/sample-apps.js` | The four sample apps and their workflows |
+| `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
+| `public/customize.js` | The Customize dialog |
 | `src/worker.js` | Cloudflare Worker entry + Durable Object storage |
 | `src/core/` | The backend, shared by the Worker and the local server: routing, LayerOne adapter, workflow, settings, dry-run stand-ins |
 | `src/node-server.js`, `src/storage/file.js` | Optional local server for testing on your own machine |
@@ -211,7 +237,8 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | Route | |
 | --- | --- |
 | `POST /api/run` `{prompt, scenario?}` | Run a request; streams trace snapshots as server-sent events |
-| `GET /api/apps` | The sample apps and their workflows (for the UI) |
+| `GET /api/apps` | The sample apps as the active customer profile presents them (`?default=1` for the originals) |
+| `GET /api/profiles` · `POST /api/profiles` · `GET`/`PUT`/`DELETE /api/profiles/:id` · `PUT /api/profiles/active` | Customer profiles |
 | `POST /api/app/run` `{app, workflow, protected, model?}` | Run a sample-app action with LayerOne on (`protected: true`) or off; streams like `/api/run` |
 | `GET /api/traces` · `GET /api/traces/:id` · `GET /api/traces/:id/export` · `DELETE /api/traces` | History |
 | `GET /api/config` | Mode, endpoints, model (no secrets) |

@@ -9,6 +9,7 @@ const env = {
   DEMO_PACE: 'fast',
   TRACE_FILE: path.join(os.tmpdir(), `layerone-demo-test-${process.pid}.jsonl`),
   SETTINGS_FILE: path.join(os.tmpdir(), `layerone-demo-test-settings-${process.pid}.json`),
+  PROFILES_FILE: path.join(os.tmpdir(), `layerone-demo-test-profiles-${process.pid}.json`),
 };
 const { createServer } = await import('../src/node-server.js');
 
@@ -168,9 +169,11 @@ async function appRun(app, workflow, prot = true, model) {
 const fired = (t) => Object.fromEntries((t.governance?.policies || []).filter((p) => p.result !== 'pass').map((p) => [p.id, p.result]));
 
 test('sample apps are listed without request builders or full documents', async () => {
-  const apps = await (await fetch(`${base}/api/apps`)).json();
-  assert.deepEqual(apps.map((a) => a.id), ['benefits', 'bank']);
+  const { apps, customer } = await (await fetch(`${base}/api/apps`)).json();
+  assert.equal(customer, null);
+  assert.deepEqual(apps.map((a) => a.id), ['benefits', 'bank', 'health', 'defense']);
   for (const a of apps) {
+    assert.equal(a.workflows[0].mock, undefined, 'stand-in answers stay on the server');
     assert.equal(a.workflows.length, 5);
     assert.ok(JSON.stringify(a).length < 40000, 'payload should not include the full long documents');
   }
@@ -183,13 +186,14 @@ test('each sample workflow triggers its LayerOne policy when protected', async (
     'unapproved-model': ['blocked', 'L1-IN-005', 'block'],
     'hidden-instructions': ['blocked', 'L1-IN-001', 'block'],
   };
-  for (const app of ['benefits', 'bank']) {
-    for (const [wf, [decision, id, result]] of Object.entries(expected)) {
+  const judgeStep = { benefits: 'eligibility', bank: 'advice', health: 'medication', defense: 'export-control' };
+  for (const app of Object.keys(judgeStep)) {
+    for (const [wf, [decision, id, result]] of Object.entries(app === 'defense' ? { ...expected, 'draft-reply': ['blocked', 'L1-IN-002', 'block'] } : expected)) {
       const t = await appRun(app, wf);
       assert.equal(t.governance.decision, decision, `${app}/${wf}`);
       assert.equal(fired(t)[id], result, `${app}/${wf}`);
     }
-    const judged = await appRun(app, app === 'bank' ? 'advice' : 'eligibility');
+    const judged = await appRun(app, judgeStep[app]);
     assert.equal(judged.governance.decision, 'held');
     assert.equal(fired(judged)['L1-OUT-003'], 'hold');
     assert.equal(judged.governance.judge.verdict, 'fail');
@@ -245,4 +249,69 @@ test('live mode with LayerOne off uses the direct model when set, otherwise a la
   assert.match(direct.request.headers.Authorization, /••••/);
   assert.equal(direct.status, 'error'); // nothing listens on port 9
   await fetch(`${base}/api/settings`, { method: 'DELETE' });
+});
+
+// ----- Customer profiles (white-labeling) -----
+const api = async (path, method = 'GET', body, headers = {}) => {
+  const res = await fetch(`${base}${path}`, { method, headers: { 'Content-Type': 'application/json', ...headers }, body: body ? JSON.stringify(body) : undefined });
+  return { status: res.status, data: await res.json() };
+};
+
+test('a customer profile renames, rebrands and filters the sample apps, and reaches the AI answers', async () => {
+  const bad = await api('/api/profiles', 'POST', { name: '', show: [], apps: { bank: { color: 'blue', logo: 'javascript:alert(1)' } } });
+  assert.equal(bad.status, 400);
+  assert.ok(bad.data.errors.name && bad.data.errors.show && bad.data.errors['bank.color'] && bad.data.errors['bank.logo']);
+
+  const created = await api('/api/profiles', 'POST', {
+    name: 'Acme Federal',
+    show: ['bank', 'benefits'],
+    apps: { bank: { org: 'Acme Credit Union', personName: 'Sam Ortiz', color: '#aa2244', logo: 'https://example.com/logo.png' } },
+  });
+  assert.equal(created.status, 200);
+  const id = created.data.id;
+  await api('/api/profiles/active', 'PUT', { id });
+
+  const { data: apps } = await api('/api/apps');
+  assert.equal(apps.customer.name, 'Acme Federal');
+  assert.deepEqual(apps.apps.map((a) => a.id), ['bank', 'benefits']);
+  const bank = apps.apps[0];
+  assert.equal(bank.org, 'Acme Credit Union');
+  assert.equal(bank.person.name, 'Sam Ortiz');
+  assert.equal(bank.person.initials, 'SO');
+  assert.equal(bank.brand.color, '#aa2244');
+  assert.match(bank.tagline, /Sam's support queue/);
+  const defaults = await api('/api/apps?default=1');
+  assert.equal(defaults.data.apps[1].org, 'Cobalt Bank');
+
+  // Names flow into the stand-in AI's answer.
+  const t = await appRun('bank', 'draft-reply');
+  assert.match(t.output, /Sam Ortiz, Customer support specialist\nAcme Credit Union/);
+
+  // Edited step text is what gets sent and checked.
+  const profile = (await api(`/api/profiles/${id}`)).data;
+  profile.steps = { 'bank:draft-reply': { body: 'My SSN is 987-65-4321, please call me.' } };
+  assert.equal((await api(`/api/profiles/${id}`, 'PUT', profile)).status, 200);
+  const edited = await appRun('bank', 'draft-reply');
+  assert.match(edited.prompt, /987-65-4321/);
+  assert.equal(edited.governance.decision, 'redacted');
+  assert.ok((await api('/api/apps')).data.apps[0].workflows[0].edited);
+
+  // Deleting the active profile goes back to the default demo.
+  await api(`/api/profiles/${id}`, 'DELETE');
+  const after = (await api('/api/apps')).data;
+  assert.equal(after.customer, null);
+  assert.equal(after.apps.length, 4);
+});
+
+test('SETTINGS_PASSWORD also protects customer profiles', async () => {
+  const locked = createServer({ env: { ...env, SETTINGS_PASSWORD: 'pw-1', SETTINGS_FILE: `${env.SETTINGS_FILE}.pw2`, PROFILES_FILE: `${env.SETTINGS_FILE}.profiles` } });
+  await new Promise((resolve) => locked.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${locked.address().port}/api/profiles`;
+  try {
+    assert.equal((await (await fetch(url)).json()).passwordRequired, true);
+    assert.equal((await fetch(url, { method: 'POST', body: JSON.stringify({ name: 'X' }) })).status, 401);
+    assert.equal((await fetch(url, { method: 'POST', headers: { 'X-Settings-Password': 'pw-1' }, body: JSON.stringify({ name: 'X' }) })).status, 200);
+  } finally {
+    locked.close();
+  }
 });

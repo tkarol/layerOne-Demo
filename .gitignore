@@ -2,6 +2,7 @@ node_modules/
 .env
 data/*.jsonl
 data/settings.json
+data/profiles.json
 .DS_Store
 .wrangler/
 .dev.vars

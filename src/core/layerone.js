@@ -8,7 +8,7 @@ const GOVERNANCE_HEADER = /^x-(layerone|vellox|l1|governance|policy|evidence|gua
 const SENSITIVE_HEADER = /(authorization|api[-_]?key|token|secret|cookie)/i;
 
 // `system`, `model` and `maxTokens` let the sample apps send their own request shape.
-export function buildRequest({ prompt, traceId, origin, system, model, maxTokens }, cfg) {
+export function buildRequest({ prompt, traceId, origin, system, model, maxTokens, demoWorkflow }, cfg) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -17,7 +17,10 @@ export function buildRequest({ prompt, traceId, origin, system, model, maxTokens
     ...cfg.extraHeaders,
   };
   // Dry run only: tell the built-in stand-ins how slowly to work. Never sent to LayerOne.
-  if (cfg.mode === 'mock') headers['X-Demo-Pace'] = cfg.pace || 'normal';
+  if (cfg.mode === 'mock') {
+    headers['X-Demo-Pace'] = cfg.pace || 'normal';
+    if (demoWorkflow) headers['X-Demo-Workflow'] = demoWorkflow;
+  }
   const key = cfg.mode === 'mock' ? DRY_RUN_KEY : cfg.apiKey;
   if (key) headers[cfg.authHeader] = cfg.authScheme ? `${cfg.authScheme} ${key}` : key;
   return {
@@ -39,7 +42,7 @@ export function buildRequest({ prompt, traceId, origin, system, model, maxTokens
 // The same request sent straight to an AI model, skipping LayerOne (sample apps,
 // LayerOne switched OFF). Uses the direct model from Settings in Live mode when it
 // can serve the requested model; otherwise the built-in stand-in model.
-export function buildDirectRequest({ prompt, traceId, origin, system, model, maxTokens }, cfg) {
+export function buildDirectRequest({ prompt, traceId, origin, system, model, maxTokens, demoWorkflow }, cfg) {
   const approved = !model || model === cfg.model;
   const real = cfg.mode === 'live' && cfg.directUrl && approved;
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Request-Id': traceId };
@@ -48,6 +51,7 @@ export function buildDirectRequest({ prompt, traceId, origin, system, model, max
     if (cfg.directApiKey) headers[cfg.directAuthHeader] = cfg.directAuthScheme ? `${cfg.directAuthScheme} ${cfg.directApiKey}` : cfg.directApiKey;
   } else {
     headers['X-Demo-Pace'] = cfg.pace || 'normal';
+    if (demoWorkflow) headers['X-Demo-Workflow'] = demoWorkflow;
     if (cfg.mode === 'live') {
       note = !cfg.directUrl
         ? 'Simulated: no direct AI model is set in Settings, so the built-in stand-in model answered.'

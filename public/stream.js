@@ -29,5 +29,5 @@ export async function readTraceStream(res, onTrace) {
 }
 
 // Personal data patterns, used to highlight what leaked (raw) or was removed (token).
-export const LEAK_RE = /\b(?:\d{4}[ -]){3}\d{4}\b|\b\d{3}-\d{2}-\d{4}\b|\b\d{1,2}\/\d{1,2}\/(?:19|20)\d{2}\b|(?:\(\d{3}\)\s?|\b\d{3}[-.])\d{3}[-.]\d{4}\b|(?<=\baccount(?:\s*number)?(?:\s+is)?\s*[:#]?\s*)\d{8,12}\b/gi;
+export const LEAK_RE = /\bCUI(?:\/\/[A-Z-]+)?\b|(?<=\bMRN[:#]?\s*)\d{6,10}\b|\b(?:\d{4}[ -]){3}\d{4}\b|\b\d{3}-\d{2}-\d{4}\b|\b\d{1,2}\/\d{1,2}\/(?:19|20)\d{2}\b|(?:\(\d{3}\)\s?|\b\d{3}[-.])\d{3}[-.]\d{4}\b|(?<=\baccount(?:\s*number)?(?:\s+is)?\s*[:#]?\s*)\d{8,12}\b/gi;
 export const REDACTED_RE = /\[REDACTED-[A-Z]+\]/g;

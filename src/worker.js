@@ -47,6 +47,21 @@ export class DemoStore extends DurableObject {
     await this.ctx.storage.put('traceCount', 0);
   }
 
+  // Small key/value store for customer profiles (white-labeling).
+  async getKV(key) {
+    return (await this.ctx.storage.get(`kv:${key}`)) ?? null;
+  }
+  async putKV(key, value) {
+    await this.ctx.storage.put(`kv:${key}`, value);
+  }
+  async deleteKV(key) {
+    await this.ctx.storage.delete(`kv:${key}`);
+  }
+  async listKV(prefix) {
+    const rows = await this.ctx.storage.list({ prefix: `kv:${prefix}` });
+    return [...rows.values()];
+  }
+
   async getChainHead() {
     return (await this.ctx.storage.get('chainHead')) ?? null;
   }
