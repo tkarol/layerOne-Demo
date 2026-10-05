@@ -15,6 +15,7 @@ async function call(path, method = 'GET', body) {
   const res = await fetch(`/api/data${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.errors ? Object.values(data.errors).join('; ') : data.error || res.statusText);
+  if (data.undo) s.undo = data.undo; // every response carries the latest undo state
   return data;
 }
 
@@ -39,7 +40,7 @@ export async function mountDataApp(options) {
   if (!s.loaded) {
     try {
       const data = await call('');
-      Object.assign(s, { rows: data.rows, log: data.log, suggestions: data.suggestions, rowLimit: data.rowLimit, loaded: true });
+      Object.assign(s, { rows: data.rows, log: data.log, suggestions: data.suggestions, rowLimit: data.rowLimit, undo: data.undo, loaded: true });
     } catch (err) {
       s.error = err.message;
     }
@@ -73,8 +74,9 @@ function draw() {
 
         <section class="db">
           <div class="db-head"><h3>🗄️ Customer database</h3><span class="db-tag">Web app → Database · LayerOne not involved</span>
-            <button class="link-btn" id="resetData">Reset sample data</button></div>
-          ${s.banner ? `<div class="db-banner">${esc(s.banner)} <button class="link-btn" id="dismissBanner">Dismiss</button></div>` : ''}
+            <span class="db-actions">${undoButton('undoData')}<button class="link-btn" id="resetData">Reset sample data</button></span></div>
+          ${s.banner ? `<div class="db-banner"><span>${esc(s.banner)}</span>${undoButton('undoBanner', 'Undo')}<button class="link-btn" id="dismissBanner">Dismiss</button></div>` : ''}
+          ${s.undone ? `<div class="db-undone">↶ Undid: ${esc(s.undone)}</div>` : ''}
           <div class="table-wrap"><table class="db-table">
             <thead><tr><th>Name</th><th>Phone</th><th>SSN</th><th>Plan / status</th><th>Notes</th><th></th></tr></thead>
             <tbody>${s.rows.map(drawRow).join('')}</tbody>
@@ -96,6 +98,30 @@ function draw() {
       </details>
     </div>`;
   wire();
+}
+
+function undoButton(id, text) {
+  const u = s.undo;
+  if (!u?.available) return id === 'undoData' ? '<button class="undo-btn" disabled title="Nothing to undo">↶ Undo</button>' : '';
+  const label = u.label.length > 60 ? `${u.label.slice(0, 60)}…` : u.label;
+  return `<button class="undo-btn" id="${id}" title="Undo: ${esc(u.label)} (${u.available} step${u.available === 1 ? '' : 's'} available)">↶ ${esc(text || `Undo: ${label}`)}</button>`;
+}
+
+async function undo() {
+  try {
+    const r = await call('/undo', 'POST', {});
+    s.banner = null;
+    s.undone = r.undone;
+    applyRows(r.rows, false);
+    s.log = r.log;
+    setTimeout(() => {
+      s.undone = null;
+      draw();
+    }, 4000);
+  } catch (err) {
+    alert(err.message);
+  }
+  draw();
 }
 
 function rowInputs(r) {
@@ -235,10 +261,11 @@ function wire() {
     const input = el.querySelector('#askInput');
     if (input.value.trim()) ask(input.value.trim());
   };
+  el.querySelectorAll('#undoData, #undoBanner').forEach((b) => (b.onclick = undo));
   el.querySelector('#resetData').onclick = async () => {
     if (!confirm('Reset the customer database to the sample data?')) return;
     const r = await call('/reset', 'POST', {});
-    Object.assign(s, { rows: r.rows, log: r.log, banner: null, turns: [] });
+    Object.assign(s, { rows: r.rows, log: r.log, banner: null, undone: null, turns: [] });
     draw();
   };
   el.querySelector('#dismissBanner')?.addEventListener('click', () => {

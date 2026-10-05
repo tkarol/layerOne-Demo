@@ -258,7 +258,14 @@ body.present .story, body.present .email-body, body.present .ai-output, body.pre
 .db-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .db-head h3 { margin: 0; }
 .db-tag { font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; }
-.db-head .link-btn { margin-left: auto; }
+.db-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.undo-btn { border: 1px solid var(--border); background: var(--panel-2); border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 700; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo-btn:hover:not(:disabled) { border-color: var(--accent); }
+.undo-btn:disabled { opacity: 0.45; cursor: default; }
+.db-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.db-banner span { flex: 1; min-width: 200px; }
+.db-banner .undo-btn { background: var(--panel); border-color: var(--bad); color: var(--bad); }
+.db-undone { background: var(--ok-soft); color: var(--ok); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 .db-banner { background: var(--bad-soft); color: var(--bad); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 .table-wrap { overflow-x: auto; }
 .db-table, .log-table, .mini { width: 100%; border-collapse: collapse; font-size: 13px; }

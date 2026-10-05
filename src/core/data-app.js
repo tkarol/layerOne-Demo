@@ -58,7 +58,28 @@ async function loadRows(storage) {
   await storage.putKV('data:rows', SEED);
   return structuredClone(SEED);
 }
-const saveRows = (storage, rows) => storage.putKV('data:rows', rows);
+const UNDO_DEPTH = 20;
+
+// Every change keeps a snapshot of the table as it was, so it can be undone.
+async function saveRows(storage, rows, label) {
+  if (label) {
+    const before = await loadRows(storage);
+    const stack = (await storage.getKV('data:undo')) || [];
+    stack.unshift({ label, rows: before, at: new Date().toISOString() });
+    await storage.putKV('data:undo', stack.slice(0, UNDO_DEPTH));
+  }
+  await storage.putKV('data:rows', rows);
+}
+
+async function undoInfo(storage) {
+  const stack = (await storage.getKV('data:undo')) || [];
+  return { available: stack.length, label: stack[0]?.label || null };
+}
+
+// The table, activity log and undo state, returned after every change.
+async function snapshot(storage) {
+  return { rows: await loadRows(storage), log: (await storage.getKV('data:log')) || [], undo: await undoInfo(storage) };
+}
 async function addLog(storage, entry) {
   const log = (await storage.getKV('data:log')) || [];
   log.unshift({ at: new Date().toISOString(), ...entry });
@@ -197,13 +218,23 @@ function answerFor(op, { result, affected, protectedRun, decision }) {
 export async function handleDataApi(request, { storage, pathname, method, readJson }) {
   const rest = pathname.replace(/^\/api\/data\/?/, '');
   if (method === 'GET' && rest === '') {
-    return json(200, { rows: await loadRows(storage), log: (await storage.getKV('data:log')) || [], suggestions: SUGGESTIONS, rowLimit: ROW_LIMIT });
+    return json(200, { ...(await snapshot(storage)), suggestions: SUGGESTIONS, rowLimit: ROW_LIMIT });
   }
   if (method === 'POST' && rest === 'reset') {
-    await saveRows(storage, structuredClone(SEED));
-    await storage.putKV('data:log', []);
+    await saveRows(storage, structuredClone(SEED), 'Reset sample data');
     await addLog(storage, { source: 'app', action: 'Reset the sample data', outcome: 'saved' });
-    return json(200, { rows: SEED, log: await storage.getKV('data:log') });
+    return json(200, await snapshot(storage));
+  }
+
+  // Undo the most recent change to the table, whoever made it.
+  if (method === 'POST' && rest === 'undo') {
+    const stack = (await storage.getKV('data:undo')) || [];
+    const last = stack.shift();
+    if (!last) return json(400, { error: 'Nothing to undo' });
+    await storage.putKV('data:undo', stack);
+    await saveRows(storage, last.rows);
+    await addLog(storage, { source: 'app', action: `Undo: ${last.label}`, outcome: 'restored' });
+    return json(200, { ...(await snapshot(storage)), undone: last.label });
   }
 
   // Direct edits from the web app: LayerOne is not involved.
@@ -216,23 +247,24 @@ export async function handleDataApi(request, { storage, pathname, method, readJs
       if (!ok) return json(400, { error: 'Some fields are invalid', errors });
       row.id = `r${randomHex(4)}`;
       rows.push(row);
-      await saveRows(storage, rows);
+      await saveRows(storage, rows, `Add ${row.name}`);
       await addLog(storage, { source: 'app', action: `INSERT INTO customers (${row.name})`, outcome: 'saved' });
     } else if (method === 'PUT' && id) {
       const i = rows.findIndex((r) => r.id === id);
       if (i < 0) return json(404, { error: 'Record not found' });
       const { row, errors, ok } = cleanRow(await readJson(request), rows[i]);
       if (!ok) return json(400, { error: 'Some fields are invalid', errors });
+      const was = rows[i].name;
       rows[i] = row;
-      await saveRows(storage, rows);
+      await saveRows(storage, rows, `Edit ${was}`);
       await addLog(storage, { source: 'app', action: `UPDATE customers (${row.name})`, outcome: 'saved' });
     } else if (method === 'DELETE' && id) {
       const row = rows.find((r) => r.id === id);
       if (!row) return json(404, { error: 'Record not found' });
-      await saveRows(storage, rows.filter((r) => r.id !== id));
+      await saveRows(storage, rows.filter((r) => r.id !== id), `Delete ${row.name}`);
       await addLog(storage, { source: 'app', action: `DELETE FROM customers (${row.name})`, outcome: 'saved' });
     } else return json(405, { error: 'Not allowed' });
-    return json(200, { rows: await loadRows(storage), log: await storage.getKV('data:log') });
+    return json(200, await snapshot(storage));
   }
 
   // The AI assistant: Web app → AI model → (LayerOne) → Database.
@@ -269,13 +301,13 @@ export async function handleDataApi(request, { storage, pathname, method, readJs
     } else {
       const ran = execute(op, rows);
       rows = ran.rows;
-      if (ran.affected) await saveRows(storage, rows);
+      if (ran.affected) await saveRows(storage, rows, `AI (LayerOne off): ${op.sql}`);
       out.db = { executed: true, rowsReturned: ran.result.length, affected: ran.affected };
       out.results = ran.result;
       out.answer = answerFor(op, { result: ran.result, affected: ran.affected, protectedRun: false });
       await addLog(storage, { source, action: op.sql, outcome: op.kind === 'read' ? `returned ${ran.result.length} row${ran.result.length === 1 ? '' : 's'}` : `changed ${ran.affected} row${ran.affected === 1 ? '' : 's'}` });
     }
-    return json(200, { ...out, rows: await loadRows(storage), log: await storage.getKV('data:log') });
+    return json(200, { ...out, ...(await snapshot(storage)) });
   }
 
   // A person approves or denies a change the AI proposed.
@@ -287,14 +319,14 @@ export async function handleDataApi(request, { storage, pathname, method, readJs
     let answer;
     if (approve) {
       const ran = execute(pending.op, await loadRows(storage));
-      await saveRows(storage, ran.rows);
+      await saveRows(storage, ran.rows, `Approved AI change: ${pending.op.sql}`);
       answer = answerFor(pending.op, { result: [], affected: ran.affected, protectedRun: true });
       await addLog(storage, { source: 'person', action: pending.op.sql, outcome: `approved, changed ${ran.affected} row${ran.affected === 1 ? '' : 's'}` });
     } else {
       answer = 'The change was denied, so nothing in the database changed.';
       await addLog(storage, { source: 'person', action: pending.op.sql, outcome: 'denied' });
     }
-    return json(200, { answer, approved: Boolean(approve), rows: await loadRows(storage), log: await storage.getKV('data:log') });
+    return json(200, { answer, approved: Boolean(approve), ...(await snapshot(storage)) });
   }
 
   return json(404, { error: 'Not found' });

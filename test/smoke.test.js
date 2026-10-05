@@ -361,5 +361,11 @@ test('direct database edits bypass LayerOne; AI queries go through it', async ()
   const unprotectedDelete = await ask('Delete all inactive customers', false);
   assert.equal(unprotectedDelete.db.affected, 3);
   assert.equal(unprotectedDelete.rows.length, 6);
+  assert.match(unprotectedDelete.undo.label, /LayerOne off/);
+  const undone = await api('/api/data/undo', 'POST', {});
+  assert.equal(undone.data.rows.length, 9);
+  assert.match(undone.data.undone, /DELETE/i);
+  assert.equal(undone.data.log[0].outcome, 'restored');
   await api('/api/data/reset', 'POST', {});
+  assert.equal((await api('/api/data/undo', 'POST', {})).data.rows.length, 9);
 });
