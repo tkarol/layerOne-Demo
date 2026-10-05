@@ -58,6 +58,9 @@ function markup(text) {
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
 
+// Optional features, turned on in Settings (both off by default).
+const features = () => state.config?.features || { play: false, customize: false };
+
 const pacePick = (fast, normal, slow) => ({ fast, normal, slow })[state.config?.pace] ?? normal;
 
 // ---------- rendering ----------
@@ -79,9 +82,9 @@ function render() {
           : '<span class="muted">Default demo</span>'
       }</div>
       <div class="demo-actions">
-        <button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>
+        ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
         <button class="demo-btn" id="presentBtn" title="Full-screen presenter view">⛶ Present</button>
-        <button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(firstName(app.person.name))}'s day</button>
+        ${features().play ? `<button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(firstName(app.person.name))}'s day</button>` : ''}
       </div>
     </div>
 
@@ -137,7 +140,7 @@ function render() {
 function renderWork(wf) {
   return `
     <div class="crumb-row"><div class="crumb">${esc(wf.section)} · ${esc(wf.time)}</div>
-      <button class="edit-btn" id="editBtn" title="Rewrite this step for a customer">✏️ Edit step</button></div>
+      ${features().customize ? '<button class="edit-btn" id="editBtn" title="Rewrite this step for a customer">✏️ Edit step</button>' : ''}</div>
     <h2 class="work-title">${esc(wf.title)}</h2>
     <p class="story">${esc(wf.story)}</p>
     ${renderScreen(wf)}
@@ -328,9 +331,9 @@ function wire() {
     render();
   });
   if ($('#aiBtn')) $('#aiBtn').onclick = runAction;
-  $('#customizeBtn').onclick = () => openCustomize({ appId: state.appId, onChange: reloadApps });
+  $('#customizeBtn')?.addEventListener('click', () => openCustomize({ appId: state.appId, onChange: reloadApps }));
   $('#presentBtn').onclick = togglePresent;
-  $('#playBtn').onclick = play;
+  $('#playBtn')?.addEventListener('click', play);
   $('#editBtn')?.addEventListener('click', () => {
     if (!state.customer) {
       openCustomize({ appId: state.appId, onChange: reloadApps, hint: 'Create a customer profile first. Step edits are saved to it.' });

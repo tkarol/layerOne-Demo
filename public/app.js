@@ -580,7 +580,7 @@ const ERROR_FIELDS = [...SETTINGS_FIELDS, 'settingsPassword'];
 
 function readForm() {
   const f = form();
-  const data = { mode: f.mode.value, pace: f.pace.value || 'normal' };
+  const data = { mode: f.mode.value, pace: f.pace.value || 'normal', showPlay: f.showPlay.checked, showCustomize: f.showCustomize.checked };
   for (const k of SETTINGS_FIELDS) data[k] = f[k].value;
   data.timeoutMs = Number(data.timeoutMs);
   data.clearApiKey = f.clearApiKey.checked;
@@ -616,6 +616,8 @@ function fillForm(st) {
   const f = form();
   f.mode.value = st.mode;
   f.pace.value = st.pace || 'normal';
+  f.showPlay.checked = Boolean(st.showPlay);
+  f.showCustomize.checked = Boolean(st.showCustomize);
   for (const k of SETTINGS_FIELDS) f[k].value = k === 'apiKey' ? '' : (st[k] ?? '');
   f.apiKey.placeholder = st.apiKeySet ? `Saved (ends in ${st.apiKeyHint.slice(1)}). Leave blank to keep it.` : 'Paste your LayerOne API key';
   f.clearApiKey.checked = false;

@@ -4,6 +4,7 @@
 export const SETTINGS_FIELDS = [
   'mode', 'baseUrl', 'chatPath', 'apiKey', 'authHeader', 'authScheme', 'model', 'timeoutMs', 'upstreamUrl', 'upstreamProvider', 'pace',
   'directUrl', 'directApiKey', 'directAuthHeader', 'directAuthScheme', 'directModel',
+  'showPlay', 'showCustomize',
 ];
 
 // Key sent to the built-in simulated gateway during a dry run.
@@ -42,6 +43,9 @@ export function envConfig(env = {}) {
     directAuthHeader: env.DIRECT_MODEL_AUTH_HEADER || 'Authorization',
     directAuthScheme: env.DIRECT_MODEL_AUTH_SCHEME ?? 'Bearer',
     directModel: env.DIRECT_MODEL || '',
+    // Optional sample-app features, hidden unless turned on in Settings.
+    showPlay: /^(1|true|yes)$/i.test(env.DEMO_SHOW_PLAY || ''),
+    showCustomize: /^(1|true|yes)$/i.test(env.DEMO_SHOW_CUSTOMIZE || ''),
     // How fast steps play on screen (and, in Dry run, how long the stand-ins take).
     pace: ['fast', 'normal', 'slow'].includes(env.DEMO_PACE) ? env.DEMO_PACE : 'normal',
     // ALLOW_UI_SETTINGS=false makes the Settings panel read-only.
@@ -86,5 +90,6 @@ export function publicConfig(cfg, origin) {
     configured: cfg.mode === 'mock' || Boolean(cfg.baseUrl),
     settingsLocked: cfg.settingsLocked,
     directConfigured: Boolean(cfg.directUrl),
+    features: { play: Boolean(cfg.showPlay), customize: Boolean(cfg.showCustomize) },
   };
 }

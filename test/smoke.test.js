@@ -315,3 +315,13 @@ test('SETTINGS_PASSWORD also protects customer profiles', async () => {
     locked.close();
   }
 });
+
+test('Play the day and Customize are hidden by default and turned on in Settings', async () => {
+  const before = (await api('/api/config')).data.features;
+  assert.deepEqual(before, { play: false, customize: false });
+  const saved = await api('/api/settings', 'PUT', { showPlay: true, showCustomize: true });
+  assert.equal(saved.data.settings.showPlay, true);
+  assert.deepEqual((await api('/api/config')).data.features, { play: true, customize: true });
+  await api('/api/settings', 'DELETE');
+  assert.deepEqual((await api('/api/config')).data.features, { play: false, customize: false });
+});

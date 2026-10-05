@@ -275,6 +275,11 @@ mark.leak { background: var(--bad-soft); color: var(--bad); }
 .mode-opt b { display: block; font-size: 15px; }
 .mode-opt small { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .live-fields.dim { opacity: 0.55; }
+.features { display: grid; gap: 8px; }
+.feature { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel-2); cursor: pointer; }
+.feature input { margin-top: 4px; accent-color: var(--accent); }
+.feature b { display: block; font-size: 14px; }
+.feature small { display: block; font-size: 13px; color: var(--muted); }
 .pace { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
 .pace label { padding: 7px 16px; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--panel-2); border-right: 1px solid var(--border); }
 .pace label:last-child { border-right: none; }

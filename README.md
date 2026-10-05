@@ -70,6 +70,8 @@ With LayerOne the data is removed, the request is blocked, or the answer is held
 
 ### Play the day
 
+*Hidden by default. Turn it on in **⚙ Settings → Sample app features → Play the day**.*
+
 **▶ Play <name>'s day** runs all five steps in order, hands-free. Each step shows a caption with the story, runs the AI action (in whatever mode is on, so turn on **⇆ Compare** first for the strongest version), then shows the talk track. It ends with an **end-of-day summary**: what LayerOne did at each step, next to what happened without it.
 
 * Controls: **⏸ Pause / ▶ Resume** (Space), **⏭ Next** (→), **■ Stop** (Esc).
@@ -77,6 +79,8 @@ With LayerOne the data is removed, the request is blocked, or the answer is held
 * **⛶ Present** switches to full screen and hides everything but the app, with larger text for a projector.
 
 ### Customize for a customer (white-labeling)
+
+*Hidden by default. Turn it on in **⚙ Settings → Sample app features → Customize for a customer**. An active customer profile stays applied when the controls are hidden, so you can brand the demo, then hide the controls before the meeting.*
 
 **🎨 Customize** creates **customer profiles**. Each profile has:
 
@@ -152,6 +156,7 @@ Click **⚙ Settings** (or the mode badge) to change, without redeploying:
 
 * **Mode:** Dry run or Live
 * **Presentation pace:** Fast, Normal or Slow
+* **Sample app features:** show or hide **Play the day** and **Customize for a customer** (both hidden by default)
 * **LayerOne gateway:** base URL, chat path, model, API key, auth header and scheme, timeout. A preview shows the exact endpoint requests will hit.
 * **AI model endpoint (display only):** what to show as "LayerOne → AI Model" when LayerOne doesn't report it
 * **Direct AI model:** OpenAI-compatible URL, model, API key and auth header for the sample apps' LayerOne OFF side in Live mode
@@ -181,6 +186,7 @@ Set these as Worker **Variables and Secrets** in the dashboard (or in `.env` whe
 | `LAYERONE_TIMEOUT_MS` | `60000` | Request timeout |
 | `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` | — | Model endpoint LayerOne forwards to, shown when LayerOne doesn't report it |
 | `DEMO_SYSTEM_PROMPT` | benefits claims assistant | System message the web application sends |
+| `DEMO_SHOW_PLAY` / `DEMO_SHOW_CUSTOMIZE` | `false` | Show Play the day / Customize (also set in Settings) |
 | `DEMO_PACE` | `normal` | Presentation pace: `fast`, `normal` or `slow` |
 | `DIRECT_MODEL_URL` / `DIRECT_MODEL` | — | Direct AI model for the sample apps' LayerOne OFF side (OpenAI-compatible) |
 | `DIRECT_MODEL_API_KEY` | — | Its key. Use a **Secret** |

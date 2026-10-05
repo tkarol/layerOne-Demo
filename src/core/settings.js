@@ -45,6 +45,7 @@ export function validate(input, current) {
   if (input.directAuthHeader !== undefined) next.directAuthHeader = str(input.directAuthHeader) || 'Authorization';
   if (input.directAuthScheme !== undefined) next.directAuthScheme = str(input.directAuthScheme);
   if (input.directModel !== undefined) next.directModel = str(input.directModel);
+  for (const k of ['showPlay', 'showCustomize']) if (input[k] !== undefined) next[k] = input[k] === true || input[k] === 'true';
   if (input.pace !== undefined) {
     if (['fast', 'normal', 'slow'].includes(input.pace)) next.pace = input.pace;
     else errors.pace = 'Choose fast, normal or slow';
@@ -93,6 +94,8 @@ export function publicSettings(cfg, origin, { savedInUi }) {
     upstreamUrl: cfg.upstreamUrl,
     upstreamProvider: cfg.upstreamProvider,
     pace: cfg.pace,
+    showPlay: Boolean(cfg.showPlay),
+    showCustomize: Boolean(cfg.showCustomize),
     directUrl: cfg.directUrl,
     directAuthHeader: cfg.directAuthHeader,
     directAuthScheme: cfg.directAuthScheme,
