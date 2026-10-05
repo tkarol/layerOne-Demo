@@ -4,6 +4,7 @@
 import { readTraceStream, LEAK_RE, REDACTED_RE } from './stream.js';
 import { openCustomize, authHeaders } from './customize.js';
 import { mountDataApp } from './data-app.js';
+import { mountChatApp } from './chat-app.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -15,7 +16,7 @@ const state = {
   apps: [],
   customer: null, // active customer profile { id, name } or null
   config: null,
-  appId: 'benefits',
+  appId: 'chat',
   workflowId: null,
   protected: true,
   compare: false,
@@ -89,7 +90,9 @@ function render() {
   }
   const wf = currentWorkflow();
   const isData = app.type === 'data';
-  const compare = state.compare && !isData; // the database app runs one way at a time
+  const isChat = app.type === 'chat';
+  const custom = isData || isChat; // apps with their own screen, not a day of steps
+  const compare = state.compare && !custom; // these run one way at a time (Ask AI has its own retry button)
   const color = app.brand?.color || '#0f766e';
   const logo = app.brand?.logo ? `<img class="brand-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`;
   root.innerHTML = `
@@ -104,7 +107,7 @@ function render() {
       <div class="demo-actions">
         ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
         <button class="demo-btn" id="presentBtn" title="Full-screen presenter view">⛶ Present</button>
-        ${features().play && !isData ? `<button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(firstName(app.person.name))}'s day</button>` : ''}
+        ${features().play && !custom ? `<button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(firstName(app.person.name))}'s day</button>` : ''}
       </div>
     </div>
 
@@ -130,16 +133,17 @@ function render() {
             <span class="track"><span class="knob"></span></span>
             <span class="l1-label">🛡️ LayerOne <b>${compare ? 'ON & OFF' : state.protected ? 'ON' : 'OFF'}</b></span>
           </label>
-          ${isData ? '' : `<button class="compare-btn ${compare ? 'active' : ''}" id="compareBtn" aria-pressed="${compare}">⇆ Compare</button>`}
+          ${custom ? '' : `<button class="compare-btn ${compare ? 'active' : ''}" id="compareBtn" aria-pressed="${compare}">⇆ Compare</button>`}
           <div class="who"><span class="avatar">${esc(app.person.initials)}</span><span><b>${esc(app.person.name)}</b><small>${esc(app.person.role)}</small></span></div>
         </div>
       </header>
       ${!state.protected && !compare ? `<div class="ribbon">⚠️ LayerOne is OFF. ${isData ? 'The AI’s database queries run unchecked, including deletes.' : 'AI requests go straight to the model: nothing is checked, removed, or recorded.'}</div>` : ''}
       ${compare ? '<div class="ribbon compare">⇆ Compare mode: each AI action runs twice, with LayerOne and without it, side by side.</div>' : ''}
 
-      ${isData ? '<div class="appwin-body data-body"><div id="dataRoot"></div></div>' : renderDayBody(app, wf)}
+      ${isData ? '<div class="appwin-body data-body"><div id="dataRoot"></div></div>' : isChat ? '<div class="appwin-body chat-body"><div id="chatRoot"></div></div>' : renderDayBody(app, wf)}
     </div>`;
   wire();
+  if (isChat) mountChatApp({ el: $('#chatRoot'), app, isProtected: () => state.protected });
   if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, paceMs: () => pacePick(350, 800, 1200), person: app.person });
 }
 

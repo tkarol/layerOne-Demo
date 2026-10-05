@@ -25,7 +25,7 @@ const referenceLine = (text) =>
 // header. Uses the workflow's stand-in answer, with the active profile applied.
 async function workflowAnswer(request, prompt, storage) {
   const found = await lookupWorkflow(request, storage);
-  if (!found) return null;
+  if (!found?.workflow.mock?.answer) return null;
   const { workflow: w } = found;
   const sender = prompt.match(/EMAIL FROM ([A-Z][\w'’-]*)/)?.[1] || 'there';
   const fill = (t) => t.split('{{ref}}').join(referenceLine(prompt)).split('{{sender_first}}').join(sender);
@@ -66,7 +66,7 @@ export async function handleMockJudge(request, { storage } = {}) {
   await sleep(jitter(700, 1000) * paceFactor(request.headers.get('x-demo-pace')));
   // A sample-app workflow carries its own verdict; anything else gets the generic rules.
   const found = await lookupWorkflow(request, storage);
-  const verdict = found?.workflow.mock.judge;
+  const verdict = found?.workflow.mock?.judge;
   if (verdict) return json(200, { model: 'judge-model', verdict: 'fail', score: verdict.score, rationale: verdict.rationale });
   return json(200, simulatedJudge(String(body.answer || '')));
 }

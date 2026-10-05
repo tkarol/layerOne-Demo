@@ -2,7 +2,7 @@
 
 A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. It has two tabs:
 
-* **Sample apps:** four everyday work tools (public sector, banking, healthcare, defense) whose AI features run through LayerOne. Switch LayerOne **off**, use **Compare**, or **Play the day** hands-free, and white-label it all for a specific customer.
+* **Sample apps:** **Ask AI**, a plain company chat built for a 5-minute demo, plus four everyday work tools (public sector, banking, healthcare, defense) whose AI features run through LayerOne. Switch LayerOne **off**, use **Compare**, or **Play the day** hands-free, and white-label it all for a specific customer.
 * **Behind the scenes:** the mechanics of any request. It shows both endpoints in the chain, traces every hop in both directions, shows LayerOne's checks and audit record, and keeps a history of every run.
 
 Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings, customer profiles and history. There is no separate server to run.
@@ -57,6 +57,23 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 * **Or lock settings entirely.** Add a variable `ALLOW_UI_SETTINGS` = `false`.
 
 ## Sample apps
+
+### Ask AI: the 5-minute demo
+
+The app that opens first, **Brightline · Ask AI**, is a company AI chat. It looks like the ChatGPT-style tools every customer already uses, so it needs no explaining. Under every message, one line says what LayerOne did, and a box shows **what the AI model actually received**.
+
+Click the four numbered examples on the right, in order:
+
+| # | Example | With LayerOne | With LayerOne off |
+| --- | --- | --- | --- |
+| 1 | Everyday question | ✅ Allowed: LayerOne doesn't get in the way | Same answer |
+| 2 | Customer personal info | 🛡️ Cleaned: the AI receives `[REDACTED-SSN]`, not the number | The SSN, card and phone go to the AI and come back in the answer |
+| 3 | Trick the AI | ⛔ Blocked: nothing leaves the company | The AI reveals its instructions and a password |
+| 4 | Risky answer | ✋ Answer held: the judge catches advice that breaks policy | The wrong answer reaches the employee |
+
+Under each answer, **↻ Try this with LayerOne OFF** reruns the same message the other way, so the difference shows right there. Two counters keep score: *stopped by LayerOne* and *got through with LayerOne off*. You can also type your own message. It goes through the same LayerOne checks in both Dry run and Live.
+
+### Day-in-the-life apps
 
 Four everyday work tools, one per industry. Each walks through one employee's day, and every step is an AI feature that exercises a different LayerOne policy:
 
@@ -261,6 +278,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | --- | --- |
 | `public/` | The page, served as static assets: `sample.js` (Sample apps tab), `app.js` (Behind the scenes and Settings) |
 | `src/core/sample-apps.js` | The four workflow sample apps |
+| `src/core/chat-app.js`, `public/chat-app.js` | Ask AI: the chat app and its four examples |
 | `src/core/data-app.js`, `public/data-app.js` | Customer Hub: the database app, its stand-in AI agent and LayerOne's query checks |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |

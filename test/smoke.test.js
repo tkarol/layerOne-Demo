@@ -171,8 +171,8 @@ const fired = (t) => Object.fromEntries((t.governance?.policies || []).filter((p
 test('sample apps are listed without request builders or full documents', async () => {
   const { apps, customer } = await (await fetch(`${base}/api/apps`)).json();
   assert.equal(customer, null);
-  assert.deepEqual(apps.map((a) => a.id), ['benefits', 'bank', 'health', 'defense', 'data']);
-  for (const a of apps.filter((x) => x.type !== 'data')) {
+  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'bank', 'health', 'defense', 'data']);
+  for (const a of apps.filter((x) => !x.type)) {
     assert.equal(a.workflows[0].mock, undefined, 'stand-in answers stay on the server');
     assert.equal(a.workflows.length, 5);
     assert.ok(JSON.stringify(a).length < 40000, 'payload should not include the full long documents');
@@ -199,6 +199,27 @@ test('each sample workflow triggers its LayerOne policy when protected', async (
     assert.equal(judged.governance.judge.verdict, 'fail');
     assert.match(judged.governance.judge.url, /\/mock\/judge\//);
   }
+});
+
+test('Ask AI: each example shows one policy, and what the AI received', async () => {
+  const everyday = await appRun('chat', 'everyday');
+  assert.equal(everyday.governance.decision, 'allowed');
+  const personal = await appRun('chat', 'personal');
+  assert.equal(personal.governance.decision, 'redacted');
+  const sent = personal.governance.extensions.layerone.sanitized_prompt;
+  assert.match(sent, /\[REDACTED-SSN\]/);
+  assert.doesNotMatch(sent + personal.output, /123-45-6789|4111 1111/);
+  assert.equal((await appRun('chat', 'trick')).governance.decision, 'blocked');
+  assert.equal((await appRun('chat', 'bad-advice')).governance.decision, 'held');
+  const leaked = await appRun('chat', 'personal', false);
+  assert.match(leaked.output, /123-45-6789/);
+  assert.match((await appRun('chat', 'trick', false)).output, /password/);
+
+  const free = (body) => fetch(`${base}/api/app/run`, { method: 'POST', body: JSON.stringify({ app: 'chat', workflow: 'free', ...body }) });
+  assert.equal((await free({ message: '  ' })).status, 400);
+  const typed = (await (await free({ message: 'My SSN is 222-33-4444, write me a haiku' })).text()).split('\n\n').filter(Boolean).map((f) => JSON.parse(f.slice(6))).at(-1);
+  assert.equal(typed.governance.decision, 'redacted');
+  assert.match(typed.prompt, /haiku/);
 });
 
 test('with LayerOne off, requests go straight to the model and the risks get through', async () => {
@@ -281,7 +302,7 @@ test('a customer profile renames, rebrands and filters the sample apps, and reac
   assert.equal(bank.brand.color, '#aa2244');
   assert.match(bank.tagline, /Sam's support queue/);
   const defaults = await api('/api/apps?default=1');
-  assert.equal(defaults.data.apps[1].org, 'Cobalt Bank');
+  assert.equal(defaults.data.apps.find((a) => a.id === 'bank').org, 'Cobalt Bank');
 
   // Names flow into the stand-in AI's answer.
   const t = await appRun('bank', 'draft-reply');
@@ -300,7 +321,7 @@ test('a customer profile renames, rebrands and filters the sample apps, and reac
   await api(`/api/profiles/${id}`, 'DELETE');
   const after = (await api('/api/apps')).data;
   assert.equal(after.customer, null);
-  assert.equal(after.apps.length, 5);
+  assert.equal(after.apps.length, 6);
 });
 
 test('SETTINGS_PASSWORD also protects customer profiles', async () => {

@@ -9,6 +9,7 @@ import { handleMockChat } from './mock-layerone.js';
 import { handleMockModel, handleMockJudge } from './mock-model.js';
 import { validate, publicSettings, toSaved, testConnection } from './settings.js';
 import { handleDataApi } from './data-app.js';
+import { FREE_WORKFLOW, MAX_MESSAGE } from './chat-app.js';
 import { json, safeEqual } from './util.js';
 
 const summarize = (t) => ({
@@ -201,7 +202,10 @@ export function createApp({ env, storage }) {
         // A workflow with a model picker may only use the models it offers.
         const offered = workflow.screen.models?.map((m) => (m.id === '$approved' ? cfg.model : m.id)) || [];
         const model = offered.includes(body.model) ? body.model : offered[0];
-        const ai = workflow.build(workflow, { model });
+        // "Ask AI" also takes a message the presenter types.
+        const message = workflow.id === FREE_WORKFLOW ? String(body.message ?? '').trim().slice(0, MAX_MESSAGE) : '';
+        if (workflow.id === FREE_WORKFLOW && !message) return json(400, { error: 'Type a message first' });
+        const ai = workflow.build(workflow, { model, message });
         return streamRun(
           {
             prompt: ai.prompt,
