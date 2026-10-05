@@ -3,9 +3,10 @@
 // anything else so the platform can serve the static page from /public.
 import { envConfig, mergeSaved, publicConfig } from './config.js';
 import { SCENARIOS } from './scenarios.js';
+import { publicApps, findWorkflow } from './sample-apps.js';
 import { createTrace, runWorkflow } from './workflow.js';
 import { handleMockChat } from './mock-layerone.js';
-import { handleMockModel } from './mock-model.js';
+import { handleMockModel, handleMockJudge } from './mock-model.js';
 import { validate, publicSettings, toSaved, testConnection } from './settings.js';
 import { json, safeEqual } from './util.js';
 
@@ -15,6 +16,9 @@ const summarize = (t) => ({
   status: t.status,
   mode: t.mode,
   scenario: t.scenario,
+  app: t.app ?? null,
+  workflow: t.workflow ?? null,
+  bypass: Boolean(t.bypass),
   prompt: t.prompt.slice(0, 140),
   decision: t.governance?.decision ?? null,
   httpStatus: t.response?.status ?? null,
@@ -48,6 +52,44 @@ export function createApp({ env, storage }) {
     return fetch(input, init);
   };
 
+  // Run one request and stream a trace snapshot after every step (server-sent events).
+  function streamRun(input, cfg, origin, waitUntil) {
+    const trace = createTrace(input, cfg, origin);
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+    let queue = Promise.resolve();
+    // Writes are chained so frames stay in order; a closed browser tab must not stop the run.
+    const send = (obj) => (queue = queue.then(() => writer.write(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))).catch(() => {}));
+
+    const job = (async () => {
+      let final = null;
+      try {
+        await runWorkflow(trace, {
+          cfg,
+          origin,
+          input,
+          fetchFn: makeFetch(origin),
+          emit: (snapshot, isFinal) => {
+            send(snapshot);
+            if (isFinal) final = snapshot;
+          },
+        });
+      } catch (err) {
+        final = { ...structuredClone(trace), status: 'error', error: `Internal error: ${err.message}` };
+        send(final);
+      }
+      if (final) await storage.putTrace(final);
+      await queue;
+      await writer.close().catch(() => {});
+    })();
+    waitUntil?.(job);
+
+    return new Response(readable, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no' },
+    });
+  }
+
   async function handle(request, { waitUntil } = {}) {
     const url = new URL(request.url);
     const { pathname } = url;
@@ -60,6 +102,7 @@ export function createApp({ env, storage }) {
         return handleMockChat(request, { origin, fetchFn: makeFetch(origin), storage });
       }
       if (method === 'POST' && pathname.startsWith('/mock/model/')) return handleMockModel(request);
+      if (method === 'POST' && pathname.startsWith('/mock/judge/')) return handleMockJudge(request);
 
       if (!pathname.startsWith('/api/')) return null;
 
@@ -96,41 +139,36 @@ export function createApp({ env, storage }) {
       if (pathname === '/api/run' && method === 'POST') {
         const { prompt, scenario } = await readJson(request);
         if (!prompt || typeof prompt !== 'string') return json(400, { error: 'prompt is required' });
+        return streamRun({ prompt: prompt.slice(0, 20000), scenario }, await currentConfig(), origin, waitUntil);
+      }
+
+      // ----- Sample applications -----
+      if (pathname === '/api/apps' && method === 'GET') return json(200, publicApps());
+      if (pathname === '/api/app/run' && method === 'POST') {
+        const body = await readJson(request);
+        const found = findWorkflow(body.app, body.workflow);
+        if (!found) return json(404, { error: 'Unknown sample app or workflow' });
         const cfg = await currentConfig();
-        const trace = createTrace({ prompt: prompt.slice(0, 20000), scenario }, cfg, origin);
-
-        const { readable, writable } = new TransformStream();
-        const writer = writable.getWriter();
-        const encoder = new TextEncoder();
-        let queue = Promise.resolve();
-        // Writes are chained so frames stay in order; a closed browser tab must not stop the run.
-        const send = (obj) => (queue = queue.then(() => writer.write(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))).catch(() => {}));
-
-        const job = (async () => {
-          let final = null;
-          try {
-            await runWorkflow(trace, {
-              cfg,
-              origin,
-              fetchFn: makeFetch(origin),
-              emit: (snapshot, isFinal) => {
-                send(snapshot);
-                if (isFinal) final = snapshot;
-              },
-            });
-          } catch (err) {
-            final = { ...structuredClone(trace), status: 'error', error: `Internal error: ${err.message}` };
-            send(final);
-          }
-          if (final) await storage.putTrace(final);
-          await queue;
-          await writer.close().catch(() => {});
-        })();
-        waitUntil?.(job);
-
-        return new Response(readable, {
-          headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no' },
-        });
+        const { app, workflow } = found;
+        // A workflow with a model picker may only use the models it offers.
+        const offered = workflow.screen.models?.map((m) => (m.id === '$approved' ? cfg.model : m.id)) || [];
+        const model = offered.includes(body.model) ? body.model : offered[0];
+        const ai = workflow.build(workflow, { model });
+        return streamRun(
+          {
+            prompt: ai.prompt,
+            scenario: `${app.id}:${workflow.id}`,
+            app: app.id,
+            workflow: workflow.id,
+            protected: body.protected !== false,
+            system: app.system,
+            model: ai.model,
+            maxTokens: ai.maxTokens,
+          },
+          cfg,
+          origin,
+          waitUntil,
+        );
       }
 
       // ----- History -----

@@ -158,3 +158,91 @@ test('live requests to LayerOne never carry the dry-run pace header', async () =
   assert.equal(req.url, 'https://l1.example.gov/v1/chat/completions');
   assert.equal(req.headers['X-Demo-Pace'], undefined);
 });
+
+// ----- Sample apps -----
+async function appRun(app, workflow, prot = true, model) {
+  const res = await fetch(`${base}/api/app/run`, { method: 'POST', body: JSON.stringify({ app, workflow, protected: prot, model }) });
+  assert.match(res.headers.get('content-type'), /text\/event-stream/);
+  return (await res.text()).split('\n\n').filter(Boolean).map((f) => JSON.parse(f.replace(/^data: /, ''))).at(-1);
+}
+const fired = (t) => Object.fromEntries((t.governance?.policies || []).filter((p) => p.result !== 'pass').map((p) => [p.id, p.result]));
+
+test('sample apps are listed without request builders or full documents', async () => {
+  const apps = await (await fetch(`${base}/api/apps`)).json();
+  assert.deepEqual(apps.map((a) => a.id), ['benefits', 'bank']);
+  for (const a of apps) {
+    assert.equal(a.workflows.length, 5);
+    assert.ok(JSON.stringify(a).length < 40000, 'payload should not include the full long documents');
+  }
+});
+
+test('each sample workflow triggers its LayerOne policy when protected', async () => {
+  const expected = {
+    'draft-reply': ['redacted', 'L1-IN-003', 'redact'],
+    'summarize-file': ['blocked', 'L1-IN-006', 'block'],
+    'unapproved-model': ['blocked', 'L1-IN-005', 'block'],
+    'hidden-instructions': ['blocked', 'L1-IN-001', 'block'],
+  };
+  for (const app of ['benefits', 'bank']) {
+    for (const [wf, [decision, id, result]] of Object.entries(expected)) {
+      const t = await appRun(app, wf);
+      assert.equal(t.governance.decision, decision, `${app}/${wf}`);
+      assert.equal(fired(t)[id], result, `${app}/${wf}`);
+    }
+    const judged = await appRun(app, app === 'bank' ? 'advice' : 'eligibility');
+    assert.equal(judged.governance.decision, 'held');
+    assert.equal(fired(judged)['L1-OUT-003'], 'hold');
+    assert.equal(judged.governance.judge.verdict, 'fail');
+    assert.match(judged.governance.judge.url, /\/mock\/judge\//);
+  }
+});
+
+test('with LayerOne off, requests go straight to the model and the risks get through', async () => {
+  const draft = await appRun('benefits', 'draft-reply', false);
+  assert.equal(draft.bypass, true);
+  assert.equal(draft.governance.decision, 'unprotected');
+  assert.match(draft.endpoint.url, /\/mock\/model\//);
+  assert.equal(draft.upstream, null);
+  assert.match(draft.output, /123-45-6789/);
+  const card = await appRun('bank', 'draft-reply', false);
+  assert.match(card.output, /4111 1111 1111 1111/);
+  const injected = await appRun('bank', 'hidden-instructions', false);
+  assert.match(injected.output, /\$5,000 courtesy credit/);
+  const big = await appRun('benefits', 'summarize-file', false);
+  assert.equal(big.status, 'completed');
+  assert.ok(big.promptTokens > 8000);
+});
+
+test('the approved model passes the model denylist; unknown models fall back to the offered default', async () => {
+  const ok = await appRun('benefits', 'unapproved-model', true, 'demo-model');
+  assert.equal(ok.governance.decision, 'allowed');
+  const sneaky = await appRun('benefits', 'unapproved-model', true, 'anything-else');
+  assert.equal(sneaky.request.body.model, 'deepseek-r1');
+});
+
+test('long documents are sent in full but shortened in stored history', async () => {
+  const t = await appRun('benefits', 'summarize-file', false);
+  assert.ok(t.promptChars > 60000);
+  assert.ok(t.prompt.length < 7000);
+  assert.match(t.prompt, /more characters not shown/);
+  assert.ok(JSON.stringify(t).length < 60000);
+});
+
+test('live mode with LayerOne off uses the direct model when set, otherwise a labeled stand-in', async () => {
+  const put = (body) => fetch(`${base}/api/settings`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.json());
+  // Live, no direct model configured: OFF falls back to the stand-in and says so.
+  await put({ mode: 'live', baseUrl: 'http://127.0.0.1:9' });
+  const sim = await appRun('benefits', 'draft-reply', false);
+  assert.equal(sim.simulatedModel, true);
+  assert.match(sim.bypassNote, /no direct AI model/i);
+  // Direct model configured: OFF calls it directly, with its own key, never shown.
+  const saved = await put({ directUrl: 'http://127.0.0.1:9/v1/chat/completions', directApiKey: 'sk-direct-5678', directModel: 'gpt-x' });
+  assert.equal(saved.settings.directApiKeyHint, '…5678');
+  assert.doesNotMatch(JSON.stringify(saved), /sk-direct/);
+  const direct = await appRun('benefits', 'draft-reply', false);
+  assert.equal(direct.endpoint.url, 'http://127.0.0.1:9/v1/chat/completions');
+  assert.equal(direct.request.body.model, 'gpt-x');
+  assert.match(direct.request.headers.Authorization, /••••/);
+  assert.equal(direct.status, 'error'); // nothing listens on port 9
+  await fetch(`${base}/api/settings`, { method: 'DELETE' });
+});

@@ -1,8 +1,13 @@
 # LayerOne Demo
 
-A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. A demo web application (a benefits-claims assistant) sends a real request through LayerOne to the AI model and back. The page shows both endpoints in the chain, traces every hop in both directions, and keeps a history of every run.
+A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. It has two tabs:
+
+* **Sample apps:** two everyday work tools, one public sector and one commercial, whose AI features run through LayerOne. Switch LayerOne **off**, or use **Compare**, to show what changes for the employee.
+* **Behind the scenes:** the mechanics of any request. It shows both endpoints in the chain, traces every hop in both directions, shows LayerOne's checks and audit record, and keeps a history of every run.
 
 Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings and history. There is no separate server to run.
+
+![Sample app: Compare with and without LayerOne](docs/sample-apps.png)
 
 ![Demo](docs/screenshot.png)
 
@@ -39,6 +44,32 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 * **Restrict who can open it (recommended).** In the Worker's **Settings → Domains & Routes**, turn on **Cloudflare Access** for the `workers.dev` route, then allow your email (or your team's domain). Visitors must sign in first. Access is free for up to 50 users.
 * **Require a password to change settings.** Add a **Secret** named `SETTINGS_PASSWORD`. Anyone can still view the demo and send requests, but changing Settings needs the password.
 * **Or lock settings entirely.** Add a variable `ALLOW_UI_SETTINGS` = `false`.
+
+## Sample apps
+
+Each app walks through one employee's day. Every step is a real AI feature in the app, and each one exercises a different LayerOne policy:
+
+| Time | Lakeshore Benefits Office (public sector): Dana, caseworker | Cobalt Bank (commercial): Jordan, support specialist | LayerOne policy | With LayerOne | Without LayerOne |
+| --- | --- | --- | --- | --- | --- |
+| 9:00 | Reply to a claimant whose email includes an SSN, DOB and phone | Reply to a dispute that includes a card number, account number and phone | **Regex / pattern match** | Personal data removed before the AI sees it | The AI receives it and copies it into the draft |
+| 10:30 | Summarize a 120-page case file | Summarize a 96-page loan agreement | **Max tokens** | Blocked: about 20k tokens against an 8k limit | The whole document is sent, with no size or cost limit |
+| 1:00 | Switch the model picker to DeepSeek-R1 | Same | **Model denylist** | Blocked; the approved model goes through | Data goes to the unapproved model |
+| 2:30 | Eligibility question; the AI cites a rule that doesn't exist and promises approval | Customer question; the AI gives crypto advice and promises a refund | **LLM judge** | A judge model scores the answer and holds it for review | The bad answer is shown as fact |
+| 3:30 | Summarize an email with hidden instructions (approve a claim, send the file to Gmail) | Same (issue a $5,000 credit) | **Prompt injection** | Blocked | The AI "obeys" the hidden text |
+
+* **LayerOne ON / OFF switch:** OFF sends the same request straight to the AI model, and a red ribbon makes that obvious. OFF runs appear in Behind the scenes with LayerOne marked *switched off*.
+* **Compare:** runs every action both ways, side by side.
+* **See what LayerOne did →** under each result opens that exact request in *Behind the scenes*.
+* **Presenter notes** under each step give a one-line talk track for ON and OFF.
+* **Reveal hidden text** on the injection emails shows the audience the instruction the reader can't see.
+
+All organizations, people, cases and numbers are fictional. The apps are defined in [`src/core/sample-apps.js`](src/core/sample-apps.js) (story, screen content, the AI request each button sends, and the talk track), so they're easy to edit or extend.
+
+### Sample apps in Dry run vs Live
+
+* **Dry run:** the built-in LayerOne stand-in implements all five policies. Its limits are an 8,000-token input cap and a denylist of `deepseek-r1`, `deepseek-chat`, `qwen-max` and `public-free-llm`. It calls a stand-in judge model (`/mock/judge/v1/evaluate`), which appears as its own hop in Behind the scenes. The stand-in model's answers are canned, and some are deliberately bad so the difference is visible.
+* **Live, LayerOne ON:** the apps send real requests to your LayerOne gateway, with the model name and `max_tokens` set. What happens depends on the policies in your LayerOne tenant, so turn on the equivalent policies (PII patterns, token limit, model denylist, LLM judge, prompt-injection defense) and confirm with Booz Allen that the preview supports each one.
+* **Live, LayerOne OFF:** requests go to the **Direct AI model** set in Settings: any OpenAI-compatible endpoint, with its own key. Requests for a model the direct endpoint can't serve (e.g. DeepSeek), or no direct model at all, fall back to the built-in stand-in, and the result is labeled *simulated*.
 
 ## How it works
 
@@ -99,6 +130,7 @@ Click **⚙ Settings** (or the mode badge) to change, without redeploying:
 * **Presentation pace:** Fast, Normal or Slow
 * **LayerOne gateway:** base URL, chat path, model, API key, auth header and scheme, timeout. A preview shows the exact endpoint requests will hit.
 * **AI model endpoint (display only):** what to show as "LayerOne → AI Model" when LayerOne doesn't report it
+* **Direct AI model:** OpenAI-compatible URL, model, API key and auth header for the sample apps' LayerOne OFF side in Live mode
 
 **Test connection** sends one small request using the values in the form, without saving them. It reports the HTTP status, latency and reply, or a plain reason it failed: host not found, connection refused, timeout, 401 "check the API key", 404 "check the URL and path". **Save** applies the settings immediately. **Reset to defaults** discards what was saved from the page.
 
@@ -107,7 +139,7 @@ How settings are handled:
 * Precedence: built-in defaults < Worker variables and secrets (or `.env` locally) < values saved from the page.
 * Values saved from the page are stored in the Worker's Durable Object (a JSON file when running locally), **including the API key if you type it in**. If you'd rather the key never be stored there, leave it blank in Settings and use the `LAYERONE_API_KEY` secret.
 * The API key is never sent back to the browser. The form only shows that a key is saved and its last four characters.
-* If you change the LayerOne **host** without re-entering the key, the saved key is dropped. It's never forwarded to a different server.
+* If you change the LayerOne **host** (or the direct model host) without re-entering its key, that saved key is dropped. A key is never forwarded to a different server.
 
 ## Configuration
 
@@ -126,6 +158,9 @@ Set these as Worker **Variables and Secrets** in the dashboard (or in `.env` whe
 | `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` | — | Model endpoint LayerOne forwards to, shown when LayerOne doesn't report it |
 | `DEMO_SYSTEM_PROMPT` | benefits claims assistant | System message the web application sends |
 | `DEMO_PACE` | `normal` | Presentation pace: `fast`, `normal` or `slow` |
+| `DIRECT_MODEL_URL` / `DIRECT_MODEL` | — | Direct AI model for the sample apps' LayerOne OFF side (OpenAI-compatible) |
+| `DIRECT_MODEL_API_KEY` | — | Its key. Use a **Secret** |
+| `DIRECT_MODEL_AUTH_HEADER` / `DIRECT_MODEL_AUTH_SCHEME` | `Authorization` / `Bearer` | Its auth header |
 | `SETTINGS_PASSWORD` | — | Password required to change Settings. Use a **Secret** |
 | `ALLOW_UI_SETTINGS` | `true` | `false` makes the Settings panel read-only |
 
@@ -164,7 +199,8 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 
 | Path | |
 | --- | --- |
-| `public/` | The page (HTML, CSS, JS), served as static assets |
+| `public/` | The page, served as static assets: `sample.js` (Sample apps tab), `app.js` (Behind the scenes and Settings) |
+| `src/core/sample-apps.js` | The two sample apps and their workflows |
 | `src/worker.js` | Cloudflare Worker entry + Durable Object storage |
 | `src/core/` | The backend, shared by the Worker and the local server: routing, LayerOne adapter, workflow, settings, dry-run stand-ins |
 | `src/node-server.js`, `src/storage/file.js` | Optional local server for testing on your own machine |
@@ -175,6 +211,8 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | Route | |
 | --- | --- |
 | `POST /api/run` `{prompt, scenario?}` | Run a request; streams trace snapshots as server-sent events |
+| `GET /api/apps` | The sample apps and their workflows (for the UI) |
+| `POST /api/app/run` `{app, workflow, protected, model?}` | Run a sample-app action with LayerOne on (`protected: true`) or off; streams like `/api/run` |
 | `GET /api/traces` · `GET /api/traces/:id` · `GET /api/traces/:id/export` · `DELETE /api/traces` | History |
 | `GET /api/config` | Mode, endpoints, model (no secrets) |
 | `GET /api/settings` · `PUT /api/settings` · `DELETE /api/settings` | Read, save, or reset settings (API key never returned) |

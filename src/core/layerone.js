@@ -1,13 +1,14 @@
 // LayerOne adapter. Everything that depends on the gateway's wire format lives
 // here, so if your LayerOne deployment exposes a different request/response
 // schema, this is the only file to change.
-import { endpointUrl, DRY_RUN_KEY } from './config.js';
+import { endpointUrl, mockModelUrl, DRY_RUN_KEY } from './config.js';
 
 const OPENAI_FIELDS = new Set(['id', 'object', 'created', 'model', 'choices', 'usage', 'system_fingerprint', 'service_tier']);
 const GOVERNANCE_HEADER = /^x-(layerone|vellox|l1|governance|policy|evidence|guardrail)/i;
 const SENSITIVE_HEADER = /(authorization|api[-_]?key|token|secret|cookie)/i;
 
-export function buildRequest({ prompt, traceId, origin }, cfg) {
+// `system`, `model` and `maxTokens` let the sample apps send their own request shape.
+export function buildRequest({ prompt, traceId, origin, system, model, maxTokens }, cfg) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -24,12 +25,50 @@ export function buildRequest({ prompt, traceId, origin }, cfg) {
     url: endpointUrl(cfg, origin),
     headers,
     body: {
-      model: cfg.model,
+      model: model || cfg.model,
       messages: [
-        { role: 'system', content: cfg.systemPrompt },
+        { role: 'system', content: system || cfg.systemPrompt },
         { role: 'user', content: prompt },
       ],
       temperature: 0.2,
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+    },
+  };
+}
+
+// The same request sent straight to an AI model, skipping LayerOne (sample apps,
+// LayerOne switched OFF). Uses the direct model from Settings in Live mode when it
+// can serve the requested model; otherwise the built-in stand-in model.
+export function buildDirectRequest({ prompt, traceId, origin, system, model, maxTokens }, cfg) {
+  const approved = !model || model === cfg.model;
+  const real = cfg.mode === 'live' && cfg.directUrl && approved;
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Request-Id': traceId };
+  let note = null;
+  if (real) {
+    if (cfg.directApiKey) headers[cfg.directAuthHeader] = cfg.directAuthScheme ? `${cfg.directAuthScheme} ${cfg.directApiKey}` : cfg.directApiKey;
+  } else {
+    headers['X-Demo-Pace'] = cfg.pace || 'normal';
+    if (cfg.mode === 'live') {
+      note = !cfg.directUrl
+        ? 'Simulated: no direct AI model is set in Settings, so the built-in stand-in model answered.'
+        : `Simulated: "${model}" is not available at the direct model endpoint, so the built-in stand-in model answered.`;
+    }
+  }
+  return {
+    method: 'POST',
+    url: real ? cfg.directUrl : mockModelUrl(origin),
+    headers,
+    simulated: !real,
+    note,
+    authHeader: real ? cfg.directAuthHeader : 'Authorization',
+    body: {
+      model: real ? cfg.directModel || model || cfg.model : model || cfg.model,
+      messages: [
+        { role: 'system', content: system || cfg.systemPrompt },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.2,
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
     },
   };
 }
@@ -109,9 +148,17 @@ export function extractGovernance({ status, headers, body }) {
       }
     : null;
 
+  // LLM judge result, if the gateway reports one.
+  const j = l1.judge || l1.evaluation || null;
+  const judge = j
+    ? { url: j.url || headers['x-layerone-judge-url'] || null, model: j.model || null, score: j.score ?? null, verdict: j.verdict || null, rationale: j.rationale || j.reason || null, latencyMs: j.latency_ms ?? null }
+    : null;
+
   return {
     decision: String(decision).toLowerCase(),
     upstream,
+    judge,
+    withheldPreview: l1.withheld_preview || null,
     inferred: !reported,
     evidenceId: headers['x-layerone-evidence-id'] || l1.evidence_id || l1.evidenceId || null,
     gatewayRequestId: headers['x-layerone-request-id'] || l1.request_id || null,

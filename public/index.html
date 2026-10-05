@@ -6,6 +6,7 @@
     <title>LayerOne Demo</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='15' fill='white' text-anchor='middle'%3EL1%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="sample.css" />
   </head>
   <body>
     <header class="topbar">
@@ -13,6 +14,10 @@
         <span class="logo">L1</span>
         <h1>LayerOne Demo</h1>
       </div>
+      <nav class="view-tabs" role="tablist" aria-label="View">
+        <button role="tab" data-view="apps" id="tabApps">Sample apps</button>
+        <button role="tab" data-view="console" id="tabConsole">Behind the scenes</button>
+      </nav>
       <div class="top-right">
         <button id="modeBadge" class="badge" title="Change in Settings">…</button>
         <button id="openSettings" class="settings-btn" title="Settings">⚙ Settings</button>
@@ -20,7 +25,15 @@
       </div>
     </header>
 
-    <main class="page">
+    <main class="apps-page" id="appsView" hidden>
+      <p class="intro">
+        What LayerOne looks like to an employee: an everyday work tool whose AI features run through LayerOne. Switch
+        <b>LayerOne</b> off, or use <b>Compare</b>, to see what changes. <span class="muted">All organizations, people and data are fictional.</span>
+      </p>
+      <div id="sampleRoot"><p class="empty">Loading…</p></div>
+    </main>
+
+    <main class="page" id="consoleView" hidden>
       <p class="intro">
         This claims-assistant web application sends every AI request through <b>LayerOne</b>. LayerOne checks the request on
         its way to the AI model, then checks the answer on its way back. It removes personal information such as Social
@@ -49,6 +62,11 @@
             <div class="ep-hop">🛡️ LayerOne <span class="arrow">→</span> ✦ AI Model</div>
             <code class="ep-url" id="epUpstreamBox"><span class="method" id="epUpstreamMethod">POST</span> <span id="epUpstream">…</span></code>
             <div class="ep-note" id="epUpstreamNote"></div>
+          </div>
+          <div class="ep full" id="epJudgeCard" hidden>
+            <div class="ep-hop">🛡️ LayerOne <span class="arrow">→</span> ⚖️ LLM judge</div>
+            <code class="ep-url"><span class="method">POST</span> <span id="epJudge"></span></code>
+            <div class="ep-note" id="epJudgeNote"></div>
           </div>
         </div>
         <div class="lanes">
@@ -179,6 +197,17 @@
             <div class="grid2">
               <label>URL<input name="upstreamUrl" placeholder="https://api.openai.com/v1/chat/completions" /><small class="err" data-err="upstreamUrl"></small></label>
               <label>Provider<input name="upstreamProvider" placeholder="OpenAI" /><small class="err" data-err="upstreamProvider"></small></label>
+            </div>
+
+            <div class="s-section-title">Direct AI model <span class="dim-note">sample apps, LayerOne switched OFF</span></div>
+            <p class="s-hint">When LayerOne is switched off in a sample app (Live mode), requests go straight to this OpenAI-compatible endpoint instead. Leave it blank and the OFF side uses the built-in stand-in model, labeled as simulated.</p>
+            <div class="grid2">
+              <label class="full">URL<input name="directUrl" placeholder="https://api.openai.com/v1/chat/completions" autocomplete="off" /><small class="err" data-err="directUrl"></small></label>
+              <label>Model<input name="directModel" placeholder="gpt-4o-mini" /><small class="err" data-err="directModel"></small></label>
+              <label>API key<input name="directApiKey" type="password" autocomplete="off" /><small class="err" data-err="directApiKey"></small></label>
+              <label class="check full" id="clearDirectKeyRow" hidden><input type="checkbox" name="clearDirectApiKey" /> Remove the saved direct model API key</label>
+              <label>Auth header<input name="directAuthHeader" placeholder="Authorization" /><small class="err" data-err="directAuthHeader"></small></label>
+              <label>Auth scheme<input name="directAuthScheme" placeholder="Bearer (blank = raw key)" /><small class="err" data-err="directAuthScheme"></small></label>
             </div>
           </div>
 

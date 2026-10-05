@@ -1,7 +1,10 @@
 // Configuration. Precedence: built-in defaults < environment (.env locally, Worker
 // variables/secrets on Cloudflare) < values saved from the in-app Settings panel.
 
-export const SETTINGS_FIELDS = ['mode', 'baseUrl', 'chatPath', 'apiKey', 'authHeader', 'authScheme', 'model', 'timeoutMs', 'upstreamUrl', 'upstreamProvider', 'pace'];
+export const SETTINGS_FIELDS = [
+  'mode', 'baseUrl', 'chatPath', 'apiKey', 'authHeader', 'authScheme', 'model', 'timeoutMs', 'upstreamUrl', 'upstreamProvider', 'pace',
+  'directUrl', 'directApiKey', 'directAuthHeader', 'directAuthScheme', 'directModel',
+];
 
 // Key sent to the built-in simulated gateway during a dry run.
 export const DRY_RUN_KEY = 'dry-run-demo-key';
@@ -32,6 +35,13 @@ export function envConfig(env = {}) {
     // Where LayerOne forwards requests. Display only, for when LayerOne does not report it.
     upstreamUrl: env.LAYERONE_UPSTREAM_URL || '',
     upstreamProvider: env.LAYERONE_UPSTREAM_PROVIDER || '',
+    // Direct AI model, used only when LayerOne is switched OFF in the sample apps (Live mode).
+    // Must be OpenAI-compatible, e.g. https://api.openai.com/v1/chat/completions.
+    directUrl: env.DIRECT_MODEL_URL || '',
+    directApiKey: env.DIRECT_MODEL_API_KEY || '',
+    directAuthHeader: env.DIRECT_MODEL_AUTH_HEADER || 'Authorization',
+    directAuthScheme: env.DIRECT_MODEL_AUTH_SCHEME ?? 'Bearer',
+    directModel: env.DIRECT_MODEL || '',
     // How fast steps play on screen (and, in Dry run, how long the stand-ins take).
     pace: ['fast', 'normal', 'slow'].includes(env.DEMO_PACE) ? env.DEMO_PACE : 'normal',
     // ALLOW_UI_SETTINGS=false makes the Settings panel read-only.
@@ -55,6 +65,7 @@ export function endpointUrl(cfg, origin) {
 }
 
 export const mockModelUrl = (origin) => `${origin}/mock/model/v1/chat/completions`;
+export const mockJudgeUrl = (origin) => `${origin}/mock/judge/v1/evaluate`;
 
 // Best known target of the LayerOne → AI model hop before any response arrives.
 export function configuredUpstream(cfg, origin) {
@@ -74,5 +85,6 @@ export function publicConfig(cfg, origin) {
     authConfigured: cfg.mode === 'mock' || Boolean(cfg.apiKey),
     configured: cfg.mode === 'mock' || Boolean(cfg.baseUrl),
     settingsLocked: cfg.settingsLocked,
+    directConfigured: Boolean(cfg.directUrl),
   };
 }

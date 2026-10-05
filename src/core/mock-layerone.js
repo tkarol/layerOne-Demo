@@ -2,17 +2,24 @@
 // It is NOT Booz Allen's product: it imitates the shape of a governance
 // gateway (request checks, response checks, tamper-evident evidence chain)
 // so the demo can be exercised end to end without preview credentials.
-import { mockModelUrl } from './config.js';
+import { mockJudgeUrl, mockModelUrl } from './config.js';
 import { json, jitter, paceFactor, randomHex, sha256, sleep } from './util.js';
 
 const POLICY_VERSION = 'sim-2026.10';
 
+// Request limits this simulated gateway enforces (a real LayerOne sets these per app/policy).
+const INPUT_TOKEN_LIMIT = 8000;
+const OUTPUT_TOKEN_LIMIT = 4000;
+const MODEL_DENYLIST = ['deepseek-r1', 'deepseek-chat', 'qwen-max', 'public-free-llm'];
+const estimateTokens = (text) => Math.ceil(text.length / 4);
+
 const PII_PATTERNS = [
+  { kind: 'CARD', label: 'card number', re: /\b(?:\d{4}[ -]){3}\d{4}\b/g },
+  { kind: 'ACCOUNT', label: 'account number', re: /(?<=\b(?:account|acct)(?:\s*(?:number|no\.?|#))?(?:\s+is)?\s*[:#]?\s*)\d{8,12}\b/gi },
   { kind: 'SSN', label: 'Social Security number', re: /\b\d{3}-\d{2}-\d{4}\b/g },
   { kind: 'DOB', label: 'date of birth', re: /\b(0?[1-9]|1[0-2])\/(0?[1-9]|[12]\d|3[01])\/(19|20)\d{2}\b/g },
   { kind: 'PHONE', label: 'phone number', re: /(?:\(\d{3}\)\s?|\b\d{3}[-.])\d{3}[-.]\d{4}\b/g },
   { kind: 'EMAIL', label: 'email address', re: /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g },
-  { kind: 'CARD', label: 'card number', re: /\b(?:\d{4}[ -]){3}\d{4}\b/g },
 ];
 const INJECTION = /\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,40}\b(instructions?|rules?|prompts?)\b|reveal (your|the) system prompt/i;
 const MARKING = /\b(TOP SECRET|SECRET|CONFIDENTIAL)\s*\/\/|\b(NOFORN|TS\/\/SCI|ORCON)\b/;
@@ -36,8 +43,34 @@ function redactPii(text) {
   return { text: out, count: found.length, summary };
 }
 
-function requestPolicies(text) {
+function requestPolicies(text, body) {
   const policies = [];
+
+  const model = String(body.model || '').toLowerCase();
+  const denied = MODEL_DENYLIST.includes(model);
+  policies.push({
+    id: 'L1-IN-005',
+    name: 'Approved AI models only',
+    stage: 'input',
+    result: denied ? 'block' : 'pass',
+    detail: denied ? `"${body.model}" is on the model denylist; it is not approved for this organization's data` : `"${body.model}" is an approved model`,
+  });
+
+  const tokens = estimateTokens(JSON.stringify(body.messages || []));
+  const maxOut = Number(body.max_tokens) || 0;
+  const tooBig = tokens > INPUT_TOKEN_LIMIT || maxOut > OUTPUT_TOKEN_LIMIT;
+  policies.push({
+    id: 'L1-IN-006',
+    name: 'Token limit',
+    stage: 'input',
+    result: tooBig ? 'block' : 'pass',
+    detail: tooBig
+      ? tokens > INPUT_TOKEN_LIMIT
+        ? `Request is about ${tokens.toLocaleString('en-US')} tokens; the limit for this app is ${INPUT_TOKEN_LIMIT.toLocaleString('en-US')}`
+        : `Asked for up to ${maxOut.toLocaleString('en-US')} output tokens; the limit is ${OUTPUT_TOKEN_LIMIT.toLocaleString('en-US')}`
+      : `About ${tokens.toLocaleString('en-US')} tokens, within the ${INPUT_TOKEN_LIMIT.toLocaleString('en-US')}-token limit`,
+    tokens,
+  });
 
   const bulk = BULK_PII.test(text);
   policies.push({
@@ -126,7 +159,7 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
 
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const userText = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
-  const { policies, sanitized } = requestPolicies(userText);
+  const { policies, sanitized } = requestPolicies(userText, body);
   await wait(700, 1000); // request checks
 
   const blocked = policies.find((p) => p.result === 'block');
@@ -196,9 +229,33 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
   };
   const checked = responsePolicies(upstreamBody.choices?.[0]?.message?.content ?? '');
   await wait(500, 800); // response checks
-  const output = checked.output;
+
+  // LLM judge: a second model grades the answer before it is released.
+  const judgeUrl = mockJudgeUrl(origin);
+  const judgeStarted = Date.now();
+  let judge;
+  try {
+    const jr = await fetchFn(judgeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Demo-Pace': pace },
+      body: JSON.stringify({ model: 'judge-model', question: sanitized, answer: checked.output }),
+    });
+    judge = { method: 'POST', url: judgeUrl, ...(await jr.json()), status: jr.status, latency_ms: Date.now() - judgeStarted };
+  } catch (err) {
+    judge = { method: 'POST', url: judgeUrl, verdict: 'error', rationale: `Judge unavailable: ${err.message}` };
+  }
+  const held = judge.verdict === 'fail';
+  checked.policies.push({
+    id: 'L1-OUT-003',
+    name: 'LLM judge: accurate and compliant',
+    stage: 'output',
+    result: held ? 'hold' : 'pass',
+    detail: judge.score != null ? `Judge score ${judge.score}/10: ${judge.rationale}` : judge.rationale,
+  });
+
+  const output = held ? `This answer was held for review by LayerOne before it reached you. ${judge.rationale}` : checked.output;
   const allPolicies = [...policies, ...checked.policies];
-  const decision = allPolicies.some((p) => p.result === 'redact') ? 'redacted' : 'allowed';
+  const decision = held ? 'held' : allPolicies.some((p) => p.result === 'redact') ? 'redacted' : 'allowed';
   const record = await sealRecord(
     { ...baseRecord, decision, upstream_url: upstream.url, output_sha256: await sha256(output), policies: allPolicies },
     storage,
@@ -222,6 +279,8 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
         request_id: requestId,
         sanitized_prompt: sanitized !== userText ? sanitized : undefined,
         upstream,
+        judge,
+        withheld_preview: held ? checked.output.slice(0, 600) : undefined,
         policies: allPolicies,
         record,
       },
@@ -233,6 +292,7 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
       'X-LayerOne-Policy-Version': POLICY_VERSION,
       'X-LayerOne-Upstream-Url': upstream.url,
       'X-LayerOne-Upstream-Provider': upstream.provider,
+      'X-LayerOne-Judge-Url': judgeUrl,
       'X-LayerOne-Gateway-Ms': String(Date.now() - started),
     },
   );

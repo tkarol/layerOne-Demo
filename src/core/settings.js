@@ -41,6 +41,10 @@ export function validate(input, current) {
   if (input.upstreamUrl !== undefined) next.upstreamUrl = str(input.upstreamUrl);
   if (input.upstreamProvider !== undefined) next.upstreamProvider = str(input.upstreamProvider);
   if (input.timeoutMs !== undefined) next.timeoutMs = Number(input.timeoutMs);
+  if (input.directUrl !== undefined) next.directUrl = str(input.directUrl);
+  if (input.directAuthHeader !== undefined) next.directAuthHeader = str(input.directAuthHeader) || 'Authorization';
+  if (input.directAuthScheme !== undefined) next.directAuthScheme = str(input.directAuthScheme);
+  if (input.directModel !== undefined) next.directModel = str(input.directModel);
   if (input.pace !== undefined) {
     if (['fast', 'normal', 'slow'].includes(input.pace)) next.pace = input.pace;
     else errors.pace = 'Choose fast, normal or slow';
@@ -54,16 +58,25 @@ export function validate(input, current) {
   if (next.model.length > 200) errors.model = 'Too long';
   if (next.upstreamUrl && !isHttpUrl(next.upstreamUrl)) errors.upstreamUrl = 'Must be an http(s) URL';
   if (next.upstreamProvider.length > 100) errors.upstreamProvider = 'Too long';
+  if (next.directUrl && !isHttpUrl(next.directUrl)) errors.directUrl = 'Must be an http(s) URL';
+  if (!/^[A-Za-z0-9-]+$/.test(next.directAuthHeader)) errors.directAuthHeader = 'Letters, numbers and dashes only';
+  if (!/^[A-Za-z0-9-]*$/.test(next.directAuthScheme)) errors.directAuthScheme = 'Letters, numbers and dashes only (or empty)';
+  if (next.directModel.length > 200) errors.directModel = 'Too long';
   if (!Number.isFinite(next.timeoutMs) || next.timeoutMs < 1000 || next.timeoutMs > 300000) errors.timeoutMs = 'Between 1,000 and 300,000 ms';
 
-  let notice = null;
-  if (input.clearApiKey) next.apiKey = '';
-  else if (typeof input.apiKey === 'string' && input.apiKey.trim()) next.apiKey = input.apiKey.trim();
-  else if (next.apiKey && current.baseUrl && originOf(next.baseUrl) !== originOf(current.baseUrl)) {
-    // Never forward a saved key to a different host without it being re-entered.
-    next.apiKey = '';
-    notice = 'The saved API key was removed because the LayerOne host changed. Enter the key for the new host.';
-  }
+  // Keys only change when re-entered, and are never forwarded to a different host.
+  const notices = [];
+  const keyRule = (keyField, clearField, urlField, what) => {
+    if (input[clearField]) next[keyField] = '';
+    else if (typeof input[keyField] === 'string' && input[keyField].trim()) next[keyField] = input[keyField].trim();
+    else if (next[keyField] && current[urlField] && originOf(next[urlField]) !== originOf(current[urlField])) {
+      next[keyField] = '';
+      notices.push(`The saved ${what} API key was removed because its host changed. Enter the key for the new host.`);
+    }
+  };
+  keyRule('apiKey', 'clearApiKey', 'baseUrl', 'LayerOne');
+  keyRule('directApiKey', 'clearDirectApiKey', 'directUrl', 'direct model');
+  const notice = notices.join(' ') || null;
 
   return { next, errors, notice, ok: Object.keys(errors).length === 0 };
 }
@@ -80,6 +93,12 @@ export function publicSettings(cfg, origin, { savedInUi }) {
     upstreamUrl: cfg.upstreamUrl,
     upstreamProvider: cfg.upstreamProvider,
     pace: cfg.pace,
+    directUrl: cfg.directUrl,
+    directAuthHeader: cfg.directAuthHeader,
+    directAuthScheme: cfg.directAuthScheme,
+    directModel: cfg.directModel,
+    directApiKeySet: Boolean(cfg.directApiKey),
+    directApiKeyHint: cfg.directApiKey ? `…${cfg.directApiKey.slice(-4)}` : null,
     apiKeySet: Boolean(cfg.apiKey),
     apiKeyHint: cfg.apiKey ? `…${cfg.apiKey.slice(-4)}` : null,
     endpoint: endpointUrl(cfg, origin),

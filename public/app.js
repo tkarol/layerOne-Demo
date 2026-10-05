@@ -1,3 +1,6 @@
+import { NO_BACKEND_MSG, readTraceStream, LEAK_RE } from './stream.js';
+import { initSample } from './sample.js';
+
 const $ = (sel) => document.querySelector(sel);
 const state = { config: null, scenarios: [], traces: new Map(), history: [], selectedId: null, scenario: null, reveal: null };
 
@@ -19,11 +22,6 @@ function highlightJson(value) {
   );
 }
 const codeBlock = (v) => `<pre class="code">${highlightJson(v ?? null)}</pre>`;
-
-// Shown when /api answers with something other than JSON, e.g. a static-only
-// host (Cloudflare Pages) serving the page without the Worker backend.
-const NO_BACKEND_MSG =
-  'This page cannot reach its backend, so Send and Settings will not work. If it is hosted on Cloudflare, deploy this repo as a Cloudflare Worker (see "Deploy to Cloudflare" in the README), not as a static Pages site.';
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...settingsAuth(path), ...(opts.headers || {}) } });
@@ -58,7 +56,7 @@ function outcome(t) {
   if (t.status === 'error' && t.governance?.decision !== 'blocked') return 'error';
   return t.governance?.decision || t.status;
 }
-const OUTCOME_LABEL = { allowed: 'Clean', redacted: 'Info removed', blocked: 'Blocked', error: 'Error', running: 'Sending…' };
+const OUTCOME_LABEL = { allowed: 'Clean', redacted: 'Info removed', blocked: 'Blocked', held: 'Held for review', unprotected: 'LayerOne off', error: 'Error', running: 'Sending…' };
 
 // ---------- theme ----------
 function initTheme() {
@@ -116,6 +114,7 @@ function splitPolicies(policies = []) {
 function checkCaption(list, fallback) {
   const block = list.find((p) => p.result === 'block');
   if (block) return ['blocked', 'Blocked'];
+  if (list.some((p) => p.result === 'hold')) return ['blocked', 'Held for review by the LLM judge'];
   const removed = list.filter((p) => p.result === 'redact');
   if (removed.length) return ['warn', removed.map((p) => p.detail.replace(/ from the AI’s answer$/, '')).join('; ')];
   if (list.length) return ['done', `${list.length} checks passed`];
@@ -152,7 +151,21 @@ function renderJourney(t) {
   for (const k of ['req-app', 'req-l1', 'req-model', 'res-model', 'res-l1', 'res-app']) view[k] = idle;
   for (const k of ['req-1', 'req-2', 'res-1', 'res-2']) view[k] = '';
 
-  if (t) {
+  if (t?.bypass) {
+    // LayerOne switched off: the app called the AI model directly.
+    const done = !waiting;
+    const ok = done && t.status === 'completed';
+    view['req-app'] = ['done', 'Sent the request'];
+    view['req-1'] = 'done';
+    view['req-l1'] = ['skipped', 'Switched off: nothing checked'];
+    view['req-2'] = done ? 'done' : 'active';
+    view['req-model'] = done ? ['done', 'Got everything, unchecked'] : ['active', `Working… ${waitingFor(t)} s`];
+    view['res-model'] = ok ? ['done', 'Sent its answer'] : done ? ['blocked', 'Returned an error'] : idle;
+    view['res-1'] = ok ? 'done' : '';
+    view['res-l1'] = ['skipped', 'Switched off: nothing checked'];
+    view['res-2'] = ok ? 'done' : '';
+    view['res-app'] = ok ? ['warn', 'Showed the answer, unchecked'] : done ? ['blocked', 'Showed the error'] : idle;
+  } else if (t) {
     view['req-app'] = ['done', 'Sent the request'];
     view['req-1'] = 'done';
     if (waiting) {
@@ -190,10 +203,14 @@ function renderJourney(t) {
       view['res-model'] = ['done', 'Sent its answer'];
       view['res-1'] = 'done';
       view['res-l1'] = checkCaption(res, ['done', 'Passed']);
-      view['res-2'] = 'done';
-      view['res-app'] = ['done', view['res-l1'][0] === 'warn' ? 'Showed the cleaned answer' : 'Showed the answer'];
+      const judge = t.governance?.judge;
+      if (judge?.score != null && view['res-l1'][0] !== 'blocked') view['res-l1'] = [view['res-l1'][0], `${view['res-l1'][1]} · judge ${judge.score}/10`];
+      view['res-2'] = o === 'held' ? 'blocked' : 'done';
+      view['res-app'] = o === 'held' ? ['done', 'Showed a hold notice'] : ['done', view['res-l1'][0] === 'warn' ? 'Showed the cleaned answer' : 'Showed the answer'];
     }
 
+  }
+  if (t && !t.bypass) {
     // Play LayerOne's inner steps back one hop at a time.
     const shown = o === 'running' ? Infinity : revealStep(t);
     REPLAY_ORDER.forEach((k, i) => {
@@ -205,9 +222,11 @@ function renderJourney(t) {
   }
   const note = $('#laneNote');
   note.hidden = !t || o === 'error' && !t.response;
-  note.textContent = waiting
-    ? `${t.mode === 'mock' ? 'Dry run' : 'Live'}: waiting for LayerOne (real elapsed time). It checks the request, calls the AI model and checks the answer inside this one request.`
-    : 'The steps inside LayerOne are shown from what LayerOne reported in its response.';
+  note.textContent = t?.bypass
+    ? `LayerOne was switched off in the sample app, so the request went straight to the AI model.${t.bypassNote ? ` ${t.bypassNote}` : ''}`
+    : waiting
+      ? `${t.mode === 'mock' ? 'Dry run' : 'Live'}: waiting for LayerOne (real elapsed time). It checks the request, calls the AI model and checks the answer inside this one request.`
+      : 'The steps inside LayerOne are shown from what LayerOne reported in its response.';
 
   for (const [key, val] of Object.entries(view)) {
     if (typeof val === 'string') {
@@ -234,7 +253,11 @@ function renderVerdict(t, o, req, res) {
   const inRemoved = req.filter((p) => p.result === 'redact');
   const outRemoved = res.filter((p) => p.result === 'redact');
   let msg;
-  if (o === 'running' && t.status === 'running') msg = ['Waiting for LayerOne…', 'LayerOne is checking the request, calling the AI model, and checking the answer.'];
+  const held = all.find((p) => p.result === 'hold');
+  if (t.bypass && t.status === 'running') msg = ['Waiting for the AI model…', 'LayerOne is switched off, so nothing will be checked.'];
+  else if (o === 'unprotected') msg = ['⚠️ Unprotected: LayerOne was switched off', 'The request went straight to the AI model. Nothing was checked, removed, or recorded, and there is no audit record.'];
+  else if (o === 'held') msg = ['⚑ Answer held for review', `LayerOne's LLM judge stopped this answer before it reached the web application. ${held?.detail || ''}`];
+  else if (o === 'running' && t.status === 'running') msg = ['Waiting for LayerOne…', 'LayerOne is checking the request, calling the AI model, and checking the answer.'];
   else if (o === 'running') msg = ['Following the request…', 'Showing each step LayerOne reported, in order.'];
   else if (o === 'blocked') msg = ['🛑 Blocked before it reached the AI model', `LayerOne stopped this request, so the AI model never saw it.${blocker ? ` Reason: ${blocker.detail}.` : ''}`];
   else if (o === 'error') msg = ['⚠️ Something went wrong', t.error || 'The request could not be completed.'];
@@ -255,6 +278,31 @@ function renderEndpoints(t) {
   const c = state.config;
   if (!c) return;
   const mock = c.mode === 'mock';
+  const judge = t?.governance?.judge;
+  $('#epJudgeCard').hidden = !judge?.url;
+  if (judge?.url) {
+    $('#epJudge').textContent = judge.url;
+    $('#epJudgeNote').textContent = [`Called${judge.latencyMs != null ? ` in ${fmtMs(judge.latencyMs)}` : ''}`, judge.model && `model "${judge.model}"`, judge.score != null && `score ${judge.score}/10`, judge.verdict && `verdict: ${judge.verdict}`]
+      .filter(Boolean)
+      .join(' · ');
+    $('#epJudgeNote').className = `ep-note ${judge.verdict === 'fail' ? 'bad' : 'ok'}`;
+  }
+  if (t?.bypass) {
+    // LayerOne switched off: the app called the AI model directly.
+    $('#epGateway').textContent = c.endpoint.url;
+    $('#epGateway').parentElement.className = 'ep-url not-called';
+    $('#epGatewayNote').textContent = 'Not called. LayerOne was switched off in the sample app.';
+    $('#epGatewayNote').className = 'ep-note bad';
+    $('#epUpstreamMethod').textContent = 'POST';
+    $('#epUpstream').textContent = t.endpoint.url;
+    $('#epUpstreamBox').className = 'ep-url';
+    $('#epUpstreamNote').textContent = t.response
+      ? `Called directly by the web application · HTTP ${t.response.status} in ${fmtMs(t.response.latencyMs)}${t.simulatedModel ? ' · built-in stand-in model' : ''}`
+      : 'Called directly by the web application';
+    $('#epUpstreamNote').className = 'ep-note bad';
+    return;
+  }
+  $('#epGateway').parentElement.className = 'ep-url';
   const gatewayUrl = t?.endpoint?.url || c.endpoint.url;
   $('#epGateway').textContent = gatewayUrl || '(LAYERONE_BASE_URL not set)';
   const gNote = $('#epGatewayNote');
@@ -305,7 +353,7 @@ function renderEndpoints(t) {
 }
 
 // ---------- step 3: details by direction ----------
-const RESULT = { pass: ['✓', 'Passed'], redact: ['✂', 'Removed'], block: ['✕', 'Blocked'] };
+const RESULT = { pass: ['✓', 'Passed'], redact: ['✂', 'Removed'], block: ['✕', 'Blocked'], hold: ['⚑', 'Held for review'] };
 function checkList(list) {
   if (!list.length) return '';
   return `<div class="label">Rules checked</div><ul class="checks">${list
@@ -328,6 +376,18 @@ function renderResult(t) {
   const g = t.governance || {};
   const { req, res, other } = splitPolicies(g.policies);
   const sanitized = g.extensions?.layerone?.sanitized_prompt;
+
+  if (t.bypass) {
+    const leak = (s) => esc(s).replace(new RegExp(LEAK_RE.source, 'gi'), (m) => `<mark class="leak">${m}</mark>`);
+    $('#result').innerHTML = `
+      <div class="direction">Request: Web Application → AI Model (LayerOne switched off)</div>
+      <div class="label">What the AI model received</div><pre class="box stopped">${leak(t.prompt)}</pre>
+      <p class="same">Exactly what the web application sent: nothing was checked or removed.${t.promptTokens ? ` About ${t.promptTokens.toLocaleString('en-US')} tokens.` : ''}</p>
+      <div class="direction">Response: AI Model → Web Application</div>
+      <div class="label">What the web application received</div><pre class="box stopped">${leak(t.output || t.error || '')}</pre>
+      <p class="same">No LayerOne checks ran, and no audit record was created. Personal data the AI model saw or returned is highlighted in red.</p>`;
+    return;
+  }
 
   if (o === 'error' && !t.response) {
     const live = state.config?.mode !== 'mock';
@@ -352,12 +412,17 @@ function renderResult(t) {
     </div>
     ${checkList(req)}`;
 
-  const answer =
-    o === 'blocked'
+  const held = o === 'held'
+    ? `<div class="label">What the web application received</div><pre class="box stopped">${esc(t.output || 'Held for review.')}</pre>${
+        g.withheldPreview ? `<div class="label">The AI model's original answer, withheld <span class="muted">(visible to reviewers only)</span></div><pre class="box">${esc(g.withheldPreview)}</pre>` : ''
+      }`
+    : null;
+  const answer = held ??
+    (o === 'blocked'
       ? `<div class="label">What the web application received</div><pre class="box stopped">${esc(t.output || 'Request blocked.')}</pre>`
       : o === 'error'
         ? `<div class="label">Error</div><pre class="box stopped">${esc(t.error || t.output || 'Unknown error')}</pre>`
-        : `<div class="label">What the web application received</div><pre class="box answer">${markRedactions(t.output || '')}</pre>`;
+        : `<div class="label">What the web application received</div><pre class="box answer">${markRedactions(t.output || '')}</pre>`);
 
   const responseSide = `
     <div class="direction">Response: AI Model → LayerOne → Web Application</div>
@@ -402,7 +467,7 @@ function renderTech(t) {
 
 // ---------- history ----------
 function summarize(t) {
-  return { id: t.id, createdAt: t.createdAt, status: t.status, prompt: t.prompt.slice(0, 140), decision: t.governance?.decision ?? null };
+  return { id: t.id, createdAt: t.createdAt, status: t.status, prompt: t.prompt.slice(0, 140), decision: t.governance?.decision ?? null, app: t.app ?? null, bypass: Boolean(t.bypass) };
 }
 
 function renderHistory() {
@@ -412,7 +477,7 @@ function renderHistory() {
       const o = h.status === 'running' ? 'running' : h.status === 'error' && h.decision !== 'blocked' ? 'error' : h.decision || h.status;
       return `<li data-id="${esc(h.id)}" class="${h.id === state.selectedId ? 'selected' : ''}">
         <span class="pill ${esc(o)}">${esc(OUTCOME_LABEL[o] || o)}</span>
-        <span class="txt">${esc(h.prompt)}</span>
+        <span class="txt">${h.app ? `<span class="tag">${esc(h.app === 'bank' ? 'Cobalt Bank' : 'Lakeshore')}${h.bypass ? ' · OFF' : ''}</span>` : ''}${esc(h.prompt)}</span>
         <time>${fmtTime(h.createdAt)}</time>
       </li>`;
     })
@@ -433,6 +498,42 @@ function render() {
   renderJourney(t);
   renderResult(t);
   renderTech(t);
+}
+
+// ---------- views: Sample apps | Behind the scenes ----------
+function setView(view) {
+  const v = view === 'console' ? 'console' : 'apps';
+  $('#appsView').hidden = v !== 'apps';
+  $('#consoleView').hidden = v !== 'console';
+  document.querySelectorAll('.view-tabs button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.view === v);
+    b.setAttribute('aria-selected', String(b.dataset.view === v));
+  });
+  if (location.hash !== `#${v}`) history.replaceState(null, '', `#${v}`);
+  if (v === 'console') refreshHistory();
+}
+
+async function refreshHistory() {
+  if (!state.config) return;
+  try {
+    state.history = await api('/api/traces');
+    renderHistory();
+  } catch {}
+}
+
+function initViews() {
+  document.querySelectorAll('.view-tabs button').forEach((b) => (b.onclick = () => setView(b.dataset.view)));
+  window.addEventListener('hashchange', () => setView(location.hash.slice(1)));
+  window.addEventListener('l1:view', (e) => setView(e.detail));
+  // "See what LayerOne did" in a sample app opens that request here.
+  window.addEventListener('l1:show-trace', async (e) => {
+    setView('console');
+    state.traces.delete(e.detail.id);
+    await refreshHistory();
+    await select(e.detail.id);
+    window.scrollTo({ top: 0 });
+  });
+  setView(location.hash.slice(1) || 'apps');
 }
 
 // ---------- mode badge ----------
@@ -458,6 +559,7 @@ function renderConfig() {
   }
   note.querySelectorAll('[data-open-settings]').forEach((a) => (a.onclick = openSettings));
   $('#send').textContent = mock ? 'Send through LayerOne (dry run)' : 'Send through LayerOne';
+  window.dispatchEvent(new CustomEvent('l1:config', { detail: c }));
 }
 
 function toast(msg) {
@@ -470,7 +572,10 @@ function toast(msg) {
 
 // ---------- settings ----------
 const form = () => $('#settingsForm');
-const SETTINGS_FIELDS = ['baseUrl', 'chatPath', 'model', 'apiKey', 'authHeader', 'authScheme', 'timeoutMs', 'upstreamUrl', 'upstreamProvider'];
+const SETTINGS_FIELDS = [
+  'baseUrl', 'chatPath', 'model', 'apiKey', 'authHeader', 'authScheme', 'timeoutMs', 'upstreamUrl', 'upstreamProvider',
+  'directUrl', 'directModel', 'directApiKey', 'directAuthHeader', 'directAuthScheme',
+];
 const ERROR_FIELDS = [...SETTINGS_FIELDS, 'settingsPassword'];
 
 function readForm() {
@@ -479,7 +584,9 @@ function readForm() {
   for (const k of SETTINGS_FIELDS) data[k] = f[k].value;
   data.timeoutMs = Number(data.timeoutMs);
   data.clearApiKey = f.clearApiKey.checked;
+  data.clearDirectApiKey = f.clearDirectApiKey.checked;
   if (!data.apiKey) delete data.apiKey; // blank keeps the saved key
+  if (!data.directApiKey) delete data.directApiKey;
   return data;
 }
 
@@ -513,6 +620,10 @@ function fillForm(st) {
   f.apiKey.placeholder = st.apiKeySet ? `Saved (ends in ${st.apiKeyHint.slice(1)}). Leave blank to keep it.` : 'Paste your LayerOne API key';
   f.clearApiKey.checked = false;
   $('#clearKeyRow').hidden = !st.apiKeySet;
+  f.directApiKey.value = '';
+  f.directApiKey.placeholder = st.directApiKeySet ? `Saved (ends in ${st.directApiKeyHint.slice(1)}). Leave blank to keep it.` : 'Paste the model provider API key';
+  f.clearDirectApiKey.checked = false;
+  $('#clearDirectKeyRow').hidden = !st.directApiKeySet;
   $('#passwordRow').hidden = !st.passwordRequired;
   f.settingsPassword.value = '';
   $('#settingsLocked').hidden = !st.locked;
@@ -642,31 +753,14 @@ async function send() {
     const preset = state.scenarios.find((s) => s.id === state.scenario);
     const scenario = preset && preset.prompt === prompt ? preset.id : 'custom';
     const res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, scenario }) });
-    if (!(res.headers.get('content-type') || '').includes('text/event-stream')) {
-      const data = await res.json().catch(() => null);
-      throw new Error(data?.error || NO_BACKEND_MSG);
-    }
     // The server streams a snapshot of the trace after every step.
-    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buffer = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += value;
-      let i;
-      while ((i = buffer.indexOf('\n\n')) >= 0) {
-        const frame = buffer.slice(0, i);
-        buffer = buffer.slice(i + 2);
-        const data = frame.split('\n').filter((l) => l.startsWith('data: ')).map((l) => l.slice(6)).join('');
-        if (!data) continue;
-        const trace = JSON.parse(data);
-        if (state.selectedId !== trace.id) {
-          state.selectedId = trace.id;
-          state.traces.delete(trace.id);
-        }
-        onTrace(trace);
+    await readTraceStream(res, (trace) => {
+      if (state.selectedId !== trace.id) {
+        state.selectedId = trace.id;
+        state.traces.delete(trace.id);
       }
-    }
+      onTrace(trace);
+    });
   } catch (err) {
     alert(`Request failed: ${err.message}`);
   } finally {
@@ -676,7 +770,7 @@ async function send() {
 
 function onTrace(trace) {
   const prev = state.traces.get(trace.id);
-  if (prev?.status === 'running' && trace.status !== 'running' && trace.response) state.reveal = { id: trace.id, start: performance.now() };
+  if (prev?.status === 'running' && trace.status !== 'running' && trace.response && !trace.bypass) state.reveal = { id: trace.id, start: performance.now() };
   state.traces.set(trace.id, trace);
   const idx = state.history.findIndex((h) => h.id === trace.id);
   if (idx >= 0) state.history[idx] = summarize(trace);
@@ -687,6 +781,8 @@ function onTrace(trace) {
 
 async function init() {
   initTheme();
+  initViews();
+  initSample();
   $('#send').onclick = send;
   $('#prompt').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send();
