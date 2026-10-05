@@ -17,15 +17,15 @@ A customer-facing demo app for **Booz Allen Vellox LayerOne**, the governance an
 * **Governance evidence** is pulled out generically: `X-LayerOne-*` / `X-Vellox-*` headers, any `layerone` / `governance` object in the body, and any non-standard response fields. If the gateway returns no explicit decision, one is inferred from the HTTP status and labeled as inferred.
 * Traces are appended to `data/traces.jsonl` and survive restarts. Any trace can be exported as JSON from the *Raw trace* tab. The *Request* tab has a copy-as-cURL button, so you can show the same call from a terminal.
 
-### Inspector tabs
+### What the customer sees
 
-| Tab | Shows |
-| --- | --- |
-| Overview | Decision, HTTP status, gateway latency, end-to-end time, evidence ID, endpoint, prompt (and the sanitized prompt if one was returned), model output or block message |
-| Request | Exact method + URL, headers (secrets masked), JSON body, cURL |
-| Response | Status, latency, size, all response headers, body |
-| Governance | Per-policy results, tamper-evident evidence record, governance headers, extension fields |
-| Raw trace | The full stored trace, exportable |
+The page is one column and reads top to bottom:
+
+1. **Ask the AI agent something.** Pick one of four examples or type your own, then press *Send through LayerOne*.
+2. **What LayerOne did.** Three boxes (AI agent → LayerOne → AI model) light up as the request moves through. Underneath, a plain-English verdict says **Allowed**, **Allowed, with sensitive info removed**, or **Blocked**, with the reason and the audit record ID. When a request is blocked, the AI model box shows *Never reached*.
+3. **The details.** What you sent next to what the AI actually received (removed items are highlighted), the AI's answer or LayerOne's block message, and a ✓/✕ list of the rules LayerOne checked.
+
+**Technical details** stays collapsed until someone asks. It holds the exact endpoint, step-by-step timing, the raw request (API key hidden) and response, the audit record, *Copy as cURL*, and *Download full trace (JSON)*. **Recent requests** at the bottom reopens any earlier run.
 
 ## Quick start
 
@@ -40,7 +40,7 @@ cp .env.example .env           # fill in LAYERONE_BASE_URL, LAYERONE_API_KEY, LA
 npm start
 ```
 
-The header always shows **LIVE** or **SIMULATED** with the endpoint URL next to it. Simulated mode also shows a banner, so the stand-in is never mistaken for the real product in front of a customer.
+The header shows **Connected to LayerOne** or **Practice mode**. Practice mode also shows a note under the intro, so the stand-in is never mistaken for the real product in front of a customer.
 
 Docker:
 
@@ -76,10 +76,10 @@ LayerOne is in limited preview, and the request format here is an **assumption**
 
 | Scenario | What it exercises |
 | --- | --- |
-| Routine analyst request | Clean pass-through, baseline latency |
-| Sensitive data in the prompt | PII detection / redaction |
-| Prompt injection attempt | Instruction-override defense |
-| Classification marking | Data-handling / spillage control |
+| A normal question | Clean pass-through, baseline latency |
+| Includes personal info | PII detection / redaction |
+| Tries to trick the AI | Prompt-injection defense |
+| Classified marking | Data-handling / spillage control |
 
 What happens in live mode depends on the policies configured in your LayerOne tenant. In simulated mode the built-in gateway (`server/mock-layerone.js`) allows, redacts, or blocks these scenarios. It does not call a model; replies are canned. It also produces a hash-chained evidence record, so you can rehearse the narrative. Edit the scenarios in `server/scenarios.js`.
 

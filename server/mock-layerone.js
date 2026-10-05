@@ -16,6 +16,7 @@ const PII_PATTERNS = [
   { kind: 'EMAIL', re: /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g },
   { kind: 'CARD', re: /\b(?:\d[ -]?){15,16}\b/g },
 ];
+const PII_LABELS = { SSN: 'Social Security number', EMAIL: 'email address', CARD: 'card number' };
 const INJECTION = /\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,40}\b(instructions?|rules?|prompts?)\b|reveal (your|the) system prompt/i;
 const MARKING = /\b(TOP SECRET|SECRET|CONFIDENTIAL)\s*\/\/|\b(NOFORN|TS\/\/SCI|ORCON)\b/;
 
@@ -26,19 +27,19 @@ function inputPolicies(text) {
   const injected = INJECTION.test(text);
   policies.push({
     id: 'L1-IN-001',
-    name: 'Prompt injection defense',
+    name: 'Attempts to trick the AI',
     stage: 'input',
     result: injected ? 'block' : 'pass',
-    detail: injected ? 'Instruction-override pattern detected in user content' : 'No override patterns found',
+    detail: injected ? 'Tried to override the AI’s instructions' : 'No trick attempts found',
   });
 
   const marked = MARKING.test(text);
   policies.push({
     id: 'L1-IN-002',
-    name: 'Classification marking / spillage control',
+    name: 'Classified information',
     stage: 'input',
     result: marked ? 'block' : 'pass',
-    detail: marked ? 'Classification marking present; destination model not accredited for this level' : 'No markings found',
+    detail: marked ? 'Classification marking found; this AI model is not approved for classified data' : 'No classification markings',
   });
 
   const found = [];
@@ -50,10 +51,10 @@ function inputPolicies(text) {
   }
   policies.push({
     id: 'L1-IN-003',
-    name: 'PII detection & redaction',
+    name: 'Personal information',
     stage: 'input',
     result: found.length ? 'redact' : 'pass',
-    detail: found.length ? `Redacted ${found.length} item(s): ${[...new Set(found)].join(', ')}` : 'No PII found',
+    detail: found.length ? `Removed ${found.length} item(s): ${[...new Set(found)].map((k) => PII_LABELS[k]).join(', ')}` : 'No personal information found',
   });
 
   return { policies, sanitized };
@@ -89,17 +90,17 @@ function outputPolicies(output) {
   return [
     {
       id: 'L1-OUT-001',
-      name: 'Output PII leakage check',
+      name: 'Personal information in the answer',
       stage: 'output',
       result: leaked ? 'block' : 'pass',
-      detail: leaked ? 'Model output contains PII' : 'No PII in model output',
+      detail: leaked ? 'The answer contains personal information' : 'The answer contains no personal information',
     },
     {
       id: 'L1-OUT-002',
-      name: 'Response schema & safety validation',
+      name: 'Answer is safe and well-formed',
       stage: 'output',
       result: 'pass',
-      detail: 'Output conforms to expected format',
+      detail: 'The answer passed format and safety checks',
     },
   ];
 }
@@ -157,7 +158,7 @@ export async function handleMockChat(req, res, rawBody) {
         error: {
           type: 'policy_violation',
           code: blocked.id,
-          message: `Request blocked by LayerOne policy ${blocked.id} (${blocked.name}). The model was not called.`,
+          message: `Blocked by LayerOne rule ${blocked.id} (${blocked.name}): ${blocked.detail}. The AI model was not called.`,
         },
         layerone: { simulated: true, decision: 'blocked', evidence_id: evidenceId, request_id: requestId, policies, record },
       }),
