@@ -8,6 +8,7 @@ import { TraceStore } from './store.js';
 import { createTrace, runWorkflow } from './workflow.js';
 import { handleMockChat } from './mock-layerone.js';
 import { handleMockModel } from './mock-model.js';
+import { publicSettings, applySettings, resetSettings, loadSavedSettings, testConnection } from './settings.js';
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const MIME = {
@@ -55,26 +56,45 @@ async function serveStatic(req, res, pathname) {
 
 export function createApp(store = new TraceStore(config.dataFile)) {
   const sseClients = new Set();
-  store.subscribe((trace) => {
-    const msg = `event: trace\ndata: ${JSON.stringify(trace)}\n\n`;
+  const broadcast = (event, data) => {
+    const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const c of sseClients) c.write(msg);
-  });
+  };
+  store.subscribe((trace) => broadcast('trace', trace));
 
   const server = http.createServer(async (req, res) => {
     const { pathname } = new URL(req.url, 'http://localhost');
     try {
+      // Built-in dry-run stand-ins. Always available, so a dry-run test works from live mode too.
       if (req.method === 'POST' && pathname.startsWith('/mock/layerone/')) {
-        if (config.mode !== 'mock') return json(res, 404, { error: 'Mock gateway disabled in live mode' });
         return handleMockChat(req, res, await readBody(req));
       }
       if (req.method === 'POST' && pathname.startsWith('/mock/model/')) {
-        if (config.mode !== 'mock') return json(res, 404, { error: 'Mock model disabled in live mode' });
         return handleMockModel(req, res, await readBody(req));
       }
 
       if (pathname === '/api/health') return json(res, 200, { ok: true });
       if (pathname === '/api/config') return json(res, 200, publicConfig());
       if (pathname === '/api/scenarios') return json(res, 200, SCENARIOS);
+
+      if (pathname.startsWith('/api/settings')) {
+        if (req.method === 'GET' && pathname === '/api/settings') return json(res, 200, publicSettings());
+        if (config.settingsLocked) return json(res, 403, { error: 'Settings are locked on this server (ALLOW_UI_SETTINGS=false)' });
+        if (req.method === 'POST' && pathname === '/api/settings/test') {
+          return json(res, 200, await testConnection(JSON.parse((await readBody(req)) || '{}')));
+        }
+        if (req.method === 'PUT' && pathname === '/api/settings') {
+          const result = applySettings(JSON.parse((await readBody(req)) || '{}'));
+          if (!result.ok) return json(res, 400, { error: 'Some settings are invalid', errors: result.errors });
+          broadcast('config', publicConfig());
+          return json(res, 200, { settings: publicSettings(), notice: result.notice });
+        }
+        if (req.method === 'DELETE' && pathname === '/api/settings') {
+          resetSettings();
+          broadcast('config', publicConfig());
+          return json(res, 200, { settings: publicSettings() });
+        }
+      }
 
       if (pathname === '/api/stream') {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
@@ -123,6 +143,7 @@ export function createApp(store = new TraceStore(config.dataFile)) {
 }
 
 export function start({ port = config.port, host = config.host, store } = {}) {
+  loadSavedSettings();
   const server = createApp(store);
   return new Promise((resolve) => {
     server.listen(port, host, () => {
@@ -137,6 +158,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const { mode, endpoint } = publicConfig();
   const { address, port } = server.address();
   console.log(`\n  LayerOne Demo Console → http://${address === '0.0.0.0' ? 'localhost' : address}:${port}`);
-  console.log(`  Mode: ${mode.toUpperCase()}${mode === 'mock' ? ' (simulated gateway — not the real LayerOne)' : ''}`);
+  console.log(`  Mode: ${mode === 'mock' ? 'DRY RUN (built-in simulated LayerOne, nothing leaves this machine)' : 'LIVE'}`);
   console.log(`  Endpoint: ${endpoint.method} ${endpoint.url || '(LAYERONE_BASE_URL not set)'}\n`);
 }

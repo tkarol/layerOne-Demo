@@ -37,7 +37,7 @@ export const config = {
   mode,
   baseUrl: (env.LAYERONE_BASE_URL || '').replace(/\/+$/, ''),
   chatPath: env.LAYERONE_CHAT_PATH || '/v1/chat/completions',
-  apiKey: env.LAYERONE_API_KEY || (mode === 'mock' ? 'mock-demo-key' : ''),
+  apiKey: env.LAYERONE_API_KEY || '',
   authHeader: env.LAYERONE_AUTH_HEADER || 'Authorization',
   authScheme: env.LAYERONE_AUTH_SCHEME ?? 'Bearer',
   model: env.LAYERONE_MODEL || 'demo-model',
@@ -49,13 +49,19 @@ export const config = {
   upstreamUrl: env.LAYERONE_UPSTREAM_URL || '',
   upstreamProvider: env.LAYERONE_UPSTREAM_PROVIDER || '',
   dataFile: env.TRACE_FILE || path.join(ROOT, 'data', 'traces.jsonl'),
+  settingsFile: env.SETTINGS_FILE || path.join(ROOT, 'data', 'settings.json'),
+  // Set ALLOW_UI_SETTINGS=false to lock the settings panel (e.g. on a shared host).
+  settingsLocked: /^(0|false|no)$/i.test(env.ALLOW_UI_SETTINGS || ''),
 };
 
-// In mock mode the app calls its own simulated gateway over real HTTP, so the
-// trace shows a genuine network round trip. The port is only known after listen().
-export function endpointUrl() {
-  const base = config.mode === 'mock' ? `http://127.0.0.1:${config.port}/mock/layerone` : config.baseUrl;
-  return base + config.chatPath;
+// Key sent to the built-in simulated gateway during a dry run.
+export const DRY_RUN_KEY = 'dry-run-demo-key';
+
+// In dry-run (mock) mode the app calls its own simulated gateway over real HTTP,
+// so the trace shows a genuine network round trip. The port is only known after listen().
+export function endpointUrl(cfg = config) {
+  const base = cfg.mode === 'mock' ? `http://127.0.0.1:${config.port}/mock/layerone` : cfg.baseUrl;
+  return base + cfg.chatPath;
 }
 
 export function mockModelUrl() {
@@ -76,7 +82,8 @@ export function publicConfig() {
     upstream: configuredUpstream(),
     model: config.model,
     authHeader: config.authHeader,
-    authConfigured: Boolean(config.apiKey),
+    authConfigured: config.mode === 'mock' || Boolean(config.apiKey),
+    settingsLocked: config.settingsLocked,
     extraHeaderNames: Object.keys(config.extraHeaders),
     configured: config.mode === 'mock' || Boolean(config.baseUrl),
   };

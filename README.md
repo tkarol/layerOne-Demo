@@ -6,6 +6,8 @@ A customer-facing demo app for **Booz Allen Vellox LayerOne**, the governance an
 
 ![Endpoints and request/response lanes](docs/endpoints.png)
 
+![Settings panel](docs/settings.png)
+
 ## How it works
 
 ```
@@ -44,15 +46,39 @@ In live mode the request and response sides are filled in from the `stage` field
 Requires Node 20+. There are no npm dependencies.
 
 ```bash
-# 1. Rehearse with the built-in simulated gateway (no credentials needed)
-npm start                      # http://localhost:3000
-
-# 2. Point at your real LayerOne gateway
-cp .env.example .env           # fill in LAYERONE_BASE_URL, LAYERONE_API_KEY, LAYERONE_MODEL
-npm start
+npm start                      # http://localhost:3000, starts in Dry run
 ```
 
-The header shows **Connected to LayerOne** or **Practice mode**. Practice mode also shows a note under the intro, so the stand-in is never mistaken for the real product in front of a customer.
+Then open **⚙ Settings** to switch to Live and enter your LayerOne URL and API key. You can also preset them in `.env` (`cp .env.example .env`).
+
+### Dry run vs Live
+
+| | Dry run | Live |
+| --- | --- | --- |
+| Requests go to | A built-in stand-in for LayerOne, which forwards to a built-in stand-in AI model, both on this computer | Your LayerOne gateway |
+| Network | Nothing leaves the machine | HTTPS to LayerOne |
+| Credentials | None needed | LayerOne API key |
+| Good for | Rehearsing, offline demos, demos before preview access | The real thing |
+
+The header badge always shows **Dry run** or **Live: LayerOne**. Dry run also shows a note under the intro, so the stand-in is never mistaken for the real product in front of a customer.
+
+### Settings panel
+
+Click **⚙ Settings** (or the mode badge) to change, without restarting:
+
+* **Mode:** Dry run or Live
+* **LayerOne gateway:** base URL, chat path, model, API key, auth header and scheme, timeout. A live preview shows the exact endpoint requests will hit.
+* **AI model endpoint (display only):** what to show as "LayerOne → AI Model" when LayerOne doesn't report it
+
+**Test connection** sends one small request using the values in the form, without saving them, and reports the HTTP status, latency and reply. If it fails, you get the reason (connection refused, timeout, 401 "check the API key", 404 "check the URL and path"). **Save** applies the settings immediately and updates every open browser. **Reset to .env defaults** discards what was saved from the UI.
+
+How settings are handled:
+
+* Precedence: built-in defaults < `.env` / environment < values saved from the UI.
+* UI-saved values are stored in `data/settings.json` (git-ignored, file mode 600). That **includes the API key in plain text**, so treat the file like `.env`.
+* The API key is never sent back to the browser. The form only shows that a key is saved and its last four characters. Leave the field blank to keep it.
+* If you change the LayerOne **host** without re-entering the key, the saved key is dropped. It is never forwarded to a different server.
+* On a shared or exposed host (`HOST=0.0.0.0`), set `ALLOW_UI_SETTINGS=false` to make the panel read-only.
 
 Docker:
 
@@ -65,7 +91,7 @@ docker run --rm -p 3000:3000 --env-file .env layerone-demo
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `LAYERONE_MODE` | `live` if a base URL is set, else `mock` | `live` or `mock` |
+| `LAYERONE_MODE` | `live` if a base URL is set, else `mock` | `live`, or `mock` for Dry run |
 | `LAYERONE_BASE_URL` | — | Gateway base URL |
 | `LAYERONE_CHAT_PATH` | `/v1/chat/completions` | Chat route on the gateway |
 | `LAYERONE_API_KEY` | — | Credential (server-side only) |
@@ -75,6 +101,7 @@ docker run --rm -p 3000:3000 --env-file .env layerone-demo
 | `LAYERONE_TIMEOUT_MS` | `60000` | Request timeout |
 | `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` | — | Model endpoint LayerOne forwards to, shown when LayerOne doesn't report it |
 | `DEMO_SYSTEM_PROMPT` | benefits claims assistant | System message the web application sends |
+| `ALLOW_UI_SETTINGS` | `true` | `false` makes the Settings panel read-only |
 | `PORT` / `HOST` | `3000` / `127.0.0.1` | Use `HOST=0.0.0.0` to open from another device |
 
 ### Showing the LayerOne → AI model endpoint
@@ -85,7 +112,7 @@ The web application only talks to LayerOne, so it can only show where LayerOne s
 2. **From demo settings**: `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` in `.env`. This is display only; the demo never calls that URL itself.
 3. Otherwise the card says LayerOne did not report it.
 
-In practice mode the simulated gateway makes a real HTTP call to a simulated model endpoint (`/mock/model/v1/chat/completions`, in `server/mock-model.js`) and reports it, so both hops are genuine network calls.
+In Dry run the simulated gateway makes a real HTTP call to a simulated model endpoint (`/mock/model/v1/chat/completions`, in `server/mock-model.js`) and reports it, so both hops are genuine network calls.
 
 ### If your LayerOne API differs
 
@@ -99,14 +126,14 @@ LayerOne is in limited preview, and the request format here is an **assumption**
 
 All four tell one story about protecting personal information in a claims workflow:
 
-| Example | What happens (simulated mode) |
+| Example | What happens (Dry run) |
 | --- | --- |
 | Normal request | No personal information. Passes both ways untouched. |
 | SSN in the request | A caseworker pastes an SSN, date of birth and phone number. LayerOne removes them **before the AI model sees them**. |
 | AI answer leaks an SSN | The request is clean, but the AI model's answer (a "record lookup") contains an SSN, DOB and phone. LayerOne removes them **on the way back**, before they reach the web application. |
 | Bulk SSN export | Someone asks for every claimant's SSN. LayerOne **blocks it**, and the AI model is never called. |
 
-What happens in live mode depends on the policies configured in your LayerOne tenant. The simulated gateway (`server/mock-layerone.js`) uses regex detectors for SSNs, dates of birth, phone numbers, emails and card numbers. It does not call a model; replies are canned, and the record-lookup reply deliberately contains PII. It also produces a hash-chained audit record, so you can rehearse the story. Edit the examples in `server/scenarios.js`.
+What happens in Live mode depends on the policies configured in your LayerOne tenant. The Dry run gateway (`server/mock-layerone.js`) uses regex detectors for SSNs, dates of birth, phone numbers, emails and card numbers. It forwards to a stand-in model (`server/mock-model.js`) whose replies are canned; the record-lookup reply deliberately contains PII. It also produces a hash-chained audit record, so you can rehearse the story. Edit the examples in `server/scenarios.js`.
 
 ## API
 
@@ -116,6 +143,8 @@ What happens in live mode depends on the policies configured in your LayerOne te
 | `GET /api/stream` | SSE stream of trace updates |
 | `GET /api/traces` · `GET /api/traces/:id` · `GET /api/traces/:id/export` · `DELETE /api/traces` | History |
 | `GET /api/config` | Mode, endpoint, model (no secrets) |
+| `GET /api/settings` · `PUT /api/settings` · `DELETE /api/settings` | Read, save, or reset runtime settings (API key never returned) |
+| `POST /api/settings/test` | Test draft settings without saving |
 
 ## Development
 

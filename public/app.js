@@ -129,6 +129,13 @@ function renderJourney(t) {
     } else if (o === 'error' && !t.response) {
       view['req-1'] = 'blocked';
       view['req-l1'] = ['blocked', 'Could not reach LayerOne'];
+      view['req-2'] = 'cut';
+      view['req-model'] = ['skipped', 'Never reached'];
+      view['res-model'] = ['skipped', 'Never called'];
+      view['res-1'] = 'cut';
+      view['res-l1'] = ['skipped', 'Not reached'];
+      view['res-2'] = 'cut';
+      view['res-app'] = ['blocked', 'Showed the error'];
     } else if (o === 'blocked') {
       view['req-l1'] = checkCaption(req, ['blocked', 'Blocked']);
       view['req-l1'] = ['blocked', view['req-l1'][1]];
@@ -219,7 +226,7 @@ function renderEndpoints(t) {
     gNote.textContent = 'Could not be reached';
     gNote.className = 'ep-note bad';
   } else {
-    gNote.textContent = mock ? 'Built-in stand-in for LayerOne (practice mode)' : 'Your LayerOne gateway';
+    gNote.textContent = mock ? 'Dry run: built-in stand-in for LayerOne on this computer' : 'Your LayerOne gateway';
     gNote.className = 'ep-note';
   }
 
@@ -236,13 +243,17 @@ function renderEndpoints(t) {
   }
   $('#epUpstreamMethod').textContent = up.method || 'POST';
   $('#epUpstream').textContent = up.url;
-  const blocked = outcome(t) === 'blocked' || up.called === false;
+  const unreached = Boolean(t && t.status === 'error' && !t.response);
+  const blocked = outcome(t) === 'blocked' || up.called === false || unreached;
   box.className = `ep-url ${t && blocked ? 'not-called' : ''}`;
   const parts = [];
   if (up.provider) parts.push(up.provider);
   if (up.model) parts.push(`model "${up.model}"`);
-  const src = { reported: mock ? 'reported by the simulated gateway' : 'reported by LayerOne', config: 'from demo settings (.env)', simulated: 'simulated' }[up.source] || '';
-  if (t && blocked) {
+  const src = { reported: mock ? 'reported by the simulated gateway' : 'reported by LayerOne', config: 'from demo settings', simulated: 'simulated' }[up.source] || '';
+  if (unreached) {
+    uNote.textContent = 'Not called. The request never reached LayerOne.';
+    uNote.className = 'ep-note bad';
+  } else if (t && blocked) {
     uNote.textContent = 'Not called. LayerOne blocked the request first.';
     uNote.className = 'ep-note bad';
   } else if (t?.response && up.source === 'reported') {
@@ -278,6 +289,14 @@ function renderResult(t) {
   const g = t.governance || {};
   const { req, res, other } = splitPolicies(g.policies);
   const sanitized = g.extensions?.layerone?.sanitized_prompt;
+
+  if (o === 'error' && !t.response) {
+    const live = state.config?.mode !== 'mock';
+    $('#result').innerHTML = `
+      <pre class="box stopped">${esc(t.error || 'The request could not be completed.')}</pre>
+      <p class="same">The request never reached LayerOne, so nothing was checked.${live ? ' Check the LayerOne URL in Settings, or switch to Dry run to demo without a connection.' : ''}</p>`;
+    return;
+  }
 
   const received =
     o === 'blocked'
@@ -377,6 +396,172 @@ function render() {
   renderTech(t);
 }
 
+// ---------- mode badge ----------
+function renderConfig() {
+  const c = state.config;
+  const mock = c.mode === 'mock';
+  const badge = $('#modeBadge');
+  badge.textContent = mock ? 'Dry run' : 'Live: LayerOne';
+  badge.className = `badge ${mock ? 'mock' : 'live'}`;
+  badge.title = `${c.endpoint.url}\nClick to change in Settings`;
+  const note = $('#modeNote');
+  note.hidden = false;
+  note.className = 'mode-note';
+  if (mock) {
+    note.innerHTML = 'Dry run: requests go to a built-in stand-in for LayerOne. Nothing leaves this computer. <a data-open-settings>Change in Settings</a>';
+  } else if (!c.configured) {
+    note.className = 'mode-note bad';
+    note.innerHTML = 'Live mode has no LayerOne URL yet. <a data-open-settings>Add it in Settings</a>';
+  } else if (!c.authConfigured) {
+    note.innerHTML = 'Live mode has no API key set. Requests are sent without one. <a data-open-settings>Add it in Settings</a>';
+  } else {
+    note.hidden = true;
+  }
+  note.querySelectorAll('[data-open-settings]').forEach((a) => (a.onclick = openSettings));
+  $('#send').textContent = mock ? 'Send through LayerOne (dry run)' : 'Send through LayerOne';
+}
+
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (el.hidden = true), 4500);
+}
+
+// ---------- settings ----------
+const form = () => $('#settingsForm');
+const SETTINGS_FIELDS = ['baseUrl', 'chatPath', 'model', 'apiKey', 'authHeader', 'authScheme', 'timeoutMs', 'upstreamUrl', 'upstreamProvider'];
+
+function readForm() {
+  const f = form();
+  const data = { mode: f.mode.value };
+  for (const k of SETTINGS_FIELDS) data[k] = f[k].value;
+  data.timeoutMs = Number(data.timeoutMs);
+  data.clearApiKey = f.clearApiKey.checked;
+  if (!data.apiKey) delete data.apiKey; // blank keeps the saved key
+  return data;
+}
+
+function showErrors(errors = {}) {
+  const f = form();
+  for (const k of SETTINGS_FIELDS) {
+    f[k].classList.toggle('invalid', Boolean(errors[k]));
+    const slot = f.querySelector(`[data-err="${k}"]`);
+    if (slot) slot.textContent = errors[k] || '';
+  }
+}
+
+function updatePreview() {
+  const f = form();
+  const mock = f.mode.value === 'mock';
+  $('#liveFields').classList.toggle('dim', mock);
+  const base = f.baseUrl.value.trim().replace(/\/+$/, '');
+  const path = f.chatPath.value.trim() || '/v1/chat/completions';
+  $('#epPreview').textContent = mock
+    ? 'The built-in dry-run gateway on this computer (nothing leaves this machine)'
+    : base
+      ? `POST ${base}${path}`
+      : 'Enter the LayerOne base URL above';
+}
+
+function fillForm(st) {
+  const f = form();
+  f.mode.value = st.mode;
+  for (const k of SETTINGS_FIELDS) f[k].value = k === 'apiKey' ? '' : (st[k] ?? '');
+  f.apiKey.placeholder = st.apiKeySet ? `Saved (ends in ${st.apiKeyHint.slice(1)}). Leave blank to keep it.` : 'Paste your LayerOne API key';
+  f.clearApiKey.checked = false;
+  $('#clearKeyRow').hidden = !st.apiKeySet;
+  $('#settingsLocked').hidden = !st.locked;
+  for (const el of f.querySelectorAll('input, #settingsSave, #settingsTest, #settingsReset')) el.disabled = st.locked;
+  $('#testResult').hidden = true;
+  showErrors();
+  updatePreview();
+}
+
+async function openSettings() {
+  fillForm(await api('/api/settings'));
+  $('#settings').showModal();
+}
+
+async function testSettings() {
+  const out = $('#testResult');
+  const btn = $('#settingsTest');
+  showErrors();
+  out.hidden = false;
+  out.className = 'test-result pending';
+  out.textContent = 'Sending a test request…';
+  out.scrollIntoView({ block: 'nearest' });
+  btn.disabled = true;
+  try {
+    const r = await api('/api/settings/test', { method: 'POST', body: JSON.stringify(readForm()) });
+    if (r.errors) {
+      showErrors(r.errors);
+      out.className = 'test-result bad';
+      out.textContent = 'Fix the highlighted fields first.';
+      form().querySelector('.invalid')?.scrollIntoView({ block: 'center' });
+      return;
+    }
+    const hint = { 401: 'Check the API key.', 403: 'Check the API key and permissions.', 404: 'Check the base URL and chat path.' }[r.status] || '';
+    out.className = `test-result ${r.ok ? 'ok' : 'bad'}`;
+    requestAnimationFrame(() => out.scrollIntoView({ block: 'nearest' }));
+    out.innerHTML = r.error
+      ? `✕ ${esc(r.error)}`
+      : `${r.ok ? '✓ Connected' : '✕ Reached the server, but it returned an error'} · HTTP ${r.status} ${esc(r.statusText)} in ${fmtMs(r.latencyMs)} ${hint ? `· ${esc(hint)}` : ''}
+         <small>${esc(r.url)}${r.upstream?.url ? ` → ${esc(r.upstream.url)}` : ''}${r.reply ? ` · Reply: "${esc(r.reply)}"` : ''}</small>`;
+  } catch (err) {
+    out.className = 'test-result bad';
+    out.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function saveSettings(e) {
+  e.preventDefault();
+  const btn = $('#settingsSave');
+  btn.disabled = true;
+  showErrors();
+  try {
+    const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(readForm()) });
+    const data = await res.json();
+    if (!res.ok) {
+      showErrors(data.errors);
+      const out = $('#testResult');
+      out.hidden = false;
+      out.className = 'test-result bad';
+      out.textContent = data.errors ? 'Fix the highlighted fields.' : data.error;
+      (form().querySelector('.invalid') || out).scrollIntoView({ block: 'center' });
+      return;
+    }
+    $('#settings').close();
+    state.config = await api('/api/config');
+    renderConfig();
+    render();
+    toast(data.notice || `Saved. ${data.settings.mode === 'mock' ? 'Dry run is on.' : `Live: requests now go to ${data.settings.endpoint}`}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function initSettings() {
+  $('#openSettings').onclick = openSettings;
+  $('#modeBadge').onclick = openSettings;
+  $('#settingsClose').onclick = () => $('#settings').close();
+  $('#settingsTest').onclick = testSettings;
+  form().addEventListener('submit', saveSettings);
+  form().addEventListener('input', updatePreview);
+  $('#settingsReset').onclick = async () => {
+    if (!confirm('Discard settings saved from this screen and go back to the .env values?')) return;
+    const { settings } = await api('/api/settings', { method: 'DELETE' });
+    fillForm(settings);
+    state.config = await api('/api/config');
+    renderConfig();
+    render();
+    toast('Settings reset to the .env values.');
+  };
+}
+
 // ---------- actions ----------
 async function send() {
   const prompt = $('#prompt').value.trim();
@@ -429,14 +614,17 @@ async function init() {
     render();
   };
 
-  new EventSource('/api/stream').addEventListener('trace', (e) => onTrace(JSON.parse(e.data)));
+  const stream = new EventSource('/api/stream');
+  stream.addEventListener('trace', (e) => onTrace(JSON.parse(e.data)));
+  stream.addEventListener('config', (e) => {
+    state.config = JSON.parse(e.data);
+    renderConfig();
+    render();
+  });
+  initSettings();
   [state.config, state.scenarios, state.history] = await Promise.all([api('/api/config'), api('/api/scenarios'), api('/api/traces')]);
 
-  const mock = state.config.mode === 'mock';
-  $('#modeBadge').textContent = mock ? 'Practice mode' : 'Connected to LayerOne';
-  $('#modeBadge').className = `badge ${mock ? 'mock' : 'live'}`;
-  $('#modeBadge').title = state.config.endpoint.url;
-  $('#mockNote').hidden = !mock;
+  renderConfig();
 
   renderExamples();
   renderHistory();

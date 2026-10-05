@@ -7,6 +7,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Canned answers standing in for a real model. The "record lookup" answer
 // deliberately includes PII, as a model with access to a records system might.
 export function simulatedModel(prompt) {
+  if (/connection test/i.test(prompt)) return 'OK';
   if (/look ?up|on file|record for|identity/i.test(prompt)) {
     return [
       'Record found for claimant Robert Chen (claim #VA-20419):',

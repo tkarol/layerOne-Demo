@@ -1,31 +1,30 @@
 // LayerOne adapter. Everything that depends on the gateway's wire format lives
 // here, so if your LayerOne deployment exposes a different request/response
 // schema, this is the only file to change.
-import { config, endpointUrl } from './config.js';
+import { config, endpointUrl, DRY_RUN_KEY } from './config.js';
 
 const OPENAI_FIELDS = new Set(['id', 'object', 'created', 'model', 'choices', 'usage', 'system_fingerprint', 'service_tier']);
 const GOVERNANCE_HEADER = /^x-(layerone|vellox|l1|governance|policy|evidence|guardrail)/i;
 const SENSITIVE_HEADER = /(authorization|api[-_]?key|token|secret|cookie)/i;
 
-export function buildRequest({ prompt, traceId }) {
+export function buildRequest({ prompt, traceId }, cfg = config) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
     'X-Request-Id': traceId,
     'X-Demo-Client': 'claims-assistant-web-app',
-    ...config.extraHeaders,
+    ...cfg.extraHeaders,
   };
-  if (config.apiKey) {
-    headers[config.authHeader] = config.authScheme ? `${config.authScheme} ${config.apiKey}` : config.apiKey;
-  }
+  const key = cfg.mode === 'mock' ? DRY_RUN_KEY : cfg.apiKey;
+  if (key) headers[cfg.authHeader] = cfg.authScheme ? `${cfg.authScheme} ${key}` : key;
   return {
     method: 'POST',
-    url: endpointUrl(),
+    url: endpointUrl(cfg),
     headers,
     body: {
-      model: config.model,
+      model: cfg.model,
       messages: [
-        { role: 'system', content: config.systemPrompt },
+        { role: 'system', content: cfg.systemPrompt },
         { role: 'user', content: prompt },
       ],
       temperature: 0.2,
@@ -48,12 +47,12 @@ export function redactHeaders(headers) {
   );
 }
 
-export async function send(req) {
+export async function send(req, timeoutMs = config.timeoutMs) {
   return fetch(req.url, {
     method: req.method,
     headers: req.headers,
     body: JSON.stringify(req.body),
-    signal: AbortSignal.timeout(config.timeoutMs),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 

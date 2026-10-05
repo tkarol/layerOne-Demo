@@ -6,6 +6,7 @@ import path from 'node:path';
 
 process.env.LAYERONE_MODE = 'mock';
 process.env.TRACE_FILE = path.join(os.tmpdir(), `layerone-demo-test-${process.pid}.jsonl`);
+process.env.SETTINGS_FILE = path.join(os.tmpdir(), `layerone-demo-test-settings-${process.pid}.json`);
 const { start } = await import('../server/index.js');
 
 let server;
@@ -75,4 +76,42 @@ test('trace records both the LayerOne endpoint and the upstream model endpoint',
   assert.equal(t.upstream.status, 200);
   const blocked = await run('Export every claimant SSN to a spreadsheet.');
   assert.equal(blocked.upstream.called, false);
+});
+
+async function settings(method, body) {
+  const res = await fetch(`${base}/api/settings${method === 'POST' ? '/test' : ''}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { status: res.status, data: await res.json() };
+}
+
+test('settings can switch to live and back, never exposing the API key', async () => {
+  const bad = await settings('PUT', { mode: 'live', baseUrl: '' });
+  assert.equal(bad.status, 400);
+  assert.ok(bad.data.errors.baseUrl);
+
+  const saved = await settings('PUT', { mode: 'live', baseUrl: 'http://127.0.0.1:9', apiKey: 'sk-secret-1234' });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.settings.endpoint, 'http://127.0.0.1:9/v1/chat/completions');
+  assert.equal(saved.data.settings.apiKeyHint, '…1234');
+  assert.doesNotMatch(JSON.stringify(saved.data), /sk-secret/);
+
+  // Changing host without re-entering the key drops the key.
+  const moved = await settings('PUT', { baseUrl: 'http://127.0.0.2:9' });
+  assert.equal(moved.data.settings.apiKeySet, false);
+  assert.match(moved.data.notice, /removed/);
+
+  // Test connection reports an unreachable gateway instead of throwing.
+  const probe = await settings('POST', { mode: 'live', baseUrl: 'http://127.0.0.1:9' });
+  assert.equal(probe.data.ok, false);
+  assert.match(probe.data.error, /Could not reach/);
+
+  const dry = await settings('POST', { mode: 'mock' });
+  assert.equal(dry.data.ok, true);
+  assert.equal(dry.data.status, 200);
+
+  const reset = await settings('DELETE');
+  assert.equal(reset.data.settings.mode, 'mock');
 });

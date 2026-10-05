@@ -14,7 +14,8 @@
         <h1>LayerOne Demo</h1>
       </div>
       <div class="top-right">
-        <span id="modeBadge" class="badge">…</span>
+        <button id="modeBadge" class="badge" title="Change in Settings">…</button>
+        <button id="openSettings" class="settings-btn" title="Settings">⚙ Settings</button>
         <button id="themeToggle" class="icon-btn" title="Toggle light/dark" aria-label="Toggle light/dark theme">◐</button>
       </div>
     </header>
@@ -25,9 +26,7 @@
         its way to the AI model, then checks the answer on its way back. It removes personal information such as Social
         Security numbers, blocks risky requests, and keeps an audit record of everything.
       </p>
-      <p id="mockNote" class="mock-note" hidden>
-        Practice mode: requests go to a built-in stand-in, not the real LayerOne.
-      </p>
+      <p id="modeNote" class="mode-note" hidden></p>
 
       <!-- 1. Ask -->
       <section class="card">
@@ -128,6 +127,62 @@
         <ul id="history" class="history"></ul>
       </section>
     </main>
+
+    <dialog id="settings" class="settings" aria-labelledby="settingsTitle">
+      <form id="settingsForm" novalidate>
+        <div class="s-head">
+          <h2 id="settingsTitle">Settings</h2>
+          <button type="button" class="icon-btn" id="settingsClose" aria-label="Close">✕</button>
+        </div>
+        <div class="s-body">
+          <p id="settingsLocked" class="s-locked" hidden>Settings are locked on this server (ALLOW_UI_SETTINGS=false).</p>
+
+          <div class="s-section-title">Where should requests go?</div>
+          <div class="modes">
+            <label class="mode-opt">
+              <input type="radio" name="mode" value="mock" />
+              <span><b>Dry run</b><small>Uses a built-in stand-in for LayerOne and the AI model. Nothing leaves this computer, and no credentials are needed.</small></span>
+            </label>
+            <label class="mode-opt">
+              <input type="radio" name="mode" value="live" />
+              <span><b>Live</b><small>Sends requests to a real LayerOne gateway, using the settings below.</small></span>
+            </label>
+          </div>
+
+          <div id="liveFields" class="live-fields">
+            <div class="s-section-title">LayerOne gateway <span class="dim-note">used in Live mode</span></div>
+            <div class="grid2">
+              <label class="full">Base URL<input name="baseUrl" placeholder="https://layerone.example.gov" autocomplete="off" /><small class="err" data-err="baseUrl"></small></label>
+              <label>Chat path<input name="chatPath" placeholder="/v1/chat/completions" /><small class="err" data-err="chatPath"></small></label>
+              <label>Model<input name="model" placeholder="gpt-4o" /><small class="err" data-err="model"></small></label>
+              <label class="full">API key<input name="apiKey" type="password" autocomplete="off" /><small class="err" data-err="apiKey"></small></label>
+              <label class="check full" id="clearKeyRow" hidden><input type="checkbox" name="clearApiKey" /> Remove the saved API key</label>
+              <label>Auth header<input name="authHeader" placeholder="Authorization" /><small class="err" data-err="authHeader"></small></label>
+              <label>Auth scheme<input name="authScheme" placeholder="Bearer (blank = raw key)" /><small class="err" data-err="authScheme"></small></label>
+              <label>Timeout (ms)<input name="timeoutMs" type="number" min="1000" max="300000" step="1000" /><small class="err" data-err="timeoutMs"></small></label>
+            </div>
+
+            <div class="s-section-title">AI model endpoint <span class="dim-note">display only</span></div>
+            <p class="s-hint">Shown as "LayerOne → AI Model" when LayerOne doesn't report where it sent the request. The demo never calls this URL.</p>
+            <div class="grid2">
+              <label>URL<input name="upstreamUrl" placeholder="https://api.openai.com/v1/chat/completions" /><small class="err" data-err="upstreamUrl"></small></label>
+              <label>Provider<input name="upstreamProvider" placeholder="OpenAI" /><small class="err" data-err="upstreamProvider"></small></label>
+            </div>
+          </div>
+
+          <div class="s-preview">Requests will be sent to:<code id="epPreview"></code></div>
+          <div id="testResult" class="test-result" hidden></div>
+        </div>
+        <div class="s-foot">
+          <button type="button" id="settingsReset" class="link-btn">Reset to .env defaults</button>
+          <span class="spacer"></span>
+          <button type="button" id="settingsTest" class="secondary">Test connection</button>
+          <button type="submit" id="settingsSave" class="save">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" hidden></div>
 
     <script src="app.js" type="module"></script>
   </body>
