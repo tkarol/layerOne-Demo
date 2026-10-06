@@ -1,8 +1,7 @@
 // Customer Hub: a sample app with a real database.
 //   You edit the table directly:      Web app → Database (LayerOne not involved)
-//   The AI assistant uses the table:  Web app → LayerOne → AI model, and the query the AI
-//                                     wants to run comes back through LayerOne before the
-//                                     web app runs it on the Database
+//   The AI assistant uses the table:  Web app → LayerOne → AI model → Database, and the
+//                                     answer comes back through LayerOne
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const HIDDEN = /\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,40}\b(instructions?|rules?)\b|\b(AI|assistant|model)\b.{0,60}\b(email|send|forward|upload|export|delete|transfer)\b/i;
 const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
@@ -62,8 +61,8 @@ function draw() {
           <span class="chain"><span class="hop">🖥️ Web app</span><span class="arr">→</span><span class="hop">${DB_ICON} Database</span></span>
           <small>LayerOne isn’t involved</small></div>
         <div class="dpath ai ${prot ? '' : 'off'}"><span class="dpath-title">The AI uses the table</span>
-          <span class="chain"><span class="hop">🖥️ Web app</span><span class="arr">→</span><span class="hop l1">${prot ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">✦ AI model</span></span>
-          <small>${prot ? 'Every query the AI wants to run is checked by LayerOne first' : 'The AI’s queries run unchecked'}</small></div>
+          <span class="chain"><span class="hop">🖥️ Web app</span><span class="arr">⇄</span><span class="hop l1">${prot ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">⇄</span><span class="hop">✦ AI model</span><span class="arr">⇄</span><span class="hop">${DB_ICON} Database</span></span>
+          <small>${prot ? 'LayerOne checks your request on the way to the AI, and the answer on the way back' : 'Requests and answers pass between the app and the AI unchecked'}</small></div>
       </div>
       ${s.error ? `<p class="mode-note bad">${esc(s.error)}</p>` : ''}
 
@@ -102,7 +101,7 @@ function draw() {
       </details>
       <details class="sim-note" data-open="about" ${open.about ? 'open' : ''}>
         <summary>ℹ️ About this demo</summary>
-        <p class="muted small">The AI agent and LayerOne’s checks on its database queries are built-in stand-ins in every mode. Whether your LayerOne deployment governs tool and database calls (for example through MCP) is worth confirming with Booz Allen. The table is shared by everyone viewing this demo; <b>Reset sample data</b> restores it.</p>
+        <p class="muted small">The AI agent and LayerOne’s checks here are built-in stand-ins in every mode. LayerOne sits between the web app and the AI model: it checks each request on the way to the AI and each answer on the way back, while the AI reaches the database itself. The table is shared by everyone viewing this demo; <b>Reset sample data</b> restores it.</p>
       </details>
     </div>`;
   wire();
@@ -181,22 +180,26 @@ function drawTurn(t, index = 0) {
   const db = r?.db;
   const st = (i, cls, icon, title, caption) =>
     `<li class="st ${step > i ? cls : step === i ? 'active' : ''}"><span class="st-icon">${icon}</span><span><b>${title}</b><small>${step >= i ? caption : '…'}</small></span></li>`;
-  const l1Caption = !prot ? 'Off' : !l1 ? '…' : { allowed: 'Allowed', filtered: 'Filtered', approval: 'Needs approval', blocked: 'Blocked' }[l1.decision];
-  const l1Cls = !prot ? 'skipped' : !l1 ? '' : { allowed: 'done', filtered: 'warn', approval: 'warn', blocked: 'blocked' }[l1.decision];
+  // LayerOne checks the request on the way in (block or hold it) and the answer on the way out (filter it).
+  const decision = l1?.decision;
+  const stopped = prot && (decision === 'blocked' || decision === 'approval');
+  const inStep = !prot ? ['skipped', 'Off'] : !l1 ? ['', '…'] : decision === 'blocked' ? ['blocked', 'Blocked'] : decision === 'approval' ? ['warn', 'Needs approval'] : ['done', 'Request OK'];
+  const aiStep = !r ? ['', 'Thinking'] : stopped ? ['skipped', 'Not reached'] : ['done', 'Wrote a query'];
   const write = r?.toolCall.kind !== 'read';
-  const dbCaption = !db ? '…' : db.executed ? (write ? `${db.affected ?? 0} changed` : `${db.rowsReturned} row${db.rowsReturned === 1 ? '' : 's'}`) : 'Not run';
-  const dbCls = !db ? '' : db.executed && write && !prot ? 'blocked' : db.executed ? 'done' : 'skipped';
-  // One plain sentence on what LayerOne did, when it did something.
+  const dbStep = !db ? ['', '…'] : db.executed ? [write && !prot ? 'blocked' : 'done', write ? `${db.affected ?? 0} changed` : `${db.rowsReturned} row${db.rowsReturned === 1 ? '' : 's'}`] : ['skipped', 'Not touched'];
+  const outStep = !prot ? ['skipped', 'Off'] : stopped ? ['skipped', '—'] : decision === 'filtered' ? ['warn', 'Filtered'] : ['done', 'Answer OK'];
+  // One plain sentence on what LayerOne did, once that step is shown.
   const acted = l1?.checks.find((c) => c.result !== 'pass');
-  const note = !r || step < 3 ? '' : !prot ? `<p class="l1-note bad">⚠️ LayerOne is off, so this query ran unchecked.</p>` : acted ? `<p class="l1-note ${l1.decision === 'blocked' ? 'bad' : 'warn'}">🛡️ ${esc(acted.detail)}</p>` : '';
+  const noteAt = stopped ? 1 : 4;
+  const note = !r || step < noteAt ? '' : !prot ? `<p class="l1-note bad">⚠️ LayerOne is off, so nothing was checked.</p>` : acted ? `<p class="l1-note ${decision === 'blocked' ? 'bad' : 'warn'}">🛡️ ${esc(acted.detail)}</p>` : '';
   return `<article class="turn ${open.reveal === t.id ? 'reveal' : ''}">
     <div class="q"><span class="avatar small">${esc(ctx.person.initials)}</span><p>${esc(t.message)}</p>${index > 0 ? `<button class="link-btn collapse-turn" data-collapse="${esc(t.id)}">Collapse</button>` : ''}</div>
     ${t.error ? `<div class="notice bad">${esc(t.error)}</div>` : ''}
     <ol class="steps">
-      ${st(0, prot ? 'done' : 'skipped', prot ? '🛡️' : '⚠️', 'LayerOne', !prot ? 'Off' : 'Question OK')}
-      ${st(1, 'done', '✦', 'AI model', r ? 'Wrote a query' : 'Thinking')}
-      ${st(2, l1Cls, prot ? '🛡️' : '⚠️', 'LayerOne', l1Caption)}
-      ${st(3, dbCls, DB_ICON, 'Database', dbCaption)}
+      ${st(0, inStep[0], prot ? '🛡️' : '⚠️', 'LayerOne', inStep[1])}
+      ${st(1, aiStep[0], '✦', 'AI model', aiStep[1])}
+      ${st(2, dbStep[0], DB_ICON, 'Database', dbStep[1])}
+      ${st(3, outStep[0], prot ? '🛡️' : '⚠️', 'LayerOne', outStep[1])}
     </ol>
     ${note}
     ${r && step >= 4 ? `<div class="a reveal ${prot ? '' : 'off'}"><p>${esc(r.answer).replace(/\n/g, '<br>')}</p>${resultTable(r.results)}</div>` : ''}

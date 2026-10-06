@@ -1,9 +1,8 @@
 // "Customer Hub": a sample app with a real (small) database.
 //
 //   Web app → Database               normal app traffic; LayerOne is not involved
-//   Web app → LayerOne → AI model    the AI agent; the query it wants to run comes back
-//                                    through LayerOne, and the web app runs only what
-//                                    LayerOne allows
+//   Web app → LayerOne → AI model → Database    the AI agent: LayerOne checks the request
+//                                               and the answer; the AI queries the database
 //
 // The AI agent and LayerOne's tool-call checks here are built-in stand-ins
 // (in every mode). The table lives in the app's key/value storage, so changes
@@ -163,39 +162,41 @@ function execute(op, rows) {
   return { rows: rows.filter((r) => !matches(r, op.where)), result: [], affected: hit.length };
 }
 
-// ----- LayerOne's checks on the AI's tool call (stand-in) -----
+// ----- LayerOne's checks (stand-in) -----
+// LayerOne sits between the web app and the AI model: it checks the request on the
+// way to the AI and the answer on the way back. The AI reaches the database itself.
 function checkBefore(op) {
-  if (op.kind === 'delete') return { decision: 'blocked', check: { name: 'Destructive queries', result: 'block', detail: 'AI agents may not delete records. The query was stopped before it reached the database.' } };
-  if (op.kind === 'write' && !op.where) return { decision: 'blocked', check: { name: 'Bulk changes', result: 'block', detail: 'An update with no WHERE clause would change every record.' } };
-  if (op.kind === 'write') return { decision: 'approval', check: { name: 'Changes need a human', result: 'hold', detail: 'AI agents may propose changes, but a person must approve them.' } };
-  return { decision: 'allowed', check: { name: 'Read-only query', result: 'pass', detail: 'Reading data is allowed.' } };
+  if (op.kind === 'delete') return { decision: 'blocked', check: { name: 'Destructive requests', result: 'block', detail: 'Requests to delete records are blocked. This one never reached the AI.' } };
+  if (op.kind === 'write' && !op.where) return { decision: 'blocked', check: { name: 'Bulk changes', result: 'block', detail: 'This request would change every record, so it never reached the AI.' } };
+  if (op.kind === 'write') return { decision: 'approval', check: { name: 'Changes need a human', result: 'hold', detail: 'Requests to change records need a person to approve them before they go to the AI.' } };
+  return { decision: 'allowed', check: { name: 'Read-only request', result: 'pass', detail: 'Reading data is allowed.' } };
 }
 
 function filterResults(result) {
   const checks = [];
   let rows = result;
   if (rows.length > ROW_LIMIT) {
-    checks.push({ name: 'Row limit', result: 'redact', detail: `The query returned ${rows.length} rows; AI queries are limited to ${ROW_LIMIT}.` });
+    checks.push({ name: 'Row limit', result: 'redact', detail: `The answer listed ${rows.length} records; LayerOne limits AI answers to ${ROW_LIMIT}.` });
     rows = rows.slice(0, ROW_LIMIT);
   }
   const masked = rows.some((r) => SENSITIVE.some((c) => r[c]));
   if (masked) {
     rows = rows.map((r) => ({ ...r, ...Object.fromEntries(SENSITIVE.filter((c) => r[c]).map((c) => [c, `***-**-${String(r[c]).slice(-4)}`])) }));
-    checks.push({ name: 'Column masking', result: 'redact', detail: 'Social Security numbers are masked before the AI sees them.' });
+    checks.push({ name: 'Column masking', result: 'redact', detail: 'Social Security numbers were masked before the answer reached you.' });
   }
   const tainted = rows.filter((r) => typeof r.notes === 'string' && HIDDEN_INSTRUCTION.test(r.notes));
   if (tainted.length) {
     rows = rows.map((r) => (tainted.includes(r) ? { ...r, notes: '[Removed by LayerOne: hidden instructions to the AI]' } : r));
-    checks.push({ name: 'Hidden instructions in data', result: 'redact', detail: `${tainted.length} record${tainted.length > 1 ? 's contain' : ' contains'} text aimed at the AI; it was removed before the AI read it.` });
+    checks.push({ name: 'Hidden instructions in data', result: 'redact', detail: `${tainted.length} record${tainted.length > 1 ? 's contain' : ' contains'} hidden instructions aimed at the AI; LayerOne removed them from the answer.` });
   }
-  if (!checks.length) checks.push({ name: 'Sensitive data', result: 'pass', detail: 'No sensitive columns in the result.' });
+  if (!checks.length) checks.push({ name: 'Sensitive data', result: 'pass', detail: 'No sensitive data in the answer.' });
   return { rows, checks };
 }
 
 // ----- the stand-in AI agent's reply -----
 function answerFor(op, { result, affected, protectedRun, decision }) {
-  if (decision === 'blocked') return "I can't do that: LayerOne blocked the query, so nothing in the database changed.";
-  if (decision === 'approval') return `I've asked for approval to run this change. It will only happen if a person approves it.`;
+  if (decision === 'blocked') return 'LayerOne blocked this request before it reached the AI, so nothing in the database changed.';
+  if (decision === 'approval') return 'LayerOne is holding this request until a person approves it. Nothing has changed yet.';
   if (op.type === 'count') {
     const n = result[0].count;
     const which = !op.where ? '' : op.where.field === 'plan' ? ` on the ${op.where.value} plan` : op.where.field === 'status' ? ` that are ${op.where.value}` : '';
@@ -269,7 +270,7 @@ export async function handleDataApi(request, { storage, pathname, method, readJs
     return json(200, await snapshot(storage));
   }
 
-  // The AI assistant: Web app → LayerOne → AI model; the AI's query comes back through LayerOne, then the web app runs it.
+  // The AI assistant: Web app → LayerOne → AI model → Database, and the answer back through LayerOne.
   if (method === 'POST' && rest === 'ask') {
     const { message, protected: prot = true } = await readJson(request);
     const text = String(message || '').trim().slice(0, 500);
