@@ -109,9 +109,9 @@ function render() {
   const pickerShown = pickerOpen() || closePickerAfterRender;
   root.innerHTML = `
     <div class="demo-bar">
-      <div class="prepared">${state.customer ? `<span class="for">Prepared for <b>${esc(state.customer.name)}</b></span>` : ''}<span class="app-picker-bar"><span class="muted">Sample app:</span>
-            <span class="current-app" style="--app:${esc(color)}">${app.brand?.logo ? `<img class="card-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`}<b>${esc(app.org)}</b><small>${esc(app.sector)}</small></span>
-            ${state.apps.length > 1 ? `<button class="link-btn picker-toggle ${pickerShown ? 'open' : ''}" id="pickerToggle" aria-expanded="${pickerShown}" aria-controls="appSwitch">Switch app (${state.apps.length}) <span class="caret">▾</span></button>` : ''}</span></div>
+      <div class="prepared">${state.customer ? `<span class="for">Prepared for <b>${esc(state.customer.name)}</b></span>` : ''}<span class="app-picker-bar"><span class="picker-label">Sample app</span>
+            <button class="demo-btn picker-toggle ${pickerShown ? 'open' : ''}" id="pickerToggle" style="--app:${esc(color)}" aria-expanded="${pickerShown}" aria-controls="appSwitch" title="Switch to another sample app (${state.apps.length})">
+              ${app.brand?.logo ? `<img class="card-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`}<b>${esc(app.org)}</b><small>${esc(app.sector)}</small><span class="caret">▾</span></button></span></div>
       <div class="demo-actions">
         ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
         <button class="demo-btn" id="presentBtn" title="Full-screen presenter view">⛶ Present</button>

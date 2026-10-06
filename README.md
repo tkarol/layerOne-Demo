@@ -91,7 +91,7 @@ With LayerOne the data is removed, the request is blocked, or the answer is held
 * **See what LayerOne did →** under each result opens that exact request in *Behind the scenes*.
 * **Presenter notes** under each step give a one-line talk track for ON and OFF.
 * **Reveal hidden text** on the injection emails shows the audience the instruction the reader can't see.
-* **Kept simple on first view:** the intro tips (*How to use this*), the app picker (*Switch app*) and the presenter notes start collapsed. In Customer Hub, only the newest answer is open, with older ones as one-line summaries. The query and LayerOne's checks, the database activity log and the demo note open on click.
+* **Kept simple on first view:** the intro tips (*How to use this*), the app picker (click the app's name) and the presenter notes start collapsed. In Customer Hub, only the newest answer is open, with older ones as one-line summaries. The database activity log and the demo note open on click.
 
 ### Customer Hub: an AI agent on a real database
 
@@ -100,7 +100,7 @@ With LayerOne the data is removed, the request is blocked, or the answer is held
 The fifth app, **Summit Outfitters · Customer Hub**, shows LayerOne between an **AI agent and your data**, using a small database you can actually change. The screen spells out the two paths:
 
 * **You edit the database** (add, edit, delete rows in the table): **Web app → Database**. Normal app traffic; LayerOne is not involved.
-* **The AI assistant uses the database** (ask in plain English): **Web app → LayerOne → AI model**. The query the AI wants to run comes back **through LayerOne**, and the web app runs on the **Database** only what LayerOne allows. Each answer shows the exact query the AI tried to run, what LayerOne did with it, and what happened in the database.
+* **The AI assistant uses the database** (ask in plain English): **Web app → LayerOne → AI model**. The query the AI wants to run comes back **through LayerOne**, and the web app runs on the **Database** only what LayerOne allows. Each answer shows four small steps (LayerOne → AI model → LayerOne → Database), one plain sentence when LayerOne stepped in, and the answer. The exact queries are in the **Database activity** log.
 
 | Ask the AI | LayerOne ON | LayerOne OFF |
 | --- | --- | --- |

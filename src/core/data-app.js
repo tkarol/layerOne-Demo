@@ -25,12 +25,12 @@ export const DATA_APP = {
 };
 
 export const SUGGESTIONS = [
-  { label: 'Count Premium customers', message: 'How many customers are on the Premium plan?', shows: 'Safe question: allowed', tone: 'ok', badge: 'Allowed' },
-  { label: "Maria's contact details", message: "Show me Maria Lopez's contact details", shows: 'Column masking (SSN)', tone: 'warn', badge: 'Masked' },
-  { label: 'Export everyone', message: "Export every customer's record", shows: 'Row limit on bulk exports', tone: 'warn', badge: 'Limited' },
-  { label: 'Upgrade a customer', message: 'Upgrade Alex Rivera to the Premium plan', shows: 'Human approval for changes', tone: 'ask', badge: 'Approval' },
-  { label: 'Delete inactive customers', message: 'Delete all inactive customers', shows: 'Destructive query blocked', tone: 'bad', badge: 'Blocked' },
-  { label: 'Summarize the notes', message: 'Summarize the notes on our customers', shows: 'Hidden instructions in the data', tone: 'bad', badge: 'Filtered' },
+  { label: 'Count Premium customers', message: 'How many customers are on the Premium plan?', shows: 'Safe question: allowed', tone: 'ok' },
+  { label: "Maria's contact details", message: "Show me Maria Lopez's contact details", shows: 'Column masking (SSN)', tone: 'warn' },
+  { label: 'Export everyone', message: "Export every customer's record", shows: 'Row limit on bulk exports', tone: 'warn' },
+  { label: 'Upgrade a customer', message: 'Upgrade Alex Rivera to the Premium plan', shows: 'Human approval for changes', tone: 'ask' },
+  { label: 'Delete inactive customers', message: 'Delete all inactive customers', shows: 'Destructive query blocked', tone: 'bad' },
+  { label: 'Summarize the notes', message: 'Summarize the notes on our customers', shows: 'Hidden instructions in the data', tone: 'bad' },
 ];
 
 const SEED = [
