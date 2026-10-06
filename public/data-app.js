@@ -59,20 +59,23 @@ function draw() {
     <div class="data-app">
       <div class="data-paths">
         <div class="dpath direct"><span class="dpath-title">When you edit the database</span>
-          <span class="chain"><span class="hop">🖥️ Web app</span><span class="arr">→</span><span class="hop">${DB_ICON} Database</span></span>
+          <span class="chain"><span class="hop you">🖥️ Web app</span><span class="arr">→</span><span class="hop db">${DB_ICON} Database</span></span>
           <small>Normal app traffic. LayerOne is not involved.</small></div>
         <div class="dpath ai ${prot ? '' : 'off'}"><span class="dpath-title">When the AI uses the database</span>
-          <span class="chain"><span class="hop">🖥️ Web app</span><span class="arr">⇄</span><span class="hop l1">${prot ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">⇄</span><span class="hop">✦ AI model</span></span>
-          <span class="chain back"><span class="lead">The AI’s query comes back:</span><span class="hop l1">${prot ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">🖥️ Web app</span><span class="arr">→</span><span class="hop">${DB_ICON} Database</span></span>
+          <span class="chain"><span class="hop you">🖥️ Web app</span><span class="arr">⇄</span><span class="hop l1">${prot ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">⇄</span><span class="hop ai">✦ AI model</span></span>
+          <span class="chain back"><span class="lead">The AI’s query comes back:</span><span class="hop l1">${prot ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop you">🖥️ Web app</span><span class="arr">→</span><span class="hop db">${DB_ICON} Database</span></span>
           <small>${prot ? 'LayerOne sits between the app and the AI. The web app only runs the database queries LayerOne allows.' : 'With LayerOne off, the web app runs whatever query the AI sends back, unchecked.'}</small></div>
       </div>
       ${s.error ? `<p class="mode-note bad">${esc(s.error)}</p>` : ''}
 
       <div class="data-grid">
         <section class="assistant">
-          <h3>✨ AI assistant</h3>
-          <p class="muted small">Ask about your customers in plain English. Try one of these:</p>
-          <div class="chips">${s.suggestions.map((x) => `<button class="chip-btn" data-ask="${esc(x.message)}" title="Shows: ${esc(x.shows)}">${esc(x.label)}<small>${esc(x.shows)}</small></button>`).join('')}</div>
+          <div class="as-head"><span class="as-icon">✨</span><div><h3>AI assistant</h3><small>Ask about your customers in plain English</small></div></div>
+          <div class="as-legend" aria-label="Color key"><span class="lg you">You</span><span class="lg l1 ${prot ? '' : 'off'}">LayerOne</span><span class="lg ai">AI model</span><span class="lg db">Database</span></div>
+          <div class="as-label">Try one</div>
+          <div class="chips">${s.suggestions
+            .map((x) => `<button class="chip-btn tone-${esc(x.tone || 'ok')}" data-ask="${esc(x.message)}" title="Shows: ${esc(x.shows)}"><span class="chip-top"><b>${esc(x.label)}</b>${x.badge ? `<span class="chip-badge">${esc(x.badge)}</span>` : ''}</span><small>${esc(x.shows)}</small></button>`)
+            .join('')}</div>
           <form class="ask-row" id="askForm"><input id="askInput" placeholder="e.g. Show me Jordan Park's details" autocomplete="off" maxlength="500" /><button class="ai-btn" type="submit">Ask</button></form>
           <div class="turns">${s.turns.length ? s.turns.map((t, i) => (i === 0 || open.turns.has(t.id) ? drawTurn(t, i) : drawTurnSummary(t))).join('') : '<p class="muted small empty-turns">The assistant’s answers, and what LayerOne did with each database query, appear here.</p>'}</div>
         </section>
@@ -165,6 +168,7 @@ function drawLog(e) {
 }
 
 // An earlier question, shown as one line until it is expanded.
+const CHECK_ICON = { pass: '✓', redact: '✂', hold: '✋', block: '⛔' };
 const VERDICT = { allowed: ['Allowed', 'ok'], filtered: ['Allowed, filtered', 'warn'], approval: ['Needs approval', 'warn'], blocked: ['Blocked', 'bad'] };
 function drawTurnSummary(t) {
   const r = t.result;
@@ -177,8 +181,8 @@ function drawTurn(t, index = 0) {
   const r = t.result;
   const step = t.step ?? 0;
   const prot = t.protected;
-  const hop = (i, cls, icon, title, caption) =>
-    `<div class="thop ${step > i ? cls : step === i ? 'active' : ''}"><span class="ticon">${icon}</span><b>${title}</b><small>${step >= i ? caption : 'Waiting'}</small></div>`;
+  const hop = (i, cls, actor, icon, title, caption) =>
+    `<div class="thop actor-${actor} ${step > i ? cls : step === i ? 'active' : ''}"><span class="ticon">${icon}</span><b>${title}</b><small>${step >= i ? caption : 'Waiting'}</small></div>`;
   const l1 = r?.layerone;
   const l1Caption = !prot ? 'Switched off: not checked' : !l1 ? 'Waiting' : { allowed: 'Allowed', filtered: 'Allowed, results filtered', approval: 'Needs your approval', blocked: 'Blocked' }[l1.decision];
   const l1Cls = !prot ? 'skipped' : !l1 ? '' : { allowed: 'done', filtered: 'warn', approval: 'warn', blocked: 'blocked' }[l1.decision];
@@ -187,24 +191,24 @@ function drawTurn(t, index = 0) {
   const dbCls = !db ? '' : db.executed && r.toolCall.kind !== 'read' && !prot ? 'blocked' : db.executed ? 'done' : 'skipped';
   const detailsOpen = open.details.has(t.id);
   return `<article class="turn ${open.reveal === t.id ? 'reveal' : ''}">
-    <div class="q"><span class="avatar small">${esc(ctx.person.initials)}</span><p>${esc(t.message)}</p>${index > 0 ? `<button class="link-btn collapse-turn" data-collapse="${esc(t.id)}">Collapse ▴</button>` : ''}</div>
+    <div class="q"><span class="avatar small">${esc(ctx.person.initials)}</span><p class="q-bubble">${esc(t.message)}</p>${index > 0 ? `<button class="link-btn collapse-turn" data-collapse="${esc(t.id)}">Collapse ▴</button>` : ''}</div>
     ${t.error ? `<div class="notice bad">${esc(t.error)}</div>` : ''}
     <div class="thops four">
-      ${hop(0, prot ? 'done' : 'skipped', prot ? '🛡️' : '⚠️', 'LayerOne', !prot ? 'Switched off' : step > 0 ? 'Checked the question' : 'Checking the question…')}<span class="tarr">→</span>
-      ${hop(1, 'done', '✦', 'AI model', r ? 'Wrote a database query' : 'Thinking…')}<span class="tarr">→</span>
-      ${hop(2, l1Cls, prot ? '🛡️' : '⚠️', 'LayerOne', l1Caption || '')}<span class="tarr">→</span>
-      ${hop(3, dbCls, DB_ICON, 'Web app → Database', dbCaption)}
+      ${hop(0, prot ? 'done' : 'skipped', 'l1', prot ? '🛡️' : '⚠️', 'LayerOne', !prot ? 'Switched off' : step > 0 ? 'Checked the question' : 'Checking the question…')}<span class="tarr">→</span>
+      ${hop(1, 'done', 'ai', '✦', 'AI model', r ? 'Wrote a database query' : 'Thinking…')}<span class="tarr">→</span>
+      ${hop(2, l1Cls, 'l1', prot ? '🛡️' : '⚠️', 'LayerOne', l1Caption || '')}<span class="tarr">→</span>
+      ${hop(3, dbCls, 'db', DB_ICON, 'Web app → Database', dbCaption)}
     </div>
     ${
       r && step >= 3
         ? `<details class="turn-details" data-details="${esc(t.id)}" ${detailsOpen ? 'open' : ''}>
-            <summary><span>${prot ? "The query and LayerOne's checks" : 'The query'}</span><code class="sql-peek">${esc(r.toolCall.sql.length > 48 ? `${r.toolCall.sql.slice(0, 48)}…` : r.toolCall.sql)}</code></summary>
+            <summary><span>🔎 ${prot ? "The query and LayerOne's checks" : 'The query'}</span><code class="sql-peek">${esc(r.toolCall.sql.length > 48 ? `${r.toolCall.sql.slice(0, 48)}…` : r.toolCall.sql)}</code></summary>
             <div class="sql"><small>The AI tried to run</small><code>${esc(r.toolCall.sql)}</code></div>
-            ${prot && l1 ? `<ul class="l1checks">${l1.checks.map((c) => `<li class="${esc(c.result)}"><b>${esc(c.name)}:</b> ${esc(c.detail)}</li>`).join('')}</ul>` : ''}
+            ${prot && l1 ? `<ul class="l1checks">${l1.checks.map((c) => `<li class="${esc(c.result)}"><span class="ck">${CHECK_ICON[c.result] || '✓'}</span><span><b>${esc(c.name)}:</b> ${esc(c.detail)}</span></li>`).join('')}</ul>` : ''}
           </details>`
         : ''
     }
-    ${r && step >= 4 ? `<div class="a reveal ${prot ? '' : 'off'}"><p>${esc(r.answer).replace(/\n/g, '<br>')}</p>${resultTable(r.results)}</div>` : ''}
+    ${r && step >= 4 ? `<div class="a reveal ${prot ? '' : 'off'}"><div class="a-head">✦ AI answer <span>${prot ? '· checked by LayerOne' : '· LayerOne off, unchecked'}</span></div><p>${esc(r.answer).replace(/\n/g, '<br>')}</p>${resultTable(r.results)}</div>` : ''}
     ${r?.pendingId && step >= 4 && !t.decided ? `<div class="approve"><span>🛡️ LayerOne is holding this change for a person to approve.</span><button class="save" data-approve="${esc(t.id)}">Approve</button><button class="secondary" data-deny="${esc(t.id)}">Deny</button></div>` : ''}
     ${t.decided ? `<div class="a"><p>${esc(t.decided)}</p></div>` : ''}
   </article>`;
