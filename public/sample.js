@@ -68,12 +68,23 @@ function pickerOpen() {
     return false;
   }
 }
-function setPicker(open) {
+function savePicker(open) {
   try {
     localStorage.setItem('l1-picker', open ? 'open' : 'closed');
   } catch {}
-  render();
 }
+// Slides the picker open or closed in place (no redraw, so it animates).
+function setPicker(open) {
+  savePicker(open);
+  $('#appSwitch')?.classList.toggle('open', open);
+  const btn = $('#pickerToggle');
+  if (btn) {
+    btn.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', String(open));
+  }
+}
+// After choosing an app, the new page draws with the picker open, then slides it shut.
+let closePickerAfterRender = false;
 
 // Optional features, turned on in Settings (both off by default).
 const features = () => state.config?.features || { play: false, customize: false };
@@ -95,15 +106,12 @@ function render() {
   const compare = state.compare && !custom; // these run one way at a time (Ask AI has its own retry button)
   const color = app.brand?.color || '#0f766e';
   const logo = app.brand?.logo ? `<img class="brand-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`;
+  const pickerShown = pickerOpen() || closePickerAfterRender;
   root.innerHTML = `
     <div class="demo-bar">
-      <div class="prepared">${state.customer ? `<span class="for">Prepared for <b>${esc(state.customer.name)}</b></span>` : ''}${
-        pickerOpen()
-          ? ''
-          : `<span class="app-picker-bar"><span class="muted">Sample app:</span>
+      <div class="prepared">${state.customer ? `<span class="for">Prepared for <b>${esc(state.customer.name)}</b></span>` : ''}<span class="app-picker-bar"><span class="muted">Sample app:</span>
             <span class="current-app" style="--app:${esc(color)}">${app.brand?.logo ? `<img class="card-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`}<b>${esc(app.org)}</b><small>${esc(app.sector)}</small></span>
-            ${state.apps.length > 1 ? `<button class="link-btn" id="pickerToggle">Switch app (${state.apps.length}) ▾</button>` : ''}</span>`
-      }</div>
+            ${state.apps.length > 1 ? `<button class="link-btn picker-toggle ${pickerShown ? 'open' : ''}" id="pickerToggle" aria-expanded="${pickerShown}" aria-controls="appSwitch">Switch app (${state.apps.length}) <span class="caret">▾</span></button>` : ''}</span></div>
       <div class="demo-actions">
         ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
         <button class="demo-btn" id="presentBtn" title="Full-screen presenter view">⛶ Present</button>
@@ -112,7 +120,7 @@ function render() {
     </div>
 
 
-    <div class="app-switch" role="tablist" aria-label="Sample application" ${pickerOpen() ? '' : 'hidden'}>
+    <div class="app-switch-wrap ${pickerShown ? 'open' : ''}" id="appSwitch"><div class="app-switch-clip"><div class="app-switch" role="tablist" aria-label="Sample application">
       ${state.apps
         .map(
           (a) => `<button role="tab" class="app-card ${a.id === app.id ? 'active' : ''}" data-app="${esc(a.id)}" aria-selected="${a.id === app.id}" style="--app:${esc(a.brand?.color || '#0f766e')}">
@@ -121,8 +129,7 @@ function render() {
           </button>`,
         )
         .join('')}
-      <button class="link-btn picker-hide" id="pickerHide">Hide ▴</button>
-    </div>
+    </div></div></div>
 
     <div class="appwin ${state.protected || compare ? '' : 'unprotected'}" style="--app:${esc(color)};--app-ink:${inkFor(color)}">
       <header class="appwin-bar">
@@ -143,6 +150,10 @@ function render() {
       ${isData ? '<div class="appwin-body data-body"><div id="dataRoot"></div></div>' : isChat ? '<div class="appwin-body chat-body"><div id="chatRoot"></div></div>' : renderDayBody(app, wf)}
     </div>`;
   wire();
+  if (closePickerAfterRender) {
+    closePickerAfterRender = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => setPicker(false)));
+  }
   if (isChat) mountChatApp({ el: $('#chatRoot'), app, isProtected: () => state.protected });
   if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, paceMs: () => pacePick(350, 800, 1200), person: app.person });
 }
@@ -344,14 +355,12 @@ function wire() {
     (b) =>
       (b.onclick = () => {
         if (state.play) return;
-        try {
-          localStorage.setItem('l1-picker', 'closed');
-        } catch {}
+        savePicker(false);
+        closePickerAfterRender = true;
         selectApp(b.dataset.app);
       }),
   );
-  $('#pickerToggle')?.addEventListener('click', () => setPicker(true));
-  $('#pickerHide')?.addEventListener('click', () => setPicker(false));
+  $('#pickerToggle')?.addEventListener('click', () => setPicker(!$('#appSwitch').classList.contains('open')));
   document.querySelectorAll('.day-item').forEach((b) => (b.onclick = () => !state.play && selectWorkflow(b.dataset.wf)));
   $('#l1Toggle')?.addEventListener('change', (e) => {
     state.protected = e.target.checked;

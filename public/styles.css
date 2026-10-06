@@ -322,3 +322,25 @@ mark.leak { background: var(--bad-soft); color: var(--bad); }
   .modes, .grid2 { grid-template-columns: 1fr; }
   .settings-btn { padding: 6px 9px; }
 }
+
+/* ---------- Smooth collapsibles ----------
+   Every <details> opens and closes with a height animation where the browser
+   supports it (interpolate-size), and a fade elsewhere. The marker rotates. */
+summary { cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: '▸'; display: inline-block; margin-right: 6px; color: var(--muted); transition: transform 0.28s cubic-bezier(0.22, 0.8, 0.24, 1); }
+details[open] > summary::before { transform: rotate(90deg); }
+@supports (interpolate-size: allow-keywords) {
+  :root { interpolate-size: allow-keywords; }
+  details::details-content { block-size: 0; overflow-y: clip; opacity: 0;
+    transition: block-size 0.35s cubic-bezier(0.22, 0.8, 0.24, 1), opacity 0.25s ease, content-visibility 0.35s allow-discrete; }
+  details[open]::details-content { block-size: auto; opacity: 1; }
+}
+@supports not (interpolate-size: allow-keywords) {
+  details[open] > :not(summary) { animation: l1-reveal 0.3s ease both; }
+}
+@keyframes l1-reveal { from { opacity: 0; transform: translateY(-6px); } }
+.reveal { animation: l1-reveal 0.32s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, ::details-content { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

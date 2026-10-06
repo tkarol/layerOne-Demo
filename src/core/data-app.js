@@ -1,7 +1,9 @@
 // "Customer Hub": a sample app with a real (small) database.
 //
 //   Web app → Database               normal app traffic; LayerOne is not involved
-//   Web app → AI model → Database    the AI agent's queries; LayerOne checks each one
+//   Web app → LayerOne → AI model    the AI agent; the query it wants to run comes back
+//                                    through LayerOne, and the web app runs only what
+//                                    LayerOne allows
 //
 // The AI agent and LayerOne's tool-call checks here are built-in stand-ins
 // (in every mode). The table lives in the app's key/value storage, so changes
@@ -267,7 +269,7 @@ export async function handleDataApi(request, { storage, pathname, method, readJs
     return json(200, await snapshot(storage));
   }
 
-  // The AI assistant: Web app → AI model → (LayerOne) → Database.
+  // The AI assistant: Web app → LayerOne → AI model; the AI's query comes back through LayerOne, then the web app runs it.
   if (method === 'POST' && rest === 'ask') {
     const { message, protected: prot = true } = await readJson(request);
     const text = String(message || '').trim().slice(0, 500);

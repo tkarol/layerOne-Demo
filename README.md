@@ -100,7 +100,7 @@ With LayerOne the data is removed, the request is blocked, or the answer is held
 The fifth app, **Summit Outfitters · Customer Hub**, shows LayerOne between an **AI agent and your data**, using a small database you can actually change. The screen spells out the two paths:
 
 * **You edit the database** (add, edit, delete rows in the table): **Web app → Database**. Normal app traffic; LayerOne is not involved.
-* **The AI assistant uses the database** (ask in plain English): **Web app → AI model → LayerOne → Database**. Each answer shows the exact query the AI tried to run, what LayerOne did with it, and what happened in the database.
+* **The AI assistant uses the database** (ask in plain English): **Web app → LayerOne → AI model**. The query the AI wants to run comes back **through LayerOne**, and the web app runs on the **Database** only what LayerOne allows. Each answer shows the exact query the AI tried to run, what LayerOne did with it, and what happened in the database.
 
 | Ask the AI | LayerOne ON | LayerOne OFF |
 | --- | --- | --- |
