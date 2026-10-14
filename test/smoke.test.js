@@ -171,7 +171,7 @@ const fired = (t) => Object.fromEntries((t.governance?.policies || []).filter((p
 test('sample apps are listed without request builders or full documents', async () => {
   const { apps, customer } = await (await fetch(`${base}/api/apps`)).json();
   assert.equal(customer, null);
-  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'bank', 'health', 'defense', 'data']);
+  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'acquisition', 'foia', 'dod', 'data']);
   for (const a of apps.filter((x) => !x.type)) {
     assert.equal(a.workflows[0].mock, undefined, 'stand-in answers stay on the server');
     assert.equal(a.workflows.length, 5);
@@ -186,9 +186,9 @@ test('each sample workflow triggers its LayerOne policy when protected', async (
     'unapproved-model': ['blocked', 'L1-IN-005', 'block'],
     'hidden-instructions': ['blocked', 'L1-IN-001', 'block'],
   };
-  const judgeStep = { benefits: 'eligibility', bank: 'advice', health: 'medication', defense: 'export-control' };
+  const judgeStep = { benefits: 'eligibility', acquisition: 'far-question', foia: 'exemption', dod: 'foreign-disclosure' };
   for (const app of Object.keys(judgeStep)) {
-    for (const [wf, [decision, id, result]] of Object.entries(app === 'defense' ? { ...expected, 'draft-reply': ['blocked', 'L1-IN-002', 'block'] } : expected)) {
+    for (const [wf, [decision, id, result]] of Object.entries(app === 'dod' ? { ...expected, 'draft-reply': ['blocked', 'L1-IN-002', 'block'] } : expected)) {
       const t = await appRun(app, wf);
       assert.equal(t.governance.decision, decision, `${app}/${wf}`);
       assert.equal(fired(t)[id], result, `${app}/${wf}`);
@@ -229,10 +229,10 @@ test('with LayerOne off, requests go straight to the model and the risks get thr
   assert.match(draft.endpoint.url, /\/mock\/model\//);
   assert.equal(draft.upstream, null);
   assert.match(draft.output, /123-45-6789/);
-  const card = await appRun('bank', 'draft-reply', false);
-  assert.match(card.output, /4111 1111 1111 1111/);
-  const injected = await appRun('bank', 'hidden-instructions', false);
-  assert.match(injected.output, /\$5,000 courtesy credit/);
+  const vendor = await appRun('acquisition', 'draft-reply', false);
+  assert.match(vendor.output, /532-71-9046/);
+  const injected = await appRun('acquisition', 'hidden-instructions', false);
+  assert.match(injected.output, /Vector Dynamics has been marked as the apparent awardee/);
   const big = await appRun('benefits', 'summarize-file', false);
   assert.equal(big.status, 'completed');
   assert.ok(big.promptTokens > 8000);
@@ -279,14 +279,14 @@ const api = async (path, method = 'GET', body, headers = {}) => {
 };
 
 test('a customer profile renames, rebrands and filters the sample apps, and reaches the AI answers', async () => {
-  const bad = await api('/api/profiles', 'POST', { name: '', show: [], apps: { bank: { color: 'blue', logo: 'javascript:alert(1)' } } });
+  const bad = await api('/api/profiles', 'POST', { name: '', show: [], apps: { acquisition: { color: 'blue', logo: 'javascript:alert(1)' } } });
   assert.equal(bad.status, 400);
-  assert.ok(bad.data.errors.name && bad.data.errors.show && bad.data.errors['bank.color'] && bad.data.errors['bank.logo']);
+  assert.ok(bad.data.errors.name && bad.data.errors.show && bad.data.errors['acquisition.color'] && bad.data.errors['acquisition.logo']);
 
   const created = await api('/api/profiles', 'POST', {
     name: 'Acme Federal',
-    show: ['bank', 'benefits'],
-    apps: { bank: { org: 'Acme Credit Union', personName: 'Sam Ortiz', color: '#aa2244', logo: 'https://example.com/logo.png' } },
+    show: ['acquisition', 'benefits'],
+    apps: { acquisition: { org: 'Acme Contracting', personName: 'Sam Ortiz', color: '#aa2244', logo: 'https://example.com/logo.png' } },
   });
   assert.equal(created.status, 200);
   const id = created.data.id;
@@ -294,25 +294,25 @@ test('a customer profile renames, rebrands and filters the sample apps, and reac
 
   const { data: apps } = await api('/api/apps');
   assert.equal(apps.customer.name, 'Acme Federal');
-  assert.deepEqual(apps.apps.map((a) => a.id), ['bank', 'benefits']);
-  const bank = apps.apps[0];
-  assert.equal(bank.org, 'Acme Credit Union');
-  assert.equal(bank.person.name, 'Sam Ortiz');
-  assert.equal(bank.person.initials, 'SO');
-  assert.equal(bank.brand.color, '#aa2244');
-  assert.match(bank.tagline, /Sam's support queue/);
+  assert.deepEqual(apps.apps.map((a) => a.id), ['acquisition', 'benefits']);
+  const acquisition = apps.apps[0];
+  assert.equal(acquisition.org, 'Acme Contracting');
+  assert.equal(acquisition.person.name, 'Sam Ortiz');
+  assert.equal(acquisition.person.initials, 'SO');
+  assert.equal(acquisition.brand.color, '#aa2244');
+  assert.match(acquisition.tagline, /Sam's solicitation/);
   const defaults = await api('/api/apps?default=1');
-  assert.equal(defaults.data.apps.find((a) => a.id === 'bank').org, 'Cobalt Bank');
+  assert.equal(defaults.data.apps.find((a) => a.id === 'acquisition').org, 'Eastgate Contracting Office');
 
   // Names flow into the stand-in AI's answer.
-  const t = await appRun('bank', 'draft-reply');
-  assert.match(t.output, /Sam Ortiz, Customer support specialist\nAcme Credit Union/);
+  const t = await appRun('acquisition', 'draft-reply');
+  assert.match(t.output, /Sam Ortiz, Contracting officer\nAcme Contracting/);
 
   // Edited step text is what gets sent and checked.
   const profile = (await api(`/api/profiles/${id}`)).data;
-  profile.steps = { 'bank:draft-reply': { body: 'My SSN is 987-65-4321, please call me.' } };
+  profile.steps = { 'acquisition:draft-reply': { body: 'My SSN is 987-65-4321, please call me.' } };
   assert.equal((await api(`/api/profiles/${id}`, 'PUT', profile)).status, 200);
-  const edited = await appRun('bank', 'draft-reply');
+  const edited = await appRun('acquisition', 'draft-reply');
   assert.match(edited.prompt, /987-65-4321/);
   assert.equal(edited.governance.decision, 'redacted');
   assert.ok((await api('/api/apps')).data.apps[0].workflows[0].edited);

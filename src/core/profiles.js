@@ -28,7 +28,9 @@ function rename(value, pairs) {
 
 // The sample apps as this profile presents them (or the defaults with no profile).
 export function resolveApps(profile) {
-  const order = profile?.show?.length ? profile.show : APP_IDS;
+  // Apps a profile names that no longer exist are skipped; with none left, show them all.
+  const known = (profile?.show || []).filter((id) => APP_IDS.includes(id));
+  const order = known.length ? known : APP_IDS;
   return order
     .map((id) => SAMPLE_APPS.find((a) => a.id === id))
     .filter(Boolean)

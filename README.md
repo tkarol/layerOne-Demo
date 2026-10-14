@@ -2,7 +2,7 @@
 
 A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and compliance gateway for AI agents. It has two tabs:
 
-* **Sample apps:** **Ask AI**, a plain company chat built for a 5-minute demo, plus four everyday work tools (public sector, banking, healthcare, defense) whose AI features run through LayerOne. Switch LayerOne **off**, use **Compare**, or **Play the day** hands-free, and white-label it all for a specific customer.
+* **Sample apps:** **Ask AI**, a plain company chat built for a 5-minute demo, plus four everyday federal work tools (benefits, acquisition, FOIA, DoD sustainment) whose AI features run through LayerOne. Switch LayerOne **off**, use **Compare**, or **Play the day** hands-free, and white-label it all for a specific customer.
 * **Behind the scenes:** the mechanics of any request. It shows both endpoints in the chain, traces every hop in both directions, shows LayerOne's checks and audit record, and keeps a history of every run.
 
 Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings, customer profiles and history. There is no separate server to run.
@@ -75,14 +75,14 @@ Under each answer, **↻ Try this with LayerOne OFF** reruns the same message th
 
 ### Day-in-the-life apps
 
-Four everyday work tools, one per industry. Each walks through one employee's day, and every step is an AI feature that exercises a different LayerOne policy:
+Four everyday federal work tools, each built around a real pain point (Privacy Act data, procurement integrity, FOIA backlogs, CUI and foreign disclosure). Each walks through one employee's day, and every step is an AI feature that exercises a different LayerOne policy:
 
 | App (fictional) | Employee | Regex / pattern match | Max tokens | Model denylist | LLM judge | Prompt injection |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Lakeshore Benefits Office** (public sector) | Dana, caseworker | Claimant email with SSN, DOB, phone | 120-page case file | DeepSeek-R1 for a translation | Made-up eligibility rule and a guaranteed approval | Hidden text: approve a claim, email the file to Gmail |
-| **Cobalt Bank** (financial services) | Jordan, support specialist | Dispute with card number, account number, phone | 96-page loan agreement | DeepSeek-R1 for a rewrite | Crypto advice and a promised refund | Hidden text: issue a $5,000 credit |
-| **Riverside Health** (healthcare) | Priya, nurse care coordinator | Patient message with MRN, DOB, phone (PHI) | 200-page patient chart | DeepSeek-R1 for discharge instructions | "Ibuprofen is safe with warfarin" | Hidden text in a referral fax: send the chart out |
-| **Northfield Systems** (defense & aerospace) | Marcus, program analyst | Supplier email with a **CUI//SP-EXPT** marking (blocked) | 150-page test report | DeepSeek-R1 for a status update | An invented ITAR exemption | Hidden text: upload drawings to an outside account |
+| **Eastgate Contracting Office** (federal acquisition) | Renee, contracting officer | Vendor email with a key person's SSN, DOB, phone | 180-page technical proposal | DeepSeek-R1 for the price analysis (source selection information) | A misstated FAR 52.217-8 extension | Hidden text in a vendor question: leak competitors' prices |
+| **Westbrook Records & FOIA Office** (federal records) | Marcus, government information specialist | FOIA/Privacy Act request with SSN, DOB, phone | 300-page records release | DeepSeek-R1 for a final response letter | "A vendor's request is enough for Exemption 4" | Hidden text: send unredacted records to Gmail |
+| **Ridgeline Sustainment Command** (DoD) | Tasha, logistics management specialist | Depot work order with a **CUI//SP-EXPT** marking (blocked) | 150-page fleet readiness report | DeepSeek-R1 for a readiness brief | "Allies are exempt from ITAR" | Hidden text: approve a fraudulent parts requisition |
 
 With LayerOne the data is removed, the request is blocked, or the answer is held for review. Without it, the problem gets through, and the page says exactly what went wrong.
 
