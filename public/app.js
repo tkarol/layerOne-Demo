@@ -1,5 +1,6 @@
 import { NO_BACKEND_MSG, readTraceStream, LEAK_RE } from './stream.js';
 import { initSample } from './sample.js';
+import { mountConnect } from './connect.js';
 
 const $ = (sel) => document.querySelector(sel);
 const state = { config: null, scenarios: [], traces: new Map(), history: [], selectedId: null, scenario: null, reveal: null };
@@ -500,11 +501,17 @@ function render() {
   renderTech(t);
 }
 
-// ---------- views: Sample apps | Behind the scenes ----------
+// ---------- views: Sample apps | Behind the scenes | Connect ----------
+let connectMounted = false;
 function setView(view) {
-  const v = view === 'console' ? 'console' : 'apps';
+  const v = ['console', 'connect'].includes(view) ? view : 'apps';
   $('#appsView').hidden = v !== 'apps';
   $('#consoleView').hidden = v !== 'console';
+  $('#connectView').hidden = v !== 'connect';
+  if (v === 'connect' && !connectMounted) {
+    connectMounted = true;
+    mountConnect($('#connectRoot'));
+  }
   document.querySelectorAll('.view-tabs button').forEach((b) => {
     b.classList.toggle('active', b.dataset.view === v);
     b.setAttribute('aria-selected', String(b.dataset.view === v));

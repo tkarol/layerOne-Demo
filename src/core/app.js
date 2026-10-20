@@ -11,6 +11,7 @@ import { validate, publicSettings, toSaved, testConnection } from './settings.js
 import { handleDataApi } from './data-app.js';
 import { FREE_WORKFLOW, MAX_MESSAGE } from './chat-app.js';
 import { json, safeEqual } from './util.js';
+import { connectInfo, runChecks, sendCustom } from './connect.js';
 
 const summarize = (t) => ({
   id: t.id,
@@ -50,7 +51,7 @@ export function createApp({ env, storage }) {
   // (a Worker cannot fetch its own URL); everything else goes to the network.
   const makeFetch = (origin) => (input, init) => {
     const url = typeof input === 'string' ? input : input.url;
-    if (url.startsWith(`${origin}/mock/`)) return handle(new Request(url, init));
+    if (url.startsWith(`${origin}/mock/`)) return handle(new Request(url, init)).then((res) => res || json(404, { error: { message: 'Not found' } }));
     return fetch(input, init);
   };
 
@@ -109,6 +110,12 @@ export function createApp({ env, storage }) {
 
     try {
       // ----- Built-in dry-run stand-ins (always available) -----
+      // GET on the stand-in: a health answer at its base URL and a model list, like a real gateway.
+      if (method === 'GET' && (pathname === '/mock/layerone' || pathname === '/mock/layerone/')) return json(200, { service: 'LayerOne (dry-run stand-in)', status: 'ok' });
+      if (method === 'GET' && pathname === '/mock/layerone/v1/models') {
+        const cfg = await currentConfig();
+        return json(200, { object: 'list', data: [{ id: cfg.model, object: 'model', owned_by: 'approved' }, { id: 'deepseek-r1', object: 'model', owned_by: 'denylisted' }] });
+      }
       if (method === 'POST' && pathname.startsWith('/mock/layerone/')) {
         return handleMockChat(request, { origin, fetchFn: makeFetch(origin), storage });
       }
@@ -142,6 +149,18 @@ export function createApp({ env, storage }) {
           await storage.clearSettings();
           return json(200, { settings: publicSettings(baseConfig(), origin, { savedInUi: false }) });
         }
+      }
+
+      // ----- Connect tab: connection checks and a request builder (they use the saved key) -----
+      if (pathname === '/api/connect' && method === 'GET') return json(200, connectInfo(await currentConfig(), origin));
+      if ((pathname === '/api/connect/check' || pathname === '/api/connect/send') && method === 'POST') {
+        const cfg = await currentConfig();
+        if (cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
+          return json(401, { error: 'Enter the settings password to send requests with the saved key', passwordRequired: true });
+        }
+        if (pathname === '/api/connect/check') return json(200, await runChecks(cfg, { origin, fetchFn: makeFetch(origin) }));
+        const out = await sendCustom(await readJson(request), cfg, { origin, fetchFn: makeFetch(origin) });
+        return out.error ? json(out.status, { error: out.error }) : json(200, out.result);
       }
 
       // ----- Run a request; streams trace snapshots as server-sent events -----

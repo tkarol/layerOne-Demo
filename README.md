@@ -48,6 +48,15 @@ Open the demo, click **⚙ Settings**, choose **Live**, and enter your LayerOne 
 
 Alternatively, set the API key as a secret so it never has to be typed into the page: in the dashboard, open the Worker, go to **Settings → Variables and Secrets → Add**, choose type **Secret**, name it `LAYERONE_API_KEY`, and paste the value.
 
+### The Connect tab
+
+The **Connect** tab helps you get this demo talking to your LayerOne deployment:
+
+* **Your connection:** the mode, LayerOne URL, chat endpoint, auth header and model the demo uses. The key only shows its last four characters.
+* **Check the connection:** six checks in order. Settings → reach the host (DNS, network, TLS) → key accepted → a real chat completion → LayerOne details in the response (decision and evidence headers) → a policy is enforced (a fake SSN). Each failure says what to fix, for example a wrong key, a wrong chat path, or a host this server can't reach.
+* **Try it from your terminal:** ready-to-copy **curl** (macOS/Linux) and **PowerShell 7** (Windows) commands for the same checks, plus personal-data and prompt-injection tests and a model list. Set your key once in an environment variable; the commands never contain it. In Dry run they call the demo's own stand-in, so you can practice from any terminal.
+* **Send a request:** a request builder with examples (chat, SSN, prompt injection, CUI marking, unapproved model, list models). It shows the status, LayerOne's decision and headers, and the response, and copies the request as curl or PowerShell. The Worker adds the saved key, so it never reaches the browser. Requests only go to the configured LayerOne host. If `SETTINGS_PASSWORD` is set, checks and requests need it, because they use the saved key.
+
 ### Protect the link
 
 A `workers.dev` link is public: anyone with it can use the demo and open Settings. Before you share it or put a real API key in it:
@@ -280,6 +289,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/sample-apps.js` | The four workflow sample apps |
 | `src/core/chat-app.js`, `public/chat-app.js` | Ask AI: the chat app and its four examples |
 | `src/core/data-app.js`, `public/data-app.js` | Customer Hub: the database app, its stand-in AI agent and LayerOne's query checks |
+| `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |
 | `src/worker.js` | Cloudflare Worker entry + Durable Object storage |
@@ -299,6 +309,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `GET /api/config` | Mode, endpoints, model (no secrets) |
 | `GET /api/settings` · `PUT /api/settings` · `DELETE /api/settings` | Read, save, or reset settings (API key never returned) |
 | `POST /api/settings/test` | Test draft settings without saving |
+| `GET /api/connect` · `POST /api/connect/check` · `POST /api/connect/send` | Connect tab: connection details, checks, and one request to the LayerOne host |
 | `GET /api/data` · `POST/PUT/DELETE /api/data/rows[/:id]` · `POST /api/data/ask` · `POST /api/data/approve` · `POST /api/data/undo` · `POST /api/data/reset` | Customer Hub database, AI assistant and approvals |
 
 ## Running locally (optional)

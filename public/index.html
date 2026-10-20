@@ -21,6 +21,7 @@
       <nav class="view-tabs" role="tablist" aria-label="View">
         <button role="tab" data-view="apps" id="tabApps">Sample apps</button>
         <button role="tab" data-view="console" id="tabConsole">Behind the scenes</button>
+        <button role="tab" data-view="connect" id="tabConnect">Connect</button>
       </nav>
       <div class="top-right">
         <button id="modeBadge" class="badge" title="Change in Settings">…</button>
@@ -44,6 +45,8 @@
       </div>
       <div id="sampleRoot"><p class="empty">Loading…</p></div>
     </main>
+
+    <main class="page connect-page" id="connectView" hidden><div id="connectRoot"><p class="empty">Loading…</p></div></main>
 
     <main class="page" id="consoleView" hidden>
       <p class="intro">

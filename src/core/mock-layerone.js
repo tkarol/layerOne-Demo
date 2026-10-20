@@ -153,6 +153,10 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
   const requestId = `l1req_${randomHex(6)}`;
   const evidenceId = `ev_${randomHex(8)}`;
 
+  // Like a real gateway, refuse requests that carry no credential (any key works in a dry run).
+  const credential = [...request.headers.keys()].some((k) => /authorization|api[-_]?key|token/i.test(k) && request.headers.get(k).trim());
+  if (!credential) return json(401, { error: { type: 'authentication_error', message: 'Missing API key. Send it in the Authorization header, for example: Authorization: Bearer <key>.' } });
+
   let body;
   try {
     body = await request.json();
