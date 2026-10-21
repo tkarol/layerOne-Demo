@@ -427,3 +427,15 @@ test('a base URL that already ends in /v1 is not doubled', async () => {
   assert.equal(joinUrl('https://l1.example', '/v1/chat/completions'), 'https://l1.example/v1/chat/completions');
   assert.equal(joinUrl('https://l1.example/proxy', '/chat/completions'), 'https://l1.example/proxy/chat/completions');
 });
+
+test('connect: host-level paths like /health, and tidy base URLs', async () => {
+  const send = (body) => api('/api/connect/send', 'POST', body);
+  const health = await send({ method: 'GET', path: '/mock/layerone/health', fromOrigin: true });
+  assert.equal(health.data.response.status, 200);
+  assert.equal((await send({ method: 'GET', path: '/api/settings', fromOrigin: true })).status, 400);
+  const { tidyBaseUrl } = await import('../src/core/settings.js');
+  assert.equal(tidyBaseUrl('https://l1.example:443/'), 'https://l1.example');
+  assert.equal(tidyBaseUrl('https://l1.example/v1/chat/completions'), 'https://l1.example/v1');
+  assert.equal(tidyBaseUrl('http://localhost:4000'), 'http://localhost:4000');
+  assert.equal(tidyBaseUrl('http://proxy.example:80/v1/'), 'http://proxy.example/v1');
+});

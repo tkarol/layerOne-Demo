@@ -12,6 +12,23 @@ const CHECK_TIMEOUT_MS = 20000;
 const MAX_BODY = 100_000;
 const MAX_RESPONSE = 200_000;
 
+const hostOf = (url) => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
+};
+// Ports a Cloudflare Worker can call out to; others may not connect.
+const WORKER_PORTS = new Set(['', '80', '443', '8080', '8880', '2052', '2082', '2086', '2095', '2053', '2083', '2087', '2096', '8443']);
+const portNote = (url) => {
+  try {
+    const { port } = new URL(url);
+    return WORKER_PORTS.has(port) ? '' : ` The URL uses port ${port}: when this demo runs on Cloudflare, outbound requests only work on standard ports (such as 443, 80, 8443 or 8080). Use the proxy's standard HTTPS URL, or run the demo locally (npm start).`;
+  } catch {
+    return '';
+  }
+};
 const baseOf = (cfg, origin) => (cfg.mode === 'mock' ? `${origin}/mock/layerone` : cfg.baseUrl);
 // Layer One's proxy health endpoint sits at the root of its host.
 const healthOf = (cfg, origin) => {
@@ -101,7 +118,7 @@ export async function runChecks(cfg, { origin, fetchFn }) {
   } else {
     const reach = await call(fetchFn, base, { method: 'GET', headers: { Accept: 'application/json' } });
     if (!reach.ok) {
-      add({ id: 'reach', name: STEP_NAME.reach, status: 'fail', detail: `${reach.error}. Check the URL, and that this server's network can reach it (VPN, firewall or allowlist).`, ms: reach.ms });
+      add({ id: 'reach', name: STEP_NAME.reach, status: 'fail', detail: `${reach.error}. Check the URL, and that this server's network can reach it (VPN, firewall or allowlist).${portNote(base)}`, ms: reach.ms });
       return skipRest('auth', 'The host could not be reached');
     }
     add({ id: 'reach', name: STEP_NAME.reach, status: 'pass', detail: `The host answered (HTTP ${reach.status}), so DNS, network and TLS are working. ${healthUrl} did not report healthy.`, ms: reach.ms, http: reach.status });
@@ -208,7 +225,10 @@ export async function sendCustom(input, cfg, { origin, fetchFn }) {
     for (const d of Object.keys(headers)) if (d.toLowerCase() === k.toLowerCase()) delete headers[d];
     headers[k] = v;
   }
-  const url = joinUrl(base, path);
+  // In Dry run the "host" is this demo, so only the stand-in's own paths are allowed.
+  if (input.fromOrigin && cfg.mode === 'mock' && !path.startsWith('/mock/layerone')) return { status: 400, error: 'In Dry run, requests stay on the built-in stand-in (/mock/layerone/…)' };
+  // `fromOrigin` paths (like /health) are relative to the host, not the base URL.
+  const url = input.fromOrigin ? hostOf(base) + path : joinUrl(base, path);
   const r = await call(fetchFn, url, { method, headers, body });
   const request = { method, url, headers: redactHeaders(headers, cfg.authHeader), body: body ?? null };
   if (!r.ok) return { status: 200, result: { request, error: r.error, ms: r.ms } };

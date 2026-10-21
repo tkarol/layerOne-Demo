@@ -13,6 +13,17 @@ function isHttpUrl(s) {
   }
 }
 
+// A pasted base URL is tidied: no trailing slash, no "/chat/completions" (the chat path
+// adds it), and no default port (https://host:443 is https://host).
+export function tidyBaseUrl(s) {
+  let out = s.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+  try {
+    const u = new URL(out);
+    out = u.origin + u.pathname.replace(/\/+$/, '') + u.search;
+  } catch {}
+  return out;
+}
+
 const originOf = (s) => {
   try {
     return new URL(s).origin;
@@ -33,7 +44,7 @@ export function validate(input, current) {
     if (['mock', 'live'].includes(input.mode)) next.mode = input.mode;
     else errors.mode = 'Choose dry run or live';
   }
-  if (input.baseUrl !== undefined) next.baseUrl = str(input.baseUrl).replace(/\/+$/, '');
+  if (input.baseUrl !== undefined) next.baseUrl = tidyBaseUrl(str(input.baseUrl));
   if (input.chatPath !== undefined) next.chatPath = str(input.chatPath) || '/v1/chat/completions';
   if (input.authHeader !== undefined) next.authHeader = str(input.authHeader) || 'Authorization';
   if (input.authScheme !== undefined) next.authScheme = str(input.authScheme);
