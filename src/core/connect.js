@@ -202,7 +202,12 @@ export async function sendCustom(input, cfg, { origin, fetchFn }) {
       .filter(([k, v]) => /^[\w-]{1,64}$/.test(k) && typeof v === 'string' && v.length <= 2000)
       .slice(0, 20),
   );
-  const headers = { ...headersFor(cfg, { withKey: input.useKey !== false, json: method === 'POST' }), ...extra };
+  // Headers typed in the request (or curl) replace the defaults, whatever their case.
+  const headers = headersFor(cfg, { withKey: input.useKey !== false, json: method === 'POST' });
+  for (const [k, v] of Object.entries(extra)) {
+    for (const d of Object.keys(headers)) if (d.toLowerCase() === k.toLowerCase()) delete headers[d];
+    headers[k] = v;
+  }
   const url = joinUrl(base, path);
   const r = await call(fetchFn, url, { method, headers, body });
   const request = { method, url, headers: redactHeaders(headers, cfg.authHeader), body: body ?? null };

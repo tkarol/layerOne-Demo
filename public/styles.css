@@ -375,8 +375,9 @@ details[open] > summary::before { transform: rotate(90deg); }
 .con-cmd-head small { color: var(--muted); font-size: 13px; }
 .con-code { position: relative; }
 .con-code pre, .con-body { margin: 0; background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.5; overflow-x: auto; white-space: pre; }
-.con-code pre { padding-right: 76px; }
-.con-copy { position: absolute; top: 8px; right: 8px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.1); color: var(--code-text); border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.con-code pre { padding-right: 76px; padding-top: 34px; }
+.con-code-btns { position: absolute; top: 6px; right: 8px; display: flex; gap: 6px; }
+.con-copy { border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.1); color: var(--code-text); border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
 .con-copy:hover { background: rgba(255, 255, 255, 0.2); }
 .con-preset { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--muted); }
 .con-form { display: grid; gap: 12px; }
@@ -411,3 +412,13 @@ details[open] > summary::before { transform: rotate(90deg); }
 .con-facts dt small { text-transform: none; letter-spacing: 0; font-weight: 600; }
 .connect-page .card-head { gap: 10px; flex-wrap: wrap; }
 @media (max-width: 640px) { .con-setup-form { grid-template-columns: minmax(0, 1fr); } }
+
+/* Editable command blocks and the curl editor */
+.con-code pre[contenteditable] { cursor: text; outline: none; transition: box-shadow 0.15s; }
+.con-code pre[contenteditable]:focus { box-shadow: 0 0 0 2px var(--accent); }
+.con-code.edited pre { box-shadow: inset 3px 0 0 var(--warn); }
+.con-code.edited::after { content: 'edited'; position: absolute; top: 9px; left: 12px; font-size: 11px; font-weight: 700; color: var(--warn); }
+.con-head-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+#conCurl { min-height: 190px; line-height: 1.5; }
+.con-parse { font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 7px 10px; border-radius: 8px; background: var(--ok-soft); color: var(--ok); overflow-wrap: anywhere; }
+.con-parse.bad { background: var(--warn-soft); color: var(--warn); }

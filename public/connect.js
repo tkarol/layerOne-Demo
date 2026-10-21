@@ -13,7 +13,7 @@ const pretty = (text) => {
   }
 };
 
-const s = { setup: 'hosted', saving: false, setupMsg: '', info: null, checks: null, checking: false, shell: 'bash', result: null, sendError: '', error: '', preset: 'hello' };
+const s = { reqMode: 'form', curlText: '', edits: {}, setup: 'hosted', saving: false, setupMsg: '', info: null, checks: null, checking: false, shell: 'bash', result: null, sendError: '', error: '', preset: 'hello' };
 try {
   s.shell = localStorage.getItem('l1-shell') || 'bash';
 } catch {}
@@ -265,10 +265,10 @@ function draw() {
         ready
           ? `<div class="con-cmd"><div class="con-cmd-head"><b>First, set your key</b><small>${
               i.dryRunKey ? 'In Dry run any key works; this is the demo key.' : 'Paste your LayerOne API key. It stays in your terminal.'
-            }</small></div>${code(keyLine())}</div>
-            ${s.shell === 'py' ? `<div class="con-cmd"><div class="con-cmd-head"><b>Then create the client</b><small>Every example below uses it.</small></div>${code(pySetup())}</div>` : ''}
+            }</small></div>${code(keyLine(), 'key')}</div>
+            ${s.shell === 'py' ? `<div class="con-cmd"><div class="con-cmd-head"><b>Then create the client</b><small>Every example below uses it.</small></div>${code(pySetup(), 'setup')}</div>` : ''}
             ${commands()
-              .map((c, n) => `<div class="con-cmd"><div class="con-cmd-head"><b>${n + 1}. ${esc(c.title)}</b><small>${esc(c.expect)}</small></div>${code(c.code)}</div>`)
+              .map((c, n) => `<div class="con-cmd"><div class="con-cmd-head"><b>${n + 1}. ${esc(c.title)}</b><small>${esc(c.expect)}</small></div>${code(c.code, c.title)}</div>`)
               .join('')}
             ${live ? '' : '<p class="muted small">These commands call this demo’s own dry-run stand-in, so they work from any terminal that can reach this page.</p>'}`
           : '<p class="muted">Add a LayerOne URL in Settings to get commands for it.</p>'
@@ -276,11 +276,14 @@ function draw() {
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Send a request</h2>
-        <label class="con-preset">Example <select id="conPreset">${Object.entries(PRESETS)
-          .map(([k, p]) => `<option value="${k}" ${k === s.preset ? 'selected' : ''}>${esc(p.label)}</option>`)
-          .join('')}</select></label></div>
-      <form id="conForm" class="con-form">
+      <div class="card-head" id="conSendCard"><h2>Send a request</h2>
+        <div class="con-head-tools">
+          <div class="seg" role="tablist" aria-label="Request editor"><button type="button" role="tab" data-reqmode="form" class="${s.reqMode === 'form' ? 'on' : ''}">Form</button><button type="button" role="tab" data-reqmode="curl" class="${s.reqMode === 'curl' ? 'on' : ''}">Edit as curl</button></div>
+          <label class="con-preset">Example <select id="conPreset">${Object.entries(PRESETS)
+            .map(([k, p]) => `<option value="${k}" ${k === s.preset ? 'selected' : ''}>${esc(p.label)}</option>`)
+            .join('')}</select></label></div></div>
+      ${s.reqMode === 'curl' ? drawCurlEditor(ready) : ''}
+      <form id="conForm" class="con-form" ${s.reqMode === 'curl' ? 'hidden' : ''}>
         <div class="con-url"><select name="method"><option ${PRESETS[s.preset].method === 'POST' ? 'selected' : ''}>POST</option><option ${PRESETS[s.preset].method === 'GET' ? 'selected' : ''}>GET</option></select>
           <span class="con-base" title="Requests only go to your LayerOne host">${esc(i.baseUrl)}</span><input name="path" value="${esc(PRESETS[s.preset].path || i.chatPath)}" spellcheck="false" /></div>
         <label>Body (JSON)<textarea name="body" rows="9" spellcheck="false">${esc(bodyFor(PRESETS[s.preset]))}</textarea></label>
@@ -298,9 +301,141 @@ function draw() {
   wire();
 }
 
-function code(text) {
-  return `<div class="con-code"><pre>${esc(text)}</pre><button type="button" class="con-copy" data-copy="${esc(text)}">Copy</button></div>`;
+// A command block you can edit in place. Edits are kept per block until you reset them.
+function code(text, key = text) {
+  const k = `${s.shell}:${key}`;
+  const edited = s.edits[k] != null && s.edits[k] !== text;
+  const runnable = s.shell === 'bash' && /^curl\s/.test(text);
+  return `<div class="con-code ${edited ? 'edited' : ''}"><pre contenteditable="plaintext-only" spellcheck="false" data-key="${esc(k)}" data-orig="${esc(text)}" title="Click to edit">${esc(edited ? s.edits[k] : text)}</pre>
+    <div class="con-code-btns">${edited ? `<button type="button" class="con-copy" data-reset="${esc(k)}">Reset</button>` : ''}${runnable ? '<button type="button" class="con-copy" data-run>Edit &amp; run ↓</button>' : ''}<button type="button" class="con-copy" data-copy>Copy</button></div></div>`;
 }
+
+// ---------- curl → request (the curl editor) ----------
+// Splits a shell command into words: quotes, backslash escapes and line continuations.
+function shellWords(cmd) {
+  const words = [];
+  let cur = '';
+  let started = false;
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i];
+    if (c === '\\' && cmd[i + 1] === '\n') {
+      i++;
+      continue;
+    }
+    if (/\s/.test(c)) {
+      if (started) words.push(cur);
+      cur = '';
+      started = false;
+      continue;
+    }
+    started = true;
+    if (c === "'") {
+      const end = cmd.indexOf("'", i + 1);
+      if (end < 0) throw new Error('A single quote is not closed');
+      cur += cmd.slice(i + 1, end);
+      i = end;
+    } else if (c === '"') {
+      let j = i + 1;
+      for (; j < cmd.length && cmd[j] !== '"'; j++) {
+        if (cmd[j] === '\\' && /["\\$`]/.test(cmd[j + 1])) j++;
+        cur += cmd[j];
+      }
+      if (j >= cmd.length) throw new Error('A double quote is not closed');
+      i = j;
+    } else if (c === '\\') {
+      cur += cmd[++i] ?? '';
+    } else cur += c;
+  }
+  if (started) words.push(cur);
+  return words;
+}
+
+const KEY_VAR = /\$\{?(env:)?LAYERONE_API_KEY\}?/;
+const BASE_VAR = /\$\{?(env:)?LAYERONE_BASE_URL\}?/g;
+const SKIP_WITH_ARG = new Set(['-o', '--output', '-w', '--write-out', '-m', '--max-time', '--connect-timeout', '-u', '--user', '-A', '--user-agent', '--retry']);
+
+// Parses a curl command into what /api/connect/send takes. $LAYERONE_API_KEY means "the saved key".
+function parseCurl(text) {
+  const words = shellWords(text.replace(/\r/g, '').trim());
+  if (words[0] !== 'curl') throw new Error('Start with curl');
+  let method = '';
+  let url = '';
+  let body = null;
+  let json = false;
+  const headers = {};
+  let usesKeyVar = false;
+  for (let n = 1; n < words.length; n++) {
+    const w = words[n];
+    const next = () => {
+      if (n + 1 >= words.length) throw new Error(`${w} needs a value`);
+      return words[++n];
+    };
+    if (w === '-X' || w === '--request') method = next().toUpperCase();
+    else if (w === '-H' || w === '--header') {
+      const h = next();
+      const at = h.indexOf(':');
+      if (at < 1) throw new Error(`Header "${h}" needs a name and a value`);
+      const name = h.slice(0, at).trim();
+      const value = h.slice(at + 1).trim();
+      if (KEY_VAR.test(value)) usesKeyVar = true;
+      else headers[name] = value;
+    } else if (['-d', '--data', '--data-raw', '--data-binary', '--json'].includes(w)) {
+      body = (body ? `${body}&` : '') + next();
+      if (w === '--json') json = true;
+    } else if (w === '--url') url = next();
+    else if (SKIP_WITH_ARG.has(w)) next();
+    else if (w.startsWith('-')) continue; // -sS, -i, -v, --compressed, …
+    else if (!url) url = w;
+    else throw new Error(`Unexpected "${w}"`);
+  }
+  if (!url) throw new Error('No URL');
+  // $LAYERONE_BASE_URL, as in the Layer One docs, is the base URL without /v1.
+  url = url.replace(BASE_VAR, s.info.baseUrl.replace(/\/v1$/, ''));
+  if (/\$\{?\w/.test(url)) throw new Error(`Replace the variable in the URL: ${url}`);
+  const base = s.info.baseUrl;
+  const root = base.replace(/\/v1$/, '');
+  if (!url.startsWith(root)) throw new Error(`This page only sends to your LayerOne host (${base}). Change the URL, or change the base URL in Settings.`);
+  let path = url.slice(base.length && url.startsWith(base) ? base.length : root.length) || '/';
+  if (url.startsWith(base) && /\/v1$/.test(base)) path = `/v1${path}`; // joinUrl adds it back without doubling
+  if (!path.startsWith('/')) path = `/${path}`;
+  if (json) headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  const authName = Object.keys(headers).find((k) => k.toLowerCase() === s.info.authHeader.toLowerCase());
+  return { method: method || (body != null ? 'POST' : 'GET'), path, body: body ?? '', headers, useKey: usesKeyVar || !authName, keyFromCurl: Boolean(authName) };
+}
+
+function curlSummary(text) {
+  try {
+    const r = parseCurl(text);
+    const n = Object.keys(r.headers).length;
+    return { ok: true, text: `${r.method} ${joinUrl(s.info.baseUrl, r.path)} · ${n} header${n === 1 ? '' : 's'}${r.body ? ` · body ${r.body.length} characters` : ''} · ${r.keyFromCurl ? 'key typed in the curl' : 'saved key'} · + x-layerone-* headers from Settings (a header in the curl wins)` };
+  } catch (err) {
+    return { ok: false, text: err.message };
+  }
+}
+
+function drawCurlEditor(ready) {
+  if (!s.curlText) s.curlText = presetCurl();
+  const sum = curlSummary(s.curlText);
+  return `<form id="conCurlForm" class="con-form">
+    <label>curl command <small class="muted">Edit anything: URL path, headers, model, message. <code>$LAYERONE_API_KEY</code> uses the saved key, and <code>$LAYERONE_BASE_URL</code> works like in the Layer One docs.</small>
+      <textarea name="curl" rows="9" spellcheck="false" id="conCurl">${esc(s.curlText)}</textarea></label>
+    <div class="con-parse ${sum.ok ? '' : 'bad'}" id="conParse">${esc(sum.ok ? `Will send: ${sum.text}` : sum.text)}</div>
+    <div class="con-actions"><span class="con-expect muted small">Expect: ${esc(PRESETS[s.preset].expect)}</span>
+      <button type="button" class="secondary" id="conCurlReset">Reset to example</button>
+      <button type="button" class="secondary" id="conCurlCopy">Copy</button>
+      <button class="con-go" ${ready ? '' : 'disabled'}>Run</button></div>
+  </form>`;
+}
+
+// The selected example as a multi-line curl, with the body as readable JSON.
+const presetCurl = () => {
+  const p = PRESETS[s.preset];
+  const i = s.info;
+  const a = authLine('bash');
+  const lines = [`curl -sS${p.method === 'GET' ? '' : ' -X POST'} ${sq(joinUrl(i.baseUrl, p.path || i.chatPath))}`, `  -H "${a.name}: ${a.value}"`, ...Object.entries(idHeaders()).map(([k, v]) => `  -H ${sq(`${k}: ${v}`)}`)];
+  if (p.method !== 'GET') lines.push(`  -H 'Content-Type: application/json'`, `  -d ${sq(bodyFor(p))}`);
+  return lines.join(' \\\n');
+};
 
 function drawResult() {
   if (s.sendError) return `<div class="notice bad">${esc(s.sendError)}</div>`;
@@ -363,9 +498,64 @@ function wire() {
         draw();
       }),
   );
-  root.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = () => copy(b.dataset.copy, b)));
+  // Editable command blocks: keep edits, copy what is shown, reset, or open in the curl editor.
+  root.querySelectorAll('.con-code pre[data-key]').forEach(
+    (pre) =>
+      (pre.oninput = () => {
+        s.edits[pre.dataset.key] = pre.innerText.replace(/\n$/, '');
+        const box = pre.closest('.con-code');
+        box.classList.toggle('edited', s.edits[pre.dataset.key] !== pre.dataset.orig);
+      }),
+  );
+  root.querySelectorAll('.con-code [data-copy]').forEach((b) => (b.onclick = () => copy(b.closest('.con-code').querySelector('pre').innerText.replace(/\n$/, ''), b)));
+  root.querySelectorAll('.con-code [data-reset]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        delete s.edits[b.dataset.reset];
+        draw();
+      }),
+  );
+  root.querySelectorAll('.con-code [data-run]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        s.curlText = b.closest('.con-code').querySelector('pre').innerText.replace(/\n$/, '');
+        s.reqMode = 'curl';
+        s.result = null;
+        s.sendError = '';
+        draw();
+        $('#conSendCard', root).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        $('#conCurl', root)?.focus();
+      }),
+  );
+  root.querySelectorAll('[data-reqmode]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        s.reqMode = b.dataset.reqmode;
+        draw();
+      }),
+  );
+  const curlBox = $('#conCurl', root);
+  if (curlBox) {
+    curlBox.oninput = () => {
+      s.curlText = curlBox.value;
+      const sum = curlSummary(s.curlText);
+      const out = $('#conParse', root);
+      out.className = `con-parse ${sum.ok ? '' : 'bad'}`;
+      out.textContent = sum.ok ? `Will send: ${sum.text}` : sum.text;
+    };
+    $('#conCurlForm', root).onsubmit = (e) => {
+      e.preventDefault();
+      runCurl();
+    };
+    $('#conCurlReset', root).onclick = () => {
+      s.curlText = presetCurl();
+      draw();
+    };
+    $('#conCurlCopy', root).onclick = (e) => copy(curlBox.value, e.target);
+  }
   $('#conPreset', root).onchange = (e) => {
     s.preset = e.target.value;
+    s.curlText = presetCurl();
     s.result = null;
     s.sendError = '';
     draw();
@@ -429,4 +619,29 @@ async function send() {
   $('#conResult', root).innerHTML = drawResult();
   btn.disabled = false;
   btn.textContent = 'Send';
+}
+
+async function runCurl() {
+  let req;
+  try {
+    req = parseCurl(s.curlText);
+  } catch (err) {
+    s.result = null;
+    s.sendError = `Could not read the curl command: ${err.message}`;
+    $('#conResult', root).innerHTML = drawResult();
+    return;
+  }
+  const btn = $('#conCurlForm button.con-go', root);
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  s.sendError = '';
+  try {
+    s.result = await post('/api/connect/send', req);
+  } catch (err) {
+    s.result = null;
+    s.sendError = err.message;
+  }
+  $('#conResult', root).innerHTML = drawResult();
+  btn.disabled = false;
+  btn.textContent = 'Run';
 }
