@@ -532,6 +532,13 @@ function initViews() {
   document.querySelectorAll('.view-tabs button').forEach((b) => (b.onclick = () => setView(b.dataset.view)));
   window.addEventListener('hashchange', () => setView(location.hash.slice(1)));
   window.addEventListener('l1:view', (e) => setView(e.detail));
+  // Settings saved from somewhere else (the Connect tab's quick setup).
+  window.addEventListener('l1:settings-saved', async () => {
+    state.selectedId = null;
+    state.config = await api('/api/config');
+    renderConfig();
+    render();
+  });
   // "See what LayerOne did" in a sample app opens that request here.
   window.addEventListener('l1:show-trace', async (e) => {
     setView('console');
@@ -582,6 +589,7 @@ const form = () => $('#settingsForm');
 const SETTINGS_FIELDS = [
   'baseUrl', 'chatPath', 'model', 'apiKey', 'authHeader', 'authScheme', 'timeoutMs', 'upstreamUrl', 'upstreamProvider',
   'directUrl', 'directModel', 'directApiKey', 'directAuthHeader', 'directAuthScheme',
+  'agentId', 'projectId', 'runId', 'tracesUrl',
 ];
 const ERROR_FIELDS = [...SETTINGS_FIELDS, 'settingsPassword'];
 
@@ -615,7 +623,7 @@ function updatePreview() {
   $('#epPreview').textContent = mock
     ? 'The built-in dry-run stand-in for LayerOne (nothing is sent to LayerOne or any AI provider)'
     : base
-      ? `POST ${base}${path}`
+      ? `POST ${/\/v1$/.test(base) && path.startsWith('/v1/') ? base + path.slice(3) : base + path}`
       : 'Enter the LayerOne base URL above';
 }
 

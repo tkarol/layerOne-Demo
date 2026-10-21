@@ -1,7 +1,7 @@
 // LayerOne adapter. Everything that depends on the gateway's wire format lives
 // here, so if your LayerOne deployment exposes a different request/response
 // schema, this is the only file to change.
-import { endpointUrl, mockModelUrl, DRY_RUN_KEY } from './config.js';
+import { endpointUrl, mockModelUrl, layeroneHeaders, DRY_RUN_KEY } from './config.js';
 
 const OPENAI_FIELDS = new Set(['id', 'object', 'created', 'model', 'choices', 'usage', 'system_fingerprint', 'service_tier']);
 const GOVERNANCE_HEADER = /^x-(layerone|vellox|l1|governance|policy|evidence|guardrail)/i;
@@ -14,6 +14,7 @@ export function buildRequest({ prompt, traceId, origin, system, model, maxTokens
     Accept: 'application/json',
     'X-Request-Id': traceId,
     'X-Demo-Client': 'claims-assistant-web-app',
+    ...layeroneHeaders(cfg),
     ...cfg.extraHeaders,
   };
   // Dry run only: tell the built-in stand-ins how slowly to work. Never sent to LayerOne.

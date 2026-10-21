@@ -411,4 +411,19 @@ test('connect: checks pass against the dry-run stand-in, and the request builder
   assert.equal((await send({ method: 'GET', path: '/v1/models' })).data.response.status, 200);
   assert.equal((await send({ method: 'GET', path: '//evil.example/x' })).status, 400);
   assert.equal((await send({ method: 'DELETE', path: '/v1/models' })).status, 400);
+
+  // Layer One's identity headers go on every request; the stand-in requires the agent id, like Layer One.
+  assert.equal(ok.data.request.headers['x-layerone-agent-id'], 'layerone-demo');
+  assert.match(ok.data.request.headers['x-layerone-run-id'], /^demo-\d{4}-\d{2}-\d{2}$/);
+  const noAgent = await fetch(`${base}/mock/layerone/v1/chat/completions`, { method: 'POST', headers: { Authorization: 'Bearer x', 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal(noAgent.status, 400);
+  assert.equal((await fetch(`${base}/mock/layerone/health`)).status, 200);
+  assert.match(checks[1].detail, /Proxy health is OK/);
+});
+
+test('a base URL that already ends in /v1 is not doubled', async () => {
+  const { joinUrl } = await import('../src/core/config.js');
+  assert.equal(joinUrl('https://l1.example/v1', '/v1/chat/completions'), 'https://l1.example/v1/chat/completions');
+  assert.equal(joinUrl('https://l1.example', '/v1/chat/completions'), 'https://l1.example/v1/chat/completions');
+  assert.equal(joinUrl('https://l1.example/proxy', '/chat/completions'), 'https://l1.example/proxy/chat/completions');
 });

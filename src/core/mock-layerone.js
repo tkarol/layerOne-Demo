@@ -157,6 +157,8 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
   const credential = [...request.headers.keys()].some((k) => /authorization|api[-_]?key|token/i.test(k) && request.headers.get(k).trim());
   if (!credential) return json(401, { error: { type: 'authentication_error', message: 'Missing API key. Send it in the Authorization header, for example: Authorization: Bearer <key>.' } });
 
+  if (!request.headers.get('x-layerone-agent-id')) return json(400, { error: { type: 'invalid_request', message: 'Missing the x-layerone-agent-id header (required).' } });
+
   let body;
   try {
     body = await request.json();
@@ -176,6 +178,9 @@ export async function handleMockChat(request, { origin, fetchFn, storage }) {
     client_request_id: request.headers.get('x-request-id'),
     timestamp: new Date().toISOString(),
     client_app: request.headers.get('x-demo-client') || 'unknown-app',
+    agent_id: request.headers.get('x-layerone-agent-id'),
+    project_id: request.headers.get('x-layerone-project-id') || null,
+    run_id: request.headers.get('x-layerone-run-id') || null,
     model: body.model,
     provider: 'simulated-provider',
     policy_version: POLICY_VERSION,

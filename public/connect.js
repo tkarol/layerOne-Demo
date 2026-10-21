@@ -13,7 +13,7 @@ const pretty = (text) => {
   }
 };
 
-const s = { info: null, checks: null, checking: false, shell: 'bash', result: null, sendError: '', error: '', preset: 'hello' };
+const s = { setup: 'hosted', saving: false, setupMsg: '', info: null, checks: null, checking: false, shell: 'bash', result: null, sendError: '', error: '', preset: 'hello' };
 try {
   s.shell = localStorage.getItem('l1-shell') || 'bash';
 } catch {}
@@ -68,26 +68,54 @@ function authLine(shell) {
   const key = shell === 'bash' ? '$LAYERONE_API_KEY' : '$env:LAYERONE_API_KEY';
   return { name: i.authHeader, value: i.authScheme ? `${i.authScheme} ${key}` : key };
 }
+// The x-layerone-* headers Layer One uses to identify the caller (from Settings).
+function idHeaders() {
+  const i = s.info;
+  return { 'x-layerone-agent-id': i.agentId, ...(i.projectId ? { 'x-layerone-project-id': i.projectId } : {}), 'x-layerone-run-id': i.runId };
+}
 const sq = (t) => `'${String(t).replace(/'/g, `'\\''`)}'`; // bash single quotes
 const pq = (t) => `'${String(t).replace(/'/g, "''")}'`; // PowerShell single quotes
+const py = (t) => JSON.stringify(String(t)); // a valid Python string literal
 
 function curlFor({ method, url, body, showHeaders, withKey = true, extra = {} }) {
   const a = authLine('bash');
   const lines = [`curl -sS${showHeaders ? ' -i' : ''}${method === 'GET' ? '' : ' -X POST'} ${sq(url)}`];
   if (withKey) lines.push(`  -H "${a.name}: ${a.value}"`);
-  for (const [k, v] of Object.entries(extra)) lines.push(`  -H ${sq(`${k}: ${v}`)}`);
+  for (const [k, v] of Object.entries({ ...idHeaders(), ...extra })) lines.push(`  -H ${sq(`${k}: ${v}`)}`);
   if (body) lines.push(`  -H 'Content-Type: application/json'`, `  -d ${sq(compact(body))}`);
   return lines.join(' \\\n');
 }
 
 function psFor({ method, url, body, showHeaders, withKey = true, extra = {} }) {
   const a = authLine('ps');
-  const h = [...(withKey ? [`"${a.name}" = "${a.value}"`] : []), ...Object.entries(extra).map(([k, v]) => `"${k}" = ${pq(v)}`)];
+  const h = [...(withKey ? [`"${a.name}" = "${a.value}"`] : []), ...Object.entries({ ...idHeaders(), ...extra }).map(([k, v]) => `"${k}" = ${pq(v)}`)];
   const lines = [`$headers = @{ ${h.join('; ')} }`];
   const call = `Invoke-WebRequest -Method ${method === 'GET' ? 'Get' : 'Post'} -Uri ${pq(url)} -Headers $headers${body ? ` -ContentType 'application/json' -Body ${pq(compact(body))}` : ''} -SkipHttpErrorCheck`;
   lines.push(`$r = ${call}`);
   lines.push(showHeaders ? '$r.StatusCode; $r.Headers; $r.Content' : '$r.StatusCode; $r.Content');
   return lines.join('\n');
+}
+
+// Python with the OpenAI SDK, as in the Layer One docs. Uses `client` from the setup block.
+function pyFor({ method, body, showHeaders, mayBlock }) {
+  if (method === 'GET') return 'print([m.id for m in client.models.list()])';
+  const b = JSON.parse(body);
+  const args = `    model=${py(b.model)},\n    messages=[{"role": "user", "content": ${py(b.messages[0].content)}}],\n    extra_headers=LAYERONE_HEADERS,`;
+  if (showHeaders) {
+    return `raw = client.chat.completions.with_raw_response.create(\n${args}\n)\nprint({k: v for k, v in raw.headers.items() if k.startswith("x-layerone")})\nprint(raw.parse().choices[0].message.content)`;
+  }
+  const create = `resp = client.chat.completions.create(\n${args}\n)\nprint(resp.choices[0].message.content)`;
+  if (!mayBlock) return create;
+  return `import openai\n\ntry:\n${create.replace(/^/gm, '    ')}\nexcept openai.APIStatusError as e:\n    print(e.status_code, e.response.text)  # LayerOne blocks with an HTTP error`;
+}
+
+function pySetup() {
+  const i = s.info;
+  const h = idHeaders();
+  const note = { 'x-layerone-agent-id': 'required', 'x-layerone-project-id': 'recommended', 'x-layerone-run-id': 'optional: groups calls into a session' };
+  return `import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=${py(i.sdkBaseUrl)},  # your Layer One endpoint\n    api_key=os.environ["LAYERONE_API_KEY"],\n)\nLAYERONE_HEADERS = {\n${Object.entries(h)
+    .map(([k, v]) => `    ${py(k)}: ${py(v)},  # ${note[k]}`)
+    .join('\n')}\n}`;
 }
 
 const compact = (body) => {
@@ -100,20 +128,85 @@ const compact = (body) => {
 
 function commands() {
   const i = s.info;
-  const make = s.shell === 'bash' ? curlFor : psFor;
-  const chat = (p) => ({ method: 'POST', url: i.endpoint, body: bodyFor(p) });
+  const make = { bash: curlFor, ps: psFor, py: pyFor }[s.shell];
+  const chat = (p, more = {}) => ({ method: 'POST', url: i.endpoint, body: bodyFor(p), ...more });
+  const health =
+    s.shell === 'bash'
+      ? `curl -sS -w '\\nHTTP %{http_code} in %{time_total}s\\n' ${sq(i.healthUrl)}`
+      : s.shell === 'ps'
+        ? `$r = Invoke-WebRequest -Uri ${pq(i.healthUrl)} -SkipHttpErrorCheck; $r.StatusCode; $r.Content`
+        : `import urllib.request\n\nprint(urllib.request.urlopen(${py(i.healthUrl)}).status)`;
   return [
-    {
-      title: 'Is the host reachable?',
-      expect: 'Any HTTP status code means DNS, network and TLS are working. A timeout or "could not resolve host" means they are not.',
-      code: s.shell === 'bash' ? `curl -sS -o /dev/null -w 'HTTP %{http_code} in %{time_total}s\\n' ${sq(i.baseUrl)}` : `(Invoke-WebRequest -Uri ${pq(i.baseUrl)} -SkipHttpErrorCheck).StatusCode`,
-    },
-    { title: 'Send a chat request', expect: 'A chat completion (HTTP 200). HTTP 401 means the key or auth header is wrong; 404 means the chat path is wrong.', code: make(chat(PRESETS.hello)) },
-    { title: 'See LayerOne’s headers', expect: 'Look for headers like X-LayerOne-Decision and X-LayerOne-Evidence-Id.', code: make({ ...chat(PRESETS.hello), showHeaders: true }) },
-    { title: 'Test personal-data protection', expect: PRESETS.pii.expect, code: make(chat(PRESETS.pii)) },
-    { title: 'Test prompt injection', expect: PRESETS.injection.expect, code: make(chat(PRESETS.injection)) },
-    { title: 'List models', expect: PRESETS.models.expect, code: make({ method: 'GET', url: i.baseUrl + '/v1/models' }) },
+    { title: 'Proxy health', expect: 'HTTP 200 means the Layer One proxy is up. A timeout or "could not resolve host" is a network, DNS or TLS problem.', code: health },
+    { title: 'Send a chat request', expect: 'A chat completion (HTTP 200). HTTP 401 means the key or auth header is wrong; 404 means the chat path or base URL is wrong.', code: make(chat(PRESETS.hello)) },
+    { title: 'See LayerOne’s headers', expect: 'Look for headers like x-layerone-decision and x-layerone-evidence-id.', code: make(chat(PRESETS.hello, { showHeaders: true })) },
+    { title: 'Test personal-data protection', expect: PRESETS.pii.expect, code: make(chat(PRESETS.pii, { mayBlock: true })) },
+    { title: 'Test prompt injection', expect: PRESETS.injection.expect, code: make(chat(PRESETS.injection, { mayBlock: true })) },
+    { title: 'List models', expect: PRESETS.models.expect, code: make({ method: 'GET', url: joinUrl(i.baseUrl, '/v1/models') }) },
   ];
+}
+const joinUrl = (base, path) => (/\/v1$/.test(base) && path.startsWith('/v1/') ? base + path.slice(3) : base + path);
+
+function keyLine() {
+  const k = s.info.dryRunKey || 'paste-your-key-here';
+  if (s.shell === 'ps') return `$env:LAYERONE_API_KEY = ${pq(k)}`;
+  return `${s.shell === 'py' ? 'pip install openai\n' : ''}export LAYERONE_API_KEY=${sq(k)}${s.shell === 'py' ? '   # Windows: $env:LAYERONE_API_KEY = ' + pq(k) : ''}`;
+}
+
+// Quick setup, following the Layer One docs: Hosted (SaaS) or Self-hosted.
+const SETUP = {
+  hosted: { label: 'Hosted (SaaS)', hint: 'Layer One is in preview: the team provisions your API key and base URL. Paste them here.', baseUrl: '', placeholder: 'https://<your-preview-endpoint>' },
+  self: {
+    label: 'Self-hosted',
+    hint: 'Your own Layer One proxy. Its health endpoint is /health, and traces are in MLflow. A Cloudflare Worker cannot reach localhost: run this demo locally (npm start), or give the proxy a URL the Worker can reach.',
+    baseUrl: 'http://localhost:4000',
+    tracesUrl: 'http://localhost:5000',
+    placeholder: 'http://localhost:4000',
+  },
+};
+
+function drawSetup() {
+  const i = s.info;
+  const m = SETUP[s.setup];
+  const live = i.mode === 'live';
+  return `<section class="card con-setup">
+    <div class="card-head"><h2>Quick setup</h2>
+      <div class="seg" role="tablist" aria-label="How you run Layer One">${Object.entries(SETUP)
+        .map(([k, x]) => `<button type="button" role="tab" data-setup="${k}" class="${k === s.setup ? 'on' : ''}">${esc(x.label)}</button>`)
+        .join('')}</div></div>
+    <p class="muted">${esc(m.hint)} For the Python SDK path, pick <b>Python SDK</b> under <i>Try it from your terminal</i>.</p>
+    <form id="conSetup" class="con-form con-setup-form">
+      <label class="wide">Base URL<input name="baseUrl" value="${esc(live ? i.baseUrl : m.baseUrl)}" placeholder="${esc(m.placeholder)}" spellcheck="false" autocomplete="off" /></label>
+      <label class="wide">API key<input name="apiKey" type="password" autocomplete="off" placeholder="${live && i.keySet ? `Saved (ends in ${esc(i.keyHint.slice(1))}). Leave blank to keep it.` : '<your-layer-one-api-key>'}" /></label>
+      <label>Agent ID <small class="muted">required</small><input name="agentId" value="${esc(i.agentId)}" spellcheck="false" /></label>
+      <label>Project ID <small class="muted">recommended</small><input name="projectId" value="${esc(i.projectId)}" placeholder="proj-1" spellcheck="false" /></label>
+      <label>Model<input name="model" value="${esc(live ? i.model : 'gpt-4')}" spellcheck="false" /></label>
+      ${s.setup === 'self' ? `<label>Traces URL <small class="muted">MLflow</small><input name="tracesUrl" value="${esc(i.tracesUrl || m.tracesUrl)}" spellcheck="false" /></label>` : ''}
+      <div class="con-actions wide"><span class="muted small">${esc(s.setupMsg)}</span><button class="con-go" ${s.saving ? 'disabled' : ''}>${s.saving ? 'Saving…' : 'Save as Live and run checks'}</button></div>
+    </form>
+  </section>`;
+}
+
+async function saveSetup() {
+  const f = Object.fromEntries(new FormData($('#conSetup', root)));
+  const body = { mode: 'live', baseUrl: f.baseUrl, agentId: f.agentId, projectId: f.projectId, model: f.model, ...(f.tracesUrl !== undefined ? { tracesUrl: f.tracesUrl } : {}), ...(f.apiKey ? { apiKey: f.apiKey } : {}) };
+  s.saving = true;
+  s.setupMsg = '';
+  draw();
+  try {
+    const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.errors ? Object.values(data.errors).join(' · ') : data.error || res.statusText);
+    s.saving = false;
+    s.setupMsg = data.notice || 'Saved. Live mode is on.';
+    window.dispatchEvent(new CustomEvent('l1:settings-saved'));
+    await load();
+    runChecks();
+  } catch (err) {
+    s.saving = false;
+    s.setupMsg = `Not saved: ${err.message}`;
+    draw();
+  }
 }
 
 // ---------- drawing ----------
@@ -133,6 +226,8 @@ function draw() {
       live ? '' : '<b>You are in Dry run</b>, so everything here points at the built-in LayerOne stand-in. That is a safe place to practice.'
     }</p>
 
+    ${drawSetup()}
+
     <section class="card con-now">
       <div class="card-head"><h2>Your connection</h2><button class="secondary" id="conSettings">⚙ Change in Settings</button></div>
       <dl class="con-facts">
@@ -141,6 +236,10 @@ function draw() {
         <div><dt>Chat endpoint</dt><dd><code>${esc(i.endpoint ? `POST ${i.endpoint}` : 'Not set')}</code></dd></div>
         <div><dt>Authentication</dt><dd><code>${esc(i.authHeader)}: ${esc(i.authScheme ? `${i.authScheme} ` : '')}${i.keySet ? esc(i.dryRunKey || `•••• ${i.keyHint}`) : '<no key saved>'}</code></dd></div>
         <div><dt>Model</dt><dd><code>${esc(i.model)}</code></dd></div>
+        <div><dt>Agent ID <small>required</small></dt><dd><code>${esc(i.agentId)}</code></dd></div>
+        <div><dt>Project ID <small>recommended</small></dt><dd><code>${esc(i.projectId || 'Not set')}</code></dd></div>
+        <div><dt>Run ID</dt><dd><code>${esc(i.runId)}</code>${i.runIdAuto ? ' <small class="muted">(one per day)</small>' : ''}</dd></div>
+        ${i.tracesUrl ? `<div><dt>Traces</dt><dd><a href="${esc(i.tracesUrl)}" target="_blank" rel="noopener">Open traces ↗</a></dd></div>` : ''}
       </dl>
     </section>
 
@@ -160,12 +259,14 @@ function draw() {
         <div class="seg" role="tablist" aria-label="Shell">
           <button role="tab" data-shell="bash" class="${s.shell === 'bash' ? 'on' : ''}">macOS / Linux (curl)</button>
           <button role="tab" data-shell="ps" class="${s.shell === 'ps' ? 'on' : ''}">Windows (PowerShell 7)</button>
+          <button role="tab" data-shell="py" class="${s.shell === 'py' ? 'on' : ''}">Python SDK</button>
         </div></div>
       ${
         ready
           ? `<div class="con-cmd"><div class="con-cmd-head"><b>First, set your key</b><small>${
               i.dryRunKey ? 'In Dry run any key works; this is the demo key.' : 'Paste your LayerOne API key. It stays in your terminal.'
-            }</small></div>${code(s.shell === 'bash' ? `export LAYERONE_API_KEY=${sq(i.dryRunKey || 'paste-your-key-here')}` : `$env:LAYERONE_API_KEY = ${pq(i.dryRunKey || 'paste-your-key-here')}`)}</div>
+            }</small></div>${code(keyLine())}</div>
+            ${s.shell === 'py' ? `<div class="con-cmd"><div class="con-cmd-head"><b>Then create the client</b><small>Every example below uses it.</small></div>${code(pySetup())}</div>` : ''}
             ${commands()
               .map((c, n) => `<div class="con-cmd"><div class="con-cmd-head"><b>${n + 1}. ${esc(c.title)}</b><small>${esc(c.expect)}</small></div>${code(c.code)}</div>`)
               .join('')}
@@ -186,8 +287,9 @@ function draw() {
         <label>Extra headers <small class="muted">one per line, like <code>X-Request-Id: test-1</code></small><textarea name="headers" rows="2" spellcheck="false"></textarea></label>
         <div class="con-actions">
           <label class="check"><input type="checkbox" name="useKey" checked /> Add the saved API key (${esc(i.authHeader)})</label>
+          <span class="muted small" title="${esc(Object.entries(idHeaders()).map(([k, v]) => `${k}: ${v}`).join('\n'))}">+ x-layerone-* headers from Settings</span>
           <span class="con-expect muted small">Expect: ${esc(PRESETS[s.preset].expect)}</span>
-          <button type="button" class="secondary" id="conCopyCurl">Copy as ${s.shell === 'bash' ? 'curl' : 'PowerShell'}</button>
+          <button type="button" class="secondary" id="conCopyCurl">Copy as ${{ bash: 'curl', ps: 'PowerShell', py: 'Python' }[s.shell]}</button>
           <button class="con-go" ${ready ? '' : 'disabled'}>Send</button>
         </div>
       </form>
@@ -239,6 +341,18 @@ function formValues() {
 function wire() {
   $('#conSettings', root).onclick = () => $('#openSettings').click();
   $('#conCheck', root).onclick = runChecks;
+  root.querySelectorAll('[data-setup]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        s.setup = b.dataset.setup;
+        s.setupMsg = '';
+        draw();
+      }),
+  );
+  $('#conSetup', root).onsubmit = (e) => {
+    e.preventDefault();
+    saveSetup();
+  };
   root.querySelectorAll('[data-shell]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -262,8 +376,8 @@ function wire() {
   };
   $('#conCopyCurl', root).onclick = (e) => {
     const v = formValues();
-    const opts = { method: v.method, url: s.info.baseUrl + v.path, body: v.method === 'POST' ? v.body : '', withKey: v.useKey, extra: v.headers };
-    copy(s.shell === 'bash' ? curlFor(opts) : psFor(opts), e.target);
+    const opts = { method: v.method, url: joinUrl(s.info.baseUrl, v.path), body: v.method === 'POST' ? v.body : '', withKey: v.useKey, extra: v.headers, mayBlock: true };
+    copy(s.shell === 'py' ? `${pySetup()}\n\n${pyFor(opts)}` : (s.shell === 'bash' ? curlFor : psFor)(opts), e.target);
   };
 }
 

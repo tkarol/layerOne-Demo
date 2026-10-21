@@ -204,13 +204,22 @@
             <div class="s-section-title">LayerOne gateway <span class="dim-note">used in Live mode</span></div>
             <div class="grid2">
               <label class="full">Base URL<input name="baseUrl" placeholder="https://layerone.example.gov" autocomplete="off" /><small class="err" data-err="baseUrl"></small></label>
-              <label>Chat path<input name="chatPath" placeholder="/v1/chat/completions" /><small class="err" data-err="chatPath"></small></label>
+              <label>Chat path<input name="chatPath" placeholder="/v1/chat/completions" title="If the base URL already ends in /v1, it is not doubled" /><small class="err" data-err="chatPath"></small></label>
               <label>Model<input name="model" placeholder="gpt-4o" /><small class="err" data-err="model"></small></label>
               <label class="full">API key<input name="apiKey" type="password" autocomplete="off" /><small class="err" data-err="apiKey"></small></label>
               <label class="check full" id="clearKeyRow" hidden><input type="checkbox" name="clearApiKey" /> Remove the saved API key</label>
               <label>Auth header<input name="authHeader" placeholder="Authorization" /><small class="err" data-err="authHeader"></small></label>
               <label>Auth scheme<input name="authScheme" placeholder="Bearer (blank = raw key)" /><small class="err" data-err="authScheme"></small></label>
               <label>Timeout (ms)<input name="timeoutMs" type="number" min="1000" max="300000" step="1000" /><small class="err" data-err="timeoutMs"></small></label>
+            </div>
+
+            <div class="s-section-title">Layer One identity <span class="dim-note">sent as x-layerone-* headers</span></div>
+            <p class="s-hint">Layer One uses these to group and attribute calls. The agent ID is required; the project ID is recommended. Leave the run ID blank to group each day's demo into one session.</p>
+            <div class="grid2">
+              <label>Agent ID<input name="agentId" placeholder="layerone-demo" /><small class="err" data-err="agentId"></small></label>
+              <label>Project ID<input name="projectId" placeholder="proj-1" /><small class="err" data-err="projectId"></small></label>
+              <label>Run ID<input name="runId" placeholder="Blank = one per day" /><small class="err" data-err="runId"></small></label>
+              <label>Traces URL<input name="tracesUrl" placeholder="http://localhost:5000 (MLflow)" /><small class="err" data-err="tracesUrl"></small></label>
             </div>
 
             <div class="s-section-title">AI model endpoint <span class="dim-note">display only</span></div>

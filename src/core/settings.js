@@ -45,6 +45,10 @@ export function validate(input, current) {
   if (input.directAuthHeader !== undefined) next.directAuthHeader = str(input.directAuthHeader) || 'Authorization';
   if (input.directAuthScheme !== undefined) next.directAuthScheme = str(input.directAuthScheme);
   if (input.directModel !== undefined) next.directModel = str(input.directModel);
+  if (input.agentId !== undefined) next.agentId = str(input.agentId) || 'layerone-demo';
+  if (input.projectId !== undefined) next.projectId = str(input.projectId);
+  if (input.runId !== undefined) next.runId = str(input.runId);
+  if (input.tracesUrl !== undefined) next.tracesUrl = str(input.tracesUrl);
   for (const k of ['showPlay', 'showCustomize']) if (input[k] !== undefined) next[k] = input[k] === true || input[k] === 'true';
   if (input.pace !== undefined) {
     if (['fast', 'normal', 'slow'].includes(input.pace)) next.pace = input.pace;
@@ -63,6 +67,10 @@ export function validate(input, current) {
   if (!/^[A-Za-z0-9-]+$/.test(next.directAuthHeader)) errors.directAuthHeader = 'Letters, numbers and dashes only';
   if (!/^[A-Za-z0-9-]*$/.test(next.directAuthScheme)) errors.directAuthScheme = 'Letters, numbers and dashes only (or empty)';
   if (next.directModel.length > 200) errors.directModel = 'Too long';
+  const idRule = /^[A-Za-z0-9._:-]{1,100}$/;
+  if (!idRule.test(next.agentId)) errors.agentId = 'Letters, numbers, dots, dashes, underscores or colons (up to 100)';
+  for (const k of ['projectId', 'runId']) if (next[k] && !idRule.test(next[k])) errors[k] = 'Letters, numbers, dots, dashes, underscores or colons (up to 100)';
+  if (next.tracesUrl && !isHttpUrl(next.tracesUrl)) errors.tracesUrl = 'Must be an http(s) URL';
   if (!Number.isFinite(next.timeoutMs) || next.timeoutMs < 1000 || next.timeoutMs > 300000) errors.timeoutMs = 'Between 1,000 and 300,000 ms';
 
   // Keys only change when re-entered, and are never forwarded to a different host.
@@ -100,6 +108,10 @@ export function publicSettings(cfg, origin, { savedInUi }) {
     directAuthHeader: cfg.directAuthHeader,
     directAuthScheme: cfg.directAuthScheme,
     directModel: cfg.directModel,
+    agentId: cfg.agentId,
+    projectId: cfg.projectId,
+    runId: cfg.runId,
+    tracesUrl: cfg.tracesUrl,
     directApiKeySet: Boolean(cfg.directApiKey),
     directApiKeyHint: cfg.directApiKey ? `…${cfg.directApiKey.slice(-4)}` : null,
     apiKeySet: Boolean(cfg.apiKey),

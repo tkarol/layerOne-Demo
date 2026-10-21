@@ -5,6 +5,7 @@ export const SETTINGS_FIELDS = [
   'mode', 'baseUrl', 'chatPath', 'apiKey', 'authHeader', 'authScheme', 'model', 'timeoutMs', 'upstreamUrl', 'upstreamProvider', 'pace',
   'directUrl', 'directApiKey', 'directAuthHeader', 'directAuthScheme', 'directModel',
   'showPlay', 'showCustomize',
+  'agentId', 'projectId', 'runId', 'tracesUrl',
 ];
 
 // Key sent to the built-in simulated gateway during a dry run.
@@ -31,6 +32,13 @@ export function envConfig(env = {}) {
     authScheme: env.LAYERONE_AUTH_SCHEME ?? 'Bearer',
     model: env.LAYERONE_MODEL || 'demo-model',
     extraHeaders: parseJson(env.LAYERONE_EXTRA_HEADERS, {}),
+    // Layer One identifies each caller: x-layerone-agent-id (required), x-layerone-project-id
+    // (recommended) and x-layerone-run-id (optional, groups calls into a session).
+    agentId: env.LAYERONE_AGENT_ID || 'layerone-demo',
+    projectId: env.LAYERONE_PROJECT_ID || '',
+    runId: env.LAYERONE_RUN_ID || '',
+    // Where Layer One's traces can be viewed (for example MLflow when self-hosted). A link only.
+    tracesUrl: env.LAYERONE_TRACES_URL || '',
     timeoutMs: Number(env.LAYERONE_TIMEOUT_MS || 60000),
     systemPrompt: env.DEMO_SYSTEM_PROMPT || 'You are a benefits claims assistant helping caseworkers process claims.',
     // Where LayerOne forwards requests. Display only, for when LayerOne does not report it.
@@ -62,10 +70,26 @@ export function mergeSaved(base, saved) {
   return out;
 }
 
+// Base URL + path, without doubling "/v1" when the base URL already ends in it
+// (OpenAI clients take a base_url like https://host/v1).
+export function joinUrl(base, path) {
+  return /\/v1$/.test(base) && path.startsWith('/v1/') ? base + path.slice(3) : base + path;
+}
+
 // In dry run the endpoints point at this app's own built-in stand-ins.
 export function endpointUrl(cfg, origin) {
   const base = cfg.mode === 'mock' ? `${origin}/mock/layerone` : cfg.baseUrl;
-  return base + cfg.chatPath;
+  return joinUrl(base, cfg.chatPath);
+}
+
+// The run id: the one in Settings, or one per day so a demo's calls group together.
+export const effectiveRunId = (cfg) => cfg.runId || `demo-${new Date().toISOString().slice(0, 10)}`;
+
+// Headers Layer One uses to identify the caller.
+export function layeroneHeaders(cfg) {
+  const h = { 'x-layerone-agent-id': cfg.agentId || 'layerone-demo', 'x-layerone-run-id': effectiveRunId(cfg) };
+  if (cfg.projectId) h['x-layerone-project-id'] = cfg.projectId;
+  return h;
 }
 
 export const mockModelUrl = (origin) => `${origin}/mock/model/v1/chat/completions`;

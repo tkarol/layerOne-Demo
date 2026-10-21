@@ -52,9 +52,12 @@ Alternatively, set the API key as a secret so it never has to be typed into the 
 
 The **Connect** tab helps you get this demo talking to your LayerOne deployment:
 
+* **Quick setup:** the same two paths as the Layer One docs. **Hosted (SaaS)**: paste the provisioned base URL and API key. **Self-hosted**: your own proxy (default `http://localhost:4000`) with traces in MLflow (`http://localhost:5000`). Enter the agent ID (required) and project ID (recommended), then **Save as Live and run checks**. A base URL that already ends in `/v1`, as OpenAI clients expect, isn't doubled. Note that a Cloudflare Worker can't reach `localhost`, so for a local proxy run the demo locally too.
+* **Layer One headers:** every request to LayerOne carries `x-layerone-agent-id`, `x-layerone-run-id` (one per day unless you set one) and, when set, `x-layerone-project-id`. Set them in **⚙ Settings → Layer One identity**.
+
 * **Your connection:** the mode, LayerOne URL, chat endpoint, auth header and model the demo uses. The key only shows its last four characters.
-* **Check the connection:** six checks in order. Settings → reach the host (DNS, network, TLS) → key accepted → a real chat completion → LayerOne details in the response (decision and evidence headers) → a policy is enforced (a fake SSN). Each failure says what to fix, for example a wrong key, a wrong chat path, or a host this server can't reach.
-* **Try it from your terminal:** ready-to-copy **curl** (macOS/Linux) and **PowerShell 7** (Windows) commands for the same checks, plus personal-data and prompt-injection tests and a model list. Set your key once in an environment variable; the commands never contain it. In Dry run they call the demo's own stand-in, so you can practice from any terminal.
+* **Check the connection:** six checks in order. Settings → reach the host (Layer One's `/health`, or else any answer: DNS, network, TLS) → key accepted → a real chat completion → LayerOne details in the response (decision and evidence headers) → a policy is enforced (a fake SSN). Each failure says what to fix, for example a wrong key, a wrong chat path, or a host this server can't reach.
+* **Try it from your terminal:** ready-to-copy **curl** (macOS/Linux), **PowerShell 7** (Windows) and **Python SDK** (OpenAI client, as in the Layer One docs) versions of the same checks, starting with the proxy's `/health`, plus personal-data and prompt-injection tests and a model list. Set your key once in an environment variable; the commands never contain it. In Dry run they call the demo's own stand-in, so you can practice from any terminal.
 * **Send a request:** a request builder with examples (chat, SSN, prompt injection, CUI marking, unapproved model, list models). It shows the status, LayerOne's decision and headers, and the response, and copies the request as curl or PowerShell. The Worker adds the saved key, so it never reaches the browser. Requests only go to the configured LayerOne host. If `SETTINGS_PASSWORD` is set, checks and requests need it, because they use the saved key.
 
 ### Protect the link
@@ -238,7 +241,11 @@ Set these as Worker **Variables and Secrets** in the dashboard (or in `.env` whe
 | `LAYERONE_API_KEY` | — | Credential. Use a **Secret** |
 | `LAYERONE_AUTH_HEADER` / `LAYERONE_AUTH_SCHEME` | `Authorization` / `Bearer` | e.g. `x-api-key` with an empty scheme |
 | `LAYERONE_MODEL` | `demo-model` | Model/route LayerOne should use upstream |
-| `LAYERONE_EXTRA_HEADERS` | `{}` | JSON of extra headers (agent ID, policy set, …) |
+| `LAYERONE_AGENT_ID` | `layerone-demo` | Sent as `x-layerone-agent-id` (required by Layer One) |
+| `LAYERONE_PROJECT_ID` | *(empty)* | Sent as `x-layerone-project-id` (recommended) |
+| `LAYERONE_RUN_ID` | *(one per day)* | Sent as `x-layerone-run-id`, which groups calls into a session. Blank uses `demo-YYYY-MM-DD` |
+| `LAYERONE_TRACES_URL` | *(empty)* | Link to Layer One's traces, for example MLflow at `http://localhost:5000` when self-hosted |
+| `LAYERONE_EXTRA_HEADERS` | `{}` | JSON of any other headers to send |
 | `LAYERONE_TIMEOUT_MS` | `60000` | Request timeout |
 | `LAYERONE_UPSTREAM_URL` / `LAYERONE_UPSTREAM_PROVIDER` | — | Model endpoint LayerOne forwards to, shown when LayerOne doesn't report it |
 | `DEMO_SYSTEM_PROMPT` | benefits claims assistant | System message the web application sends |

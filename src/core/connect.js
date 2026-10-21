@@ -4,7 +4,7 @@
 //   sendCustom   one request built in the page, sent from the server so the key stays here
 // Requests only ever go to the configured LayerOne host (or the dry-run stand-in),
 // never to an arbitrary URL.
-import { DRY_RUN_KEY } from './config.js';
+import { DRY_RUN_KEY, joinUrl, layeroneHeaders, effectiveRunId } from './config.js';
 import { redactHeaders, describeFetchError, parseBody, extractGovernance, extractOutput } from './layerone.js';
 import { now } from './util.js';
 
@@ -13,6 +13,15 @@ const MAX_BODY = 100_000;
 const MAX_RESPONSE = 200_000;
 
 const baseOf = (cfg, origin) => (cfg.mode === 'mock' ? `${origin}/mock/layerone` : cfg.baseUrl);
+// Layer One's proxy health endpoint sits at the root of its host.
+const healthOf = (cfg, origin) => {
+  if (cfg.mode === 'mock') return `${origin}/mock/layerone/health`;
+  try {
+    return `${new URL(cfg.baseUrl).origin}/health`;
+  } catch {
+    return '';
+  }
+};
 const keyOf = (cfg) => (cfg.mode === 'mock' ? DRY_RUN_KEY : cfg.apiKey);
 const authValue = (cfg, key) => (cfg.authScheme ? `${cfg.authScheme} ${key}` : key);
 
@@ -22,7 +31,15 @@ export function connectInfo(cfg, origin) {
     mode: cfg.mode,
     baseUrl: baseOf(cfg, origin) || '',
     chatPath: cfg.chatPath,
-    endpoint: baseOf(cfg, origin) ? baseOf(cfg, origin) + cfg.chatPath : '',
+    endpoint: baseOf(cfg, origin) ? joinUrl(baseOf(cfg, origin), cfg.chatPath) : '',
+    healthUrl: healthOf(cfg, origin),
+    // The base_url an OpenAI client needs: the chat endpoint without "/chat/completions".
+    sdkBaseUrl: baseOf(cfg, origin) ? joinUrl(baseOf(cfg, origin), cfg.chatPath).replace(/\/chat\/completions$/, '') : '',
+    agentId: cfg.agentId || 'layerone-demo',
+    projectId: cfg.projectId || '',
+    runId: effectiveRunId(cfg),
+    runIdAuto: !cfg.runId,
+    tracesUrl: cfg.tracesUrl || '',
     authHeader: cfg.authHeader,
     authScheme: cfg.authScheme || '',
     keySet: Boolean(key),
@@ -36,7 +53,7 @@ export function connectInfo(cfg, origin) {
 }
 
 function headersFor(cfg, { withKey = true, json = true } = {}) {
-  const h = { Accept: 'application/json', 'X-Demo-Client': 'layerone-demo-connect', ...(cfg.extraHeaders || {}) };
+  const h = { Accept: 'application/json', 'X-Demo-Client': 'layerone-demo-connect', ...layeroneHeaders(cfg), ...(cfg.extraHeaders || {}) };
   if (json) h['Content-Type'] = 'application/json';
   const key = keyOf(cfg);
   if (withKey && key) h[cfg.authHeader] = authValue(cfg, key);
@@ -62,7 +79,7 @@ export async function runChecks(cfg, { origin, fetchFn }) {
   const checks = [];
   const add = (c) => (checks.push(c), c);
   const base = baseOf(cfg, origin);
-  const endpoint = base ? base + cfg.chatPath : '';
+  const endpoint = base ? joinUrl(base, cfg.chatPath) : '';
   const skipRest = (from, why) => {
     for (const [id, name] of STEPS.slice(STEPS.findIndex(([i]) => i === from))) add({ id, name, status: 'skip', detail: why });
     return { checks, info: connectInfo(cfg, origin) };
@@ -73,15 +90,22 @@ export async function runChecks(cfg, { origin, fetchFn }) {
   else if (!cfg.baseUrl) {
     add({ id: 'settings', name: STEP_NAME.settings, status: 'fail', detail: 'No LayerOne URL is set. Add it in Settings.' });
     return skipRest('reach', 'Needs a LayerOne URL first');
-  } else add({ id: 'settings', name: STEP_NAME.settings, status: cfg.apiKey ? 'pass' : 'warn', detail: cfg.apiKey ? `Calling ${endpoint} with a saved key in the ${cfg.authHeader} header.` : `Calling ${endpoint}. No API key is saved, so requests go without one.` });
+  } else add({ id: 'settings', name: STEP_NAME.settings, status: cfg.apiKey ? 'pass' : 'warn', detail: `${cfg.apiKey ? `Calling ${endpoint} with a saved key in the ${cfg.authHeader} header.` : `Calling ${endpoint}. No API key is saved, so requests go without one.`} Agent ID: ${cfg.agentId || 'layerone-demo'}${cfg.projectId ? `, project ID: ${cfg.projectId}` : ', no project ID (recommended)'}.` });
 
-  // 2. Reach the host (any HTTP answer counts: DNS, network and TLS all worked)
-  const reach = await call(fetchFn, base, { method: 'GET', headers: { Accept: 'application/json' } });
-  if (!reach.ok) {
-    add({ id: 'reach', name: STEP_NAME.reach, status: 'fail', detail: `${reach.error}. Check the URL, and that this server's network can reach it (VPN, firewall or allowlist).`, ms: reach.ms });
-    return skipRest('auth', 'The host could not be reached');
+  // 2. Reach the host: Layer One's /health endpoint, else any HTTP answer from the base URL
+  //    (that alone shows DNS, network and TLS work).
+  const healthUrl = healthOf(cfg, origin);
+  const health = await call(fetchFn, healthUrl, { method: 'GET', headers: { Accept: 'application/json' } });
+  if (health.ok && health.status < 300) {
+    add({ id: 'reach', name: STEP_NAME.reach, status: 'pass', detail: `Proxy health is OK (GET ${healthUrl} → HTTP ${health.status}).`, ms: health.ms, http: health.status });
+  } else {
+    const reach = await call(fetchFn, base, { method: 'GET', headers: { Accept: 'application/json' } });
+    if (!reach.ok) {
+      add({ id: 'reach', name: STEP_NAME.reach, status: 'fail', detail: `${reach.error}. Check the URL, and that this server's network can reach it (VPN, firewall or allowlist).`, ms: reach.ms });
+      return skipRest('auth', 'The host could not be reached');
+    }
+    add({ id: 'reach', name: STEP_NAME.reach, status: 'pass', detail: `The host answered (HTTP ${reach.status}), so DNS, network and TLS are working. ${healthUrl} did not report healthy.`, ms: reach.ms, http: reach.status });
   }
-  add({ id: 'reach', name: STEP_NAME.reach, status: 'pass', detail: `The host answered (HTTP ${reach.status}). DNS, network and TLS are working.`, ms: reach.ms, http: reach.status });
 
   // 3. Is the key accepted? Send a harmless chat request.
   const chat = await call(fetchFn, endpoint, { method: 'POST', headers: headersFor(cfg), body: chatBody(cfg, 'Connection test from the LayerOne demo. Reply with the single word OK.') });
@@ -179,7 +203,7 @@ export async function sendCustom(input, cfg, { origin, fetchFn }) {
       .slice(0, 20),
   );
   const headers = { ...headersFor(cfg, { withKey: input.useKey !== false, json: method === 'POST' }), ...extra };
-  const url = base + path;
+  const url = joinUrl(base, path);
   const r = await call(fetchFn, url, { method, headers, body });
   const request = { method, url, headers: redactHeaders(headers, cfg.authHeader), body: body ?? null };
   if (!r.ok) return { status: 200, result: { request, error: r.error, ms: r.ms } };

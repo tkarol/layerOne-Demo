@@ -404,3 +404,10 @@ details[open] > summary::before { transform: rotate(90deg); }
 .con-res details summary { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
 @media (max-width: 640px) { .con-base { max-width: 45%; } .connect-page .card-head { flex-wrap: wrap; gap: 8px; } }
 .con-res { grid-template-columns: minmax(0, 1fr); } .con-gov code, .con-res-head code { overflow-wrap: anywhere; word-break: break-all; }
+.con-setup-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.con-setup-form .wide { grid-column: 1 / -1; }
+.con-setup-form .con-actions { justify-content: flex-end; }
+.con-setup-form .con-actions .muted { flex: 1; }
+.con-facts dt small { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.connect-page .card-head { gap: 10px; flex-wrap: wrap; }
+@media (max-width: 640px) { .con-setup-form { grid-template-columns: minmax(0, 1fr); } }

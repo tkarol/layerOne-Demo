@@ -112,6 +112,7 @@ export function createApp({ env, storage }) {
       // ----- Built-in dry-run stand-ins (always available) -----
       // GET on the stand-in: a health answer at its base URL and a model list, like a real gateway.
       if (method === 'GET' && (pathname === '/mock/layerone' || pathname === '/mock/layerone/')) return json(200, { service: 'LayerOne (dry-run stand-in)', status: 'ok' });
+      if (method === 'GET' && pathname === '/mock/layerone/health') return json(200, { status: 'ok', service: 'LayerOne proxy (dry-run stand-in)' });
       if (method === 'GET' && pathname === '/mock/layerone/v1/models') {
         const cfg = await currentConfig();
         return json(200, { object: 'list', data: [{ id: cfg.model, object: 'model', owned_by: 'approved' }, { id: 'deepseek-r1', object: 'model', owned_by: 'denylisted' }] });
