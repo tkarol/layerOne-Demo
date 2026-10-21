@@ -422,3 +422,21 @@ details[open] > summary::before { transform: rotate(90deg); }
 #conCurl { min-height: 190px; line-height: 1.5; }
 .con-parse { font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 7px 10px; border-radius: 8px; background: var(--ok-soft); color: var(--ok); overflow-wrap: anywhere; }
 .con-parse.bad { background: var(--warn-soft); color: var(--warn); }
+
+/* Try it like the docs (Mode B) */
+.con-modeb h2 small { font-size: 13px; font-weight: 600; margin-left: 6px; }
+.con-modeb-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; align-items: start; margin-top: 10px; }
+.con-modeb-grid .con-code pre { white-space: pre; }
+.con-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.con-3 label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+.con-key { display: grid; gap: 6px; }
+.con-key .check { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-weight: 500; }
+.con-host { font-size: 12.5px; padding: 6px 10px; border-radius: 8px; background: var(--ok-soft); color: var(--ok); }
+.con-host.bad { background: var(--warn-soft); color: var(--warn); }
+.con-host .link-btn { color: inherit; text-decoration: underline; font-weight: 700; }
+.con-reply { margin-top: 14px; border-left: 4px solid var(--accent); background: var(--panel-2); border-radius: 8px; padding: 10px 14px; }
+.con-reply small { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); font-size: 11.5px; }
+.con-reply p { margin: 4px 0 0; font-size: 16px; white-space: pre-wrap; }
+.con-modea { margin-top: 14px; }
+.con-modea summary { font-weight: 700; font-size: 14px; }
+@media (max-width: 900px) { .con-modeb-grid, .con-3 { grid-template-columns: minmax(0, 1fr); } }

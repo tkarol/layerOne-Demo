@@ -13,7 +13,7 @@ const pretty = (text) => {
   }
 };
 
-const s = { reqMode: 'form', curlText: '', edits: {}, setup: 'hosted', saving: false, setupMsg: '', info: null, checks: null, checking: false, shell: 'bash', result: null, sendError: '', error: '', preset: 'hello' };
+const s = { modeB: null, reqMode: 'form', curlText: '', edits: {}, setup: 'hosted', saving: false, setupMsg: '', info: null, checks: null, checking: false, shell: 'bash', result: null, sendError: '', error: '', preset: 'hello' };
 try {
   s.shell = localStorage.getItem('l1-shell') || 'bash';
 } catch {}
@@ -175,6 +175,188 @@ const SETUP = {
   },
 };
 
+// ---------- "Try it like the docs": Mode B, proxy gateway ----------
+// Mirrors the docs' snippet field for field. Like the OpenAI SDK, it posts to
+// base_url + "/chat/completions".
+function modeB() {
+  if (!s.modeB) {
+    const i = s.info;
+    s.modeB = {
+      baseUrl: i.mode === 'mock' ? i.baseUrl : i.baseUrl.replace(/\/v1$/, '') || 'http://localhost:4000',
+      useSaved: true,
+      key: '',
+      model: i.mode === 'mock' ? i.model : 'gpt-4',
+      message: 'Hello',
+      runId: 'run-001',
+      agentId: i.agentId && i.agentId !== 'layerone-demo' ? i.agentId : 'agent-001',
+      projectId: i.projectId || 'proj-1',
+      result: null,
+      error: '',
+    };
+  }
+  return s.modeB;
+}
+
+const sdkUrl = (base) => `${String(base).trim().replace(/\/+$/, '')}/chat/completions`; // what the OpenAI SDK calls
+
+function modeBCode(m) {
+  const key = m.useSaved ? 'os.environ["LAYERONE_API_KEY"]' : '"your-provider-key"'; // a typed key is never shown
+  return `${m.useSaved ? 'import os\n' : ''}from openai import OpenAI
+
+client = OpenAI(
+    base_url=${py(m.baseUrl)},  # or your hosted preview endpoint
+    api_key=${key},
+)
+
+resp = client.chat.completions.create(
+    model=${py(m.model)},
+    messages=[{"role": "user", "content": ${py(m.message)}}],
+    extra_headers={
+        "x-layerone-run-id": ${py(m.runId)},
+        "x-layerone-agent-id": ${py(m.agentId)},
+        "x-layerone-project-id": ${py(m.projectId)},
+    },
+)
+print(resp.choices[0].message.content)`;
+}
+
+// Is base_url on the configured LayerOne host? The page only sends there.
+function modeBHost(m) {
+  try {
+    const want = new URL(m.baseUrl).origin;
+    return { ok: want === hostOf(s.info.baseUrl), want };
+  } catch {
+    return { ok: false, want: '', invalid: true };
+  }
+}
+
+function drawModeB(ready) {
+  const m = modeB();
+  const h = modeBHost(m);
+  const field = (k, label, extra = '') => `<label>${label}<input name="${k}" value="${esc(m[k])}" spellcheck="false" autocomplete="off" ${extra} /></label>`;
+  return `<section class="card con-modeb">
+    <div class="card-head"><h2>Try it like the docs <small class="muted">Mode B · Proxy gateway</small></h2></div>
+    <p class="muted">Your agent's OpenAI-compatible client, pointed at the Layer One proxy. Fill in the same values as the docs; the code on the right updates as you type. <b>Run</b> sends exactly that request.</p>
+    <div class="con-modeb-grid">
+      <form id="conModeB" class="con-form">
+        ${field('baseUrl', 'base_url', 'placeholder="http://localhost:4000"')}
+        <div class="con-key">
+          <label class="check"><input type="checkbox" name="useSaved" ${m.useSaved ? 'checked' : ''} /> Use the saved API key</label>
+          <input name="key" type="password" placeholder="api_key for this test only (not saved)" value="${esc(m.key)}" ${m.useSaved ? 'hidden' : ''} autocomplete="off" />
+        </div>
+        ${field('model', 'model')}
+        <label>message<textarea name="message" rows="2" spellcheck="false">${esc(m.message)}</textarea></label>
+        <div class="con-3">${field('runId', 'x-layerone-run-id')}${field('agentId', 'x-layerone-agent-id')}${field('projectId', 'x-layerone-project-id')}</div>
+        <div class="con-host ${h.ok ? '' : 'bad'}" id="conModeBHost">${modeBHostNote(m, h)}</div>
+        <div class="con-actions"><span class="muted small" id="conModeBUrl">POST ${esc(sdkUrl(m.baseUrl))}</span><button class="con-go" ${ready && h.ok ? '' : 'disabled'}>Run</button></div>
+      </form>
+      <div>${code(modeBCode(m), 'modeB')}</div>
+    </div>
+    <div id="conModeBOut">${drawModeBResult(m)}</div>
+    <details class="con-modea"><summary>Mode A · Python SDK (in-process)</summary>
+      <p class="muted small">Instruments a Python (LangChain / LangGraph) agent from the inside for fine-grained spans and sessions. It runs in your agent's process, so it can't be tried from this page. Many teams use the proxy and the SDK together.</p>
+      ${code(`import layerone\nfrom layerone.telemetry import init_tracing_from_config, start_session\n\nlayerone.init()\ntracer = init_tracing_from_config()\n\nwith start_session(user_id="user-123", project_id=${py(m.projectId)}):\n    ...  # run your agent; spans inherit the session context`, 'modeA')}
+    </details>
+  </section>`;
+}
+
+function modeBHostNote(m, h) {
+  if (h.invalid) return 'Enter a full URL, like http://localhost:4000';
+  if (h.ok) return `✓ This is your LayerOne host${s.info.mode === 'mock' ? ' (the Dry-run stand-in)' : ''}.`;
+  return `This page only sends to the LayerOne URL in Settings (${esc(hostOf(s.info.baseUrl))}). <button type="button" class="link-btn" id="conModeBSave">Use ${esc(h.want)} as the LayerOne URL</button>`;
+}
+
+function drawModeBResult(m) {
+  const note = m.note ? `<div class="notice warn">${esc(m.note)}</div>` : '';
+  if (!m.result && !m.error) return note;
+  const reply = m.result?.response && m.result.response.status < 300 ? replyOf(m.result.response.body) : null;
+  return `${note}${reply != null ? `<div class="con-reply"><small>print(resp.choices[0].message.content)</small><p>${esc(reply)}</p></div>` : ''}${drawResult(m.result, m.error)}`;
+}
+
+function replyOf(text) {
+  try {
+    return JSON.parse(text).choices?.[0]?.message?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readModeB() {
+  const f = $('#conModeB', root);
+  const m = modeB();
+  for (const k of ['baseUrl', 'key', 'model', 'message', 'runId', 'agentId', 'projectId']) m[k] = f[k].value;
+  m.useSaved = f.useSaved.checked;
+  return m;
+}
+
+// Update the code, the URL and the host note without redrawing the form.
+function refreshModeB() {
+  const m = readModeB();
+  const h = modeBHost(m);
+  const box = $('.con-modeb .con-code', root);
+  const pre = box.querySelector('pre');
+  const txt = modeBCode(m);
+  pre.textContent = txt;
+  pre.dataset.orig = txt;
+  delete s.edits[pre.dataset.key];
+  box.classList.remove('edited');
+  $('#conModeBUrl', root).textContent = `POST ${sdkUrl(m.baseUrl)}`;
+  const note = $('#conModeBHost', root);
+  note.className = `con-host ${h.ok ? '' : 'bad'}`;
+  note.innerHTML = modeBHostNote(m, h);
+  wireModeBSave();
+  $('#conModeB button.con-go', root).disabled = !h.ok || !s.info.endpoint;
+  $('#conModeB [name=key]', root).hidden = m.useSaved;
+}
+
+function wireModeBSave() {
+  const b = $('#conModeBSave', root);
+  if (!b) return;
+  b.onclick = async () => {
+    const m = readModeB();
+    try {
+      const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ mode: 'live', baseUrl: m.baseUrl, chatPath: '/chat/completions', model: m.model, agentId: m.agentId, projectId: m.projectId }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.errors ? Object.values(data.errors).join(' · ') : data.error || res.statusText);
+      window.dispatchEvent(new CustomEvent('l1:settings-saved'));
+      m.error = '';
+      m.note = data.notice || 'Saved. Live mode now uses this base URL.';
+      await load();
+    } catch (err) {
+      m.error = `Not saved: ${err.message}`;
+      draw();
+    }
+  };
+}
+
+async function runModeB() {
+  const m = readModeB();
+  const url = new URL(sdkUrl(m.baseUrl));
+  const headers = { 'x-layerone-run-id': m.runId, 'x-layerone-agent-id': m.agentId, 'x-layerone-project-id': m.projectId };
+  if (!m.useSaved) headers[s.info.authHeader] = s.info.authScheme ? `${s.info.authScheme} ${m.key}` : m.key;
+  const btn = $('#conModeB button.con-go', root);
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  m.error = '';
+  m.note = '';
+  try {
+    m.result = await post('/api/connect/send', {
+      method: 'POST',
+      path: url.pathname + url.search,
+      fromOrigin: true,
+      useKey: m.useSaved,
+      headers,
+      body: JSON.stringify({ model: m.model, messages: [{ role: 'user', content: m.message }] }),
+    });
+  } catch (err) {
+    m.result = null;
+    m.error = err.message;
+  }
+  $('#conModeBOut', root).innerHTML = drawModeBResult(m);
+  btn.disabled = false;
+  btn.textContent = 'Run';
+}
+
 function drawSetup() {
   const i = s.info;
   const m = SETUP[s.setup];
@@ -252,6 +434,8 @@ function draw() {
         ${i.tracesUrl ? `<div><dt>Traces</dt><dd><a href="${esc(i.tracesUrl)}" target="_blank" rel="noopener">Open traces ↗</a></dd></div>` : ''}
       </dl>
     </section>
+
+    ${drawModeB(ready)}
 
     <section class="card">
       <div class="card-head"><h2>Check the connection</h2><button class="con-go" id="conCheck" ${s.checking || !ready ? 'disabled' : ''}>${s.checking ? 'Checking…' : s.checks ? '↻ Run again' : 'Run checks'}</button></div>
@@ -451,9 +635,8 @@ const presetCurl = () => {
   return lines.join(' \\\n');
 };
 
-function drawResult() {
-  if (s.sendError) return `<div class="notice bad">${esc(s.sendError)}</div>`;
-  const r = s.result;
+function drawResult(r = s.result, error = s.sendError) {
+  if (error) return `<div class="notice bad">${esc(error)}</div>`;
   if (!r) return '';
   if (r.error) return `<div class="con-res"><div class="con-status bad">Could not connect</div><p>${esc(r.error)}</p>${reqBlock(r)}</div>`;
   const st = r.response.status;
@@ -496,6 +679,16 @@ function formValues() {
 function wire() {
   $('#conSettings', root).onclick = () => $('#openSettings').click();
   $('#conCheck', root).onclick = runChecks;
+  const mb = $('#conModeB', root);
+  if (mb) {
+    mb.oninput = refreshModeB;
+    mb.onchange = refreshModeB;
+    mb.onsubmit = (e) => {
+      e.preventDefault();
+      runModeB();
+    };
+    wireModeBSave();
+  }
   root.querySelectorAll('[data-setup]').forEach(
     (b) =>
       (b.onclick = () => {
