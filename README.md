@@ -73,7 +73,7 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 
 ## Overview: a short pitch deck
 
-The **Overview** tab is a 4-slide deck to open a customer demo: the title, the problem (data leaving the boundary, unapproved models, manipulated AI, wrong answers, and no record), how Layer One works (apps and agents ⇄ Layer One ⇄ AI models, and its four decisions: pass, redact, block, hold), and a last slide that jumps straight into each demo.
+The **Overview** tab is a 4-slide deck to open a customer demo: the title; **today, without Layer One** (apps and agents wired straight to the models, an empty "no checkpoint" box, and the four risks: data leaves, unapproved models, manipulated AI, wrong answers, plus no record); **with Layer One**, the same picture with Layer One filling the middle and the risks replaced by its four decisions (pass, redact, block, hold); and a last slide that jumps straight into each demo. Slides 2 and 3 share a layout, so moving between them reads as a before-and-after.
 
 * **Talking points** sit under each slide. They add to the slide rather than repeat it: a key message, a story and why-it-matters points, a question to ask the room, a ready answer to the likely pushback, and the lead-in to the next slide. They don't show when presenting full screen; **N** hides or shows them.
 * **← →** (or click the slide's edges) to move, **F** or **⛶ Present** for full screen.

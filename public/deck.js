@@ -21,6 +21,7 @@ const ICONS = {
   db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  x: '<circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>',
 };
 const icon = (name) => `<svg class="d-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 
@@ -48,19 +49,27 @@ const SLIDES = [
     },
   },
   {
-    id: 'problem',
-    title: 'AI is already in the workflow.<br /><span class="d-dim">Governance is not.</span>',
+    id: 'without',
+    title: 'Today, AI goes straight to the models',
     html: () => `
-      <div class="d-grid d-4">
-        ${card('unlock', 'Data leaves', 'SSNs, health details or CUI pasted into a prompt go to an outside model.')}
-        ${card('eyeOff', 'Unapproved models', 'Anyone can point a tool at a public model. Nobody sees it.')}
-        ${card('alert', 'Manipulated AI', 'Hidden instructions in an email can make an agent leak data.')}
-        ${card('help', 'Wrong answers', 'A made-up rule reads like fact and ends up in a decision.')}
+      <div class="d-arch2 off">
+        <div class="d-end">${icon('monitor')}<b>Your apps<br />&amp; agents</b></div>
+        <div class="d-wire"><span>request →</span><i></i><i class="back"></i><span>← answer</span></div>
+        <div class="d-void">${icon('x')}<b>No checkpoint</b><small>Nothing is checked, and nothing is recorded</small></div>
+        <div class="d-wire"><span>any model →</span><i></i><i class="back"></i><span>← answer</span></div>
+        <div class="d-end">${icon('sparkle')}<b>AI<br />models</b></div>
       </div>
-      <div class="d-callout"><span>And afterwards, there is usually <b>no record</b> of what was sent, or where.</span></div>`,
+      <div class="d-outcomes">
+        ${outcome('bad', 'Data leaves', 'SSNs and CUI sent out')}
+        ${outcome('bad', 'Unapproved models', 'Public models, unseen')}
+        ${outcome('bad', 'Manipulated AI', 'Hidden instructions obeyed')}
+        ${outcome('bad', 'Wrong answers', 'Made-up rules read as fact')}
+      </div>
+      <p class="d-note bad">And afterwards, no record of what was sent, or where.</p>`,
     talk: {
       key: 'Nobody here is a bad actor. Helpful people and helpful tools are moving faster than the controls.',
       points: [
+        '<b>Point at the empty box in the middle.</b> Today, nothing sits between your people and the models. Whatever they type goes out as is, and whatever comes back is trusted as is.',
         '<b>Tell it as a story.</b> Picture a caseworker at 4:45 on a Friday with a backlog. They paste a claimant’s email into a chat tool to draft a reply: name, SSN, date of birth. Nothing malicious; they’re trying to help. That data now sits with a provider the agency has no agreement with, and there’s no way to pull it back.',
         '<b>Why blocking doesn’t work.</b> Ban AI outright and people move it to personal phones and laptops, where you see even less. The goal is a safe default path, not a wall.',
         '<b>Agents raise the stakes.</b> With a chat tool, a bad answer is a bad paragraph. With an agent that can send email, update records or query a database, a hidden instruction becomes an action. The more useful the agent, the bigger the blast radius.',
@@ -68,8 +77,9 @@ const SLIDES = [
         '<b>The accountability test:</b> if your IG asked tomorrow which AI models touched personal data last quarter, and what was sent, could you answer? For most organizations the honest answer today is no.',
       ],
       ask: 'Which of these four worries you most? Let their answer decide which demo you open first.',
+      // The next slide keeps this picture and fills the empty box.
       objection: '“We already have an AI policy” or “we have DLP.” A policy tells people what to do, and network tools see encrypted traffic, not the prompt. Neither one stops a request. That’s the gap on the next slide.',
-      next: 'So how do you govern this without slowing people down?',
+      next: 'Now, the same picture with one thing added.',
     },
   },
   {
@@ -136,7 +146,6 @@ const SLIDES = [
   },
 ];
 
-const card = (ic, t, d) => `<div class="d-card"><span class="d-ic">${icon(ic)}</span><b>${t}</b><p>${d}</p></div>`;
 const outcome = (tone, t, d) => `<div class="d-out ${tone}"><span class="d-led"></span><b>${t}</b><small>${d}</small></div>`;
 const go = (to, ic, t, d) => `<button type="button" class="d-go" data-goto="${to}"><span class="d-ic">${icon(ic)}</span><span class="d-go-t"><b>${t}</b><small>${d}</small></span><span class="d-go-arrow">${icon('arrow')}</span></button>`;
 

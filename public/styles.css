@@ -572,3 +572,17 @@ details[open] > summary::before { transform: rotate(90deg); }
 .tp-ask span, .tp-obj span { display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
 .tp-ask span { color: var(--ok); }
 .tp-obj span { color: var(--warn); }
+
+/* 2 · without Layer One: same grid as slide 3, an empty middle and red wires */
+.d-arch2.off .d-wire i { background-image: linear-gradient(90deg, transparent, var(--d-bad) 30%, var(--d-bad) 70%, transparent); }
+.d-arch2.off .d-wire i.back { background-image: linear-gradient(90deg, transparent, rgb(248 113 113 / 55%) 30%, rgb(248 113 113 / 55%) 70%, transparent); }
+.d-void { display: grid; justify-items: center; align-content: center; gap: 0.8cqw; text-align: center; min-height: 19.6cqw; border-radius: 1.6cqw; border: 2px dashed rgb(248 113 113 / 45%); background: rgb(248 113 113 / 5%); padding: 2cqw; }
+.d-void .d-svg { width: 3cqw; height: 3cqw; color: var(--d-bad); }
+.d-void b { font-size: 1.5em; letter-spacing: -0.02em; }
+.d-void small { color: var(--d-muted); font-size: 0.95em; }
+.d-note.bad { color: var(--d-bad); font-weight: 600; }
+/* Slides 2 and 3 share a layout: keep the diagram still and change only the middle. */
+.slide[data-slide='without'].in > .d-arch2, .slide[data-slide='how'].in > .d-arch2 { animation: none; }
+.slide.in .d-void, .slide.in .d-core { animation: d-pop 0.55s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
+@keyframes d-pop { from { opacity: 0; transform: scale(0.94); } }
+.slide[data-slide='how'] .d-core { min-height: 19.6cqw; box-sizing: border-box; }
