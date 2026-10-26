@@ -541,3 +541,13 @@ details[open] > summary::before { transform: rotate(90deg); }
   .deck-tools { margin-left: 0; }
   .deck-stage { min-width: 0; }
 }
+.d-decisions { display: flex; justify-content: center; gap: 1.2cqw; margin-top: 1cqw; }
+.d-decisions .d-pill { font-size: 1.2em; padding: 0.5cqw 1.8cqw; }
+.d-center { text-align: center; max-width: none; margin-top: auto; margin-bottom: 2.6cqw; }
+.slide[data-slide='problem'] .d-grid { margin-top: 1.5cqw; }
+.slide[data-slide='how'] .d-flow { margin-top: 2cqw; }
+.slide[data-slide='how'] .d-node { padding: 2.6cqw 2cqw; }
+.slide[data-slide='demo'] .d-demo { margin-top: 1.5cqw; }
+.slide[data-slide='problem'] .d-grid { margin-top: auto; }
+.slide[data-slide='problem'] .d-callout { margin-top: 2.4cqw; margin-bottom: auto; }
+.slide[data-slide='demo'] .d-demo { margin: auto 0 4cqw; }

@@ -73,7 +73,7 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 
 ## Overview: a short pitch deck
 
-The **Overview** tab is a 9-slide deck to open a customer demo: what Layer One is, the problem (data leaving the boundary, unapproved models, manipulated AI, confident wrong answers, no record), why today's controls fall short, the architecture (apps and agents → Layer One: identify, check the request, route, check the answer, record → AI models), the four decisions (pass, redact, block, hold), getting started (proxy gateway or Python SDK, hosted or self-hosted), outcomes, and a last slide that jumps straight into each demo.
+The **Overview** tab is a 4-slide deck to open a customer demo: the title, the problem (data leaving the boundary, unapproved models, manipulated AI, wrong answers, and no record), how Layer One works (apps and agents ⇄ Layer One ⇄ AI models, and its four decisions: pass, redact, block, hold), and a last slide that jumps straight into each demo.
 
 * **← →** (or click the slide's edges) to move, **F** or **⛶ Present** for full screen, **N** for speaker notes.
 * With a customer profile active, the title slide says *Prepared for* that customer.

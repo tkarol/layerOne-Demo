@@ -15,157 +15,56 @@ const SLIDES = [
         <div class="d-kicker">Booz Allen · Vellox</div>
         <h1>Layer One</h1>
         <p class="d-lead">Govern every AI request your organization makes, in one place.</p>
-        <div class="d-chips"><span>AI governance gateway</span><span>For apps and agents</span><span>Any OpenAI-compatible client</span></div>
         ${ctx.customer ? `<div class="d-for">Prepared for <b>${esc(ctx.customer)}</b></div>` : ''}
       </div>`,
-    notes: 'Set the frame: AI is already in daily work. Today is about how to keep it safe, compliant and accountable without slowing anyone down. About 5 minutes of slides, then a live demo.',
+    notes: 'AI is already in daily work. Today: how to keep it safe and accountable without slowing anyone down. Two minutes of slides, then a live demo.',
   },
   {
     id: 'problem',
     title: 'AI is already in the workflow. Governance is not.',
     html: () => `
-      <p class="d-sub">Employees, apps and agents send agency data to AI models every day. Each request can go wrong in a few predictable ways.</p>
       <div class="d-grid d-4">
-        ${card('🔓', 'Data leaves the boundary', 'SSNs, health details or CUI pasted into a prompt go straight to an outside model.', 'bad')}
-        ${card('🧭', 'Unapproved models', 'Anyone can point a tool at a public or foreign-developed model. Nobody sees it happen.', 'bad')}
-        ${card('🎭', 'Manipulated AI', 'Hidden instructions in an email or record can make an agent leak data or take actions.', 'bad')}
-        ${card('❓', 'Confident wrong answers', 'A made-up rule or citation reads like fact and ends up in a decision or a letter.', 'bad')}
+        ${card('🔓', 'Data leaves', 'SSNs, health details or CUI pasted into a prompt go to an outside model.', 'bad')}
+        ${card('🧭', 'Unapproved models', 'Anyone can point a tool at a public model. Nobody sees it.', 'bad')}
+        ${card('🎭', 'Manipulated AI', 'Hidden instructions in an email can make an agent leak data.', 'bad')}
+        ${card('❓', 'Wrong answers', 'A made-up rule reads like fact and ends up in a decision.', 'bad')}
       </div>
-      <div class="d-callout">And afterwards, there is usually <b>no record</b> of what was sent, to which model, or why.</div>`,
-    notes: 'Make it concrete for this customer: caseworkers, contracting officers, FOIA staff, analysts. Every example here is something the demo shows live.',
+      <div class="d-callout">And afterwards, there is usually <b>no record</b> of what was sent, or where.</div>`,
+    notes: 'Make it concrete for this audience: caseworkers, contracting officers, FOIA staff, analysts. Every one of these is shown live in the demo.',
   },
   {
-    id: 'gap',
-    title: 'Why today’s controls fall short',
-    html: () => `
-      <div class="d-grid d-3">
-        ${card('🧩', 'Guardrails per app', 'Each team builds its own, or doesn’t. Rules differ from app to app and drift over time.')}
-        ${card('🌐', 'Network tools can’t read prompts', 'Firewalls and DLP see encrypted traffic to an AI provider, not what is in the request.')}
-        ${card('📄', 'Policy on paper', 'An acceptable-use policy tells people what to do. It doesn’t stop a request.')}
-      </div>
-      <div class="d-callout ok">Governance has to sit <b>in the path of every AI request</b>: the same rules for every app, agent and model.</div>`,
-    notes: 'The point: enforcement belongs at one choke point, not in every application. That is the gap Layer One fills.',
-  },
-  {
-    id: 'what',
-    title: 'Layer One: one gateway between your AI and the models',
+    id: 'how',
+    title: 'One gateway in the path of every AI request',
     html: () => `
       <div class="d-flow">
-        <div class="d-node">${ico('🖥️')}<b>Your apps &amp; agents</b><small>Web apps, chat tools, LangChain / LangGraph agents, scripts</small></div>
+        <div class="d-node">${ico('🖥️')}<b>Your apps &amp; agents</b></div>
         <div class="d-arrow">⇄</div>
-        <div class="d-node d-l1">${ico('🛡️')}<b>Layer One</b><small>Checks every request and every answer, routes to approved models, records it all</small></div>
+        <div class="d-node d-l1">${ico('🛡️')}<b>Layer One</b><small>Checks the request · routes to approved models · checks the answer · records everything</small></div>
         <div class="d-arrow">⇄</div>
-        <div class="d-node">${ico('✦')}<b>AI models</b><small>Commercial APIs, government cloud, self-hosted</small></div>
+        <div class="d-node">${ico('✦')}<b>AI models</b></div>
       </div>
-      <div class="d-grid d-3 d-tight">
-        ${point('Drop-in', 'Point any OpenAI-compatible client at Layer One. No code changes beyond a few attribution headers.')}
-        ${point('Consistent', 'One set of policies for every app, agent and model.')}
-        ${point('Accountable', 'Every call attributed to an agent, project and run, with an audit trail.')}
-      </div>`,
-    notes: 'Layer One sits in the path, like a gateway. Apps keep using the same OpenAI-style API they already use; only the base URL and a few headers change.',
-  },
-  {
-    id: 'architecture',
-    title: 'How it works',
-    html: () => `
-      <div class="d-arch">
-        <div class="d-col">
-          <div class="d-col-h">Apps &amp; agents</div>
-          <div class="d-box">Web apps</div><div class="d-box">AI agents</div><div class="d-box">Chat tools</div>
-          <div class="d-hdr"><code>x-layerone-agent-id</code><code>x-layerone-project-id</code><code>x-layerone-run-id</code></div>
-        </div>
-        <div class="d-arch-arrow"><span>request</span>→<br />←<span>answer</span></div>
-        <div class="d-col d-gw">
-          <div class="d-col-h">Layer One gateway</div>
-          <ol class="d-steps">
-            <li><b>Identify</b> the caller from its key, and attribute the call to an agent, project and run</li>
-            <li><b>Check the request</b>: personal data, CUI markings, prompt injection, size limits, approved models</li>
-            <li><b>Route</b> to an approved model</li>
-            <li><b>Check the answer</b>: personal data, and an LLM judge for accuracy and policy</li>
-            <li><b>Record</b> the decision, evidence and traces; stamp the response with governance headers</li>
-          </ol>
-        </div>
-        <div class="d-arch-arrow"><span>approved</span>→<br />←<span>answer</span></div>
-        <div class="d-col">
-          <div class="d-col-h">AI models</div>
-          <div class="d-box">Commercial APIs</div><div class="d-box">Government cloud</div><div class="d-box">Self-hosted</div>
-        </div>
+      <div class="d-decisions">
+        <span class="d-pill ok">Pass</span><span class="d-pill warn">Redact</span><span class="d-pill bad">Block</span><span class="d-pill warn">Hold for review</span>
       </div>
-      <div class="d-band"><span>📜 Audit record per request</span><span>🔎 Traces (MLflow)</span><span>💲 Cost by agent &amp; project</span><span>🏷️ Governance headers on every response</span></div>`,
-    notes: 'Walk left to right. The request is checked before any model sees it; the answer is checked before any person sees it. Everything in between is recorded, which is what auditors ask for.',
-  },
-  {
-    id: 'decisions',
-    title: 'Every request gets a decision',
-    html: () => `
-      <div class="d-grid d-4">
-        ${decision('Pass', 'ok', 'Nothing risky. It goes through untouched, so normal work is not slowed down.', 'Draft an out-of-office message')}
-        ${decision('Redact', 'warn', 'Sensitive data is removed before the model sees it, or from the answer before a person does.', 'SSN, date of birth, phone number')}
-        ${decision('Block', 'bad', 'The request never reaches a model.', 'CUI markings, prompt injection, an unapproved model, oversized requests')}
-        ${decision('Hold', 'warn', 'The answer is held for review when the judge finds it wrong or out of policy.', 'An invented regulation or exemption')}
-      </div>
-      <p class="d-sub">The decision travels with the response as headers, with an evidence ID that links to the audit record.</p>`,
-    notes: 'These four outcomes are exactly what the demo shows. Point out that Pass matters: governance should be invisible for normal work.',
-  },
-  {
-    id: 'deploy',
-    title: 'Getting started is a configuration change',
-    html: () => `
-      <div class="d-grid d-2">
-        <div class="d-panel">
-          <div class="d-tag">Mode B · recommended first step</div>
-          <h3>Proxy gateway</h3>
-          <p>Point your agent’s OpenAI-compatible client at Layer One and add the attribution headers. Works with any language or framework.</p>
-          <pre>client = OpenAI(
-    base_url="https://&lt;your-layer-one-endpoint&gt;",
-    api_key=…,
-)
-client.chat.completions.create(…,
-    extra_headers={"x-layerone-agent-id": "…"})</pre>
-        </div>
-        <div class="d-panel">
-          <div class="d-tag">Mode A · deeper instrumentation</div>
-          <h3>Python SDK</h3>
-          <p>Instrument a Python (LangChain / LangGraph) agent in-process for fine-grained spans and sessions. Many teams run both.</p>
-          <div class="d-tag">Where it runs</div>
-          <p><b>Hosted</b> (preview: endpoint and key provisioned for you) or <b>self-hosted</b> in your own environment.</p>
-        </div>
-      </div>`,
-    notes: 'Low lift: most teams start with the proxy, because it needs no code changes beyond headers. The SDK adds detail for Python agents.',
-  },
-  {
-    id: 'outcomes',
-    title: 'What you get',
-    html: () => `
-      <div class="d-grid d-3">
-        ${card('🛡️', 'Policy enforced at the edge', 'The same guardrails for every app and agent, independent of language or framework.', 'ok')}
-        ${card('🔐', 'Data stays protected', 'Personal data and controlled information are removed or blocked before they leave.', 'ok')}
-        ${card('✅', 'Answers you can trust', 'An LLM judge holds answers that are wrong or out of policy.', 'ok')}
-        ${card('📜', 'Evidence for audits', 'Every request has a decision, an evidence ID and a trace.', 'ok')}
-        ${card('💲', 'Cost attribution', 'See AI usage and cost by agent and project; cap oversized requests.', 'ok')}
-        ${card('⚡', 'Fast adoption', 'Teams keep their tools. Governance is a base URL and a few headers.', 'ok')}
-      </div>`,
-    notes: 'Tie each outcome back to a pain from slide 2. Then: let’s see it.',
+      <p class="d-sub d-center">Drop-in: point any OpenAI-compatible client at Layer One. Every decision is recorded with evidence.</p>`,
+    notes: 'Requests are checked before any model sees them, answers before any person does. Normal work passes untouched. Setup is a base URL and a few headers, hosted or self-hosted.',
   },
   {
     id: 'demo',
     title: 'Let’s see it',
     html: () => `
-      <p class="d-sub">Real requests through Layer One. Switch it off to see what happens without it.</p>
       <div class="d-grid d-2 d-demo">
-        ${go('apps:chat', '💬', 'Ask AI', 'A company AI chat: personal data, a jailbreak attempt and a risky answer. 5 minutes.')}
-        ${go('apps:benefits', '🏛️', 'A day in the life', 'Federal workflows: benefits, acquisition, FOIA and DoD sustainment.')}
-        ${go('apps:data', '🗄️', 'AI agents and your data', 'An AI agent that queries a database, with Layer One in the path.')}
-        ${go('console', '🔍', 'Behind the scenes', 'The actual request, Layer One’s checks, and the audit record.')}
+        ${go('apps:chat', '💬', 'Ask AI', 'A company AI chat. 5 minutes.')}
+        ${go('apps:benefits', '🏛️', 'A day in the life', 'Federal workflows: benefits, acquisition, FOIA, DoD.')}
+        ${go('apps:data', '🗄️', 'AI agents and your data', 'An agent that queries a database.')}
+        ${go('console', '🔍', 'Behind the scenes', 'The request, the checks, the audit record.')}
       </div>`,
-    notes: 'Pick the path for this audience. For a short slot: Ask AI. For federal program staff: a day in the life. For technical teams: Behind the scenes, then Connect.',
+    notes: 'Short slot: Ask AI. Federal program staff: a day in the life. Technical teams: Behind the scenes, then Connect.',
   },
 ];
 
 const ico = (e) => `<span class="d-ico">${e}</span>`;
 const card = (e, t, d, tone = '') => `<div class="d-card ${tone}">${ico(e)}<b>${t}</b><p>${d}</p></div>`;
-const point = (t, d) => `<div class="d-point"><b>${t}</b><p>${d}</p></div>`;
-const decision = (t, tone, d, ex) => `<div class="d-card d-dec ${tone}"><span class="d-pill ${tone}">${t}</span><p>${d}</p><small>e.g. ${ex}</small></div>`;
 const go = (to, e, t, d) => `<button type="button" class="d-go" data-goto="${to}">${ico(e)}<span><b>${t} →</b><small>${d}</small></span></button>`;
 
 const st = { i: 0, notes: false, customer: null };
