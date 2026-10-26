@@ -19,6 +19,7 @@
         <span id="customerChip" class="customer-chip" hidden></span>
       </div>
       <nav class="view-tabs" role="tablist" aria-label="View">
+        <button role="tab" data-view="overview" id="tabOverview">Overview</button>
         <button role="tab" data-view="apps" id="tabApps">Sample apps</button>
         <button role="tab" data-view="console" id="tabConsole">Behind the scenes</button>
         <button role="tab" data-view="connect" id="tabConnect">Connect</button>
@@ -45,6 +46,8 @@
       </div>
       <div id="sampleRoot"><p class="empty">Loading…</p></div>
     </main>
+
+    <main class="deck-page" id="overviewView" hidden><div id="overviewRoot"><p class="empty">Loading…</p></div></main>
 
     <main class="page connect-page" id="connectView" hidden><div id="connectRoot"><p class="empty">Loading…</p></div></main>
 

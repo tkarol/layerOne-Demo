@@ -71,6 +71,14 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 * **Require a password to change settings.** Add a **Secret** named `SETTINGS_PASSWORD`. Anyone can still view the demo and send requests, but changing Settings needs the password.
 * **Or lock settings entirely.** Add a variable `ALLOW_UI_SETTINGS` = `false`.
 
+## Overview: a short pitch deck
+
+The **Overview** tab is a 9-slide deck to open a customer demo: what Layer One is, the problem (data leaving the boundary, unapproved models, manipulated AI, confident wrong answers, no record), why today's controls fall short, the architecture (apps and agents → Layer One: identify, check the request, route, check the answer, record → AI models), the four decisions (pass, redact, block, hold), getting started (proxy gateway or Python SDK, hosted or self-hosted), outcomes, and a last slide that jumps straight into each demo.
+
+* **← →** (or click the slide's edges) to move, **F** or **⛶ Present** for full screen, **N** for speaker notes.
+* With a customer profile active, the title slide says *Prepared for* that customer.
+* Claims stay within the Layer One docs and what this demo shows. Edit the slides in `public/deck.js`.
+
 ## Sample apps
 
 ### Ask AI: the 5-minute demo
@@ -299,6 +307,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/sample-apps.js` | The four workflow sample apps |
 | `src/core/chat-app.js`, `public/chat-app.js` | Ask AI: the chat app and its four examples |
 | `src/core/data-app.js`, `public/data-app.js` | Customer Hub: the database app, its stand-in AI agent and LayerOne's query checks |
+| `public/deck.js` | Overview tab: the pitch deck (slides, speaker notes) |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |

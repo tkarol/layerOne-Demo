@@ -685,4 +685,8 @@ export async function initSample() {
     state.config = e.detail;
     if (!state.play) render();
   });
+  // The Overview deck's last slide opens a specific app (if this customer shows it).
+  window.addEventListener('l1:select-app', (e) => {
+    if (!state.play && state.apps.some((a) => a.id === e.detail)) selectApp(e.detail);
+  });
 }

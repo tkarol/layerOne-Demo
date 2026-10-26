@@ -1,6 +1,7 @@
 import { NO_BACKEND_MSG, readTraceStream, LEAK_RE } from './stream.js';
 import { initSample } from './sample.js';
 import { mountConnect } from './connect.js';
+import { mountDeck } from './deck.js';
 
 const $ = (sel) => document.querySelector(sel);
 const state = { config: null, scenarios: [], traces: new Map(), history: [], selectedId: null, scenario: null, reveal: null };
@@ -501,10 +502,16 @@ function render() {
   renderTech(t);
 }
 
-// ---------- views: Sample apps | Behind the scenes | Connect ----------
+// ---------- views: Overview | Sample apps | Behind the scenes | Connect ----------
 let connectMounted = false;
+let deckMounted = false;
 function setView(view) {
-  const v = ['console', 'connect'].includes(view) ? view : 'apps';
+  const v = ['console', 'connect', 'overview'].includes(view) ? view : 'apps';
+  $('#overviewView').hidden = v !== 'overview';
+  if (v === 'overview' && !deckMounted) {
+    deckMounted = true;
+    mountDeck($('#overviewRoot'));
+  }
   $('#appsView').hidden = v !== 'apps';
   $('#consoleView').hidden = v !== 'console';
   $('#connectView').hidden = v !== 'connect';
