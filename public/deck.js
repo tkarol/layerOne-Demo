@@ -37,12 +37,13 @@ const SLIDES = [
       </div>
       <div class="d-orbit" aria-hidden="true"><div></div><div></div><div></div></div>`,
     talk: {
-      key: 'Layer One puts governance in the path of every AI request.',
+      key: 'This is about using AI safely, not stopping it.',
       points: [
-        'Thanks for the time. Plan: two minutes of slides, then a live demo with real requests.',
-        'Layer One is an AI governance gateway from Booz Allen (Vellox), for both apps and AI agents.',
-        'Ask early: “Where is AI showing up in your work today?” Use the answer to pick the demo.',
+        'Open with their world, not the product: “Your teams are already using AI, officially or not. The real question is whether you can see it and steer it.”',
+        'Layer One in one sentence: a checkpoint every AI request passes through, so the rules live in one place instead of being rebuilt in every app.',
+        'Set expectations: a couple of minutes of context, then real requests, live, with Layer One switched on and off.',
       ],
+      ask: 'Where is AI showing up in your work today: chat tools, copilots built into software, or agents that take actions?',
       next: 'Let’s start with why this matters.',
     },
   },
@@ -58,14 +59,16 @@ const SLIDES = [
       </div>
       <div class="d-callout"><span>And afterwards, there is usually <b>no record</b> of what was sent, or where.</span></div>`,
     talk: {
-      key: 'AI use is moving faster than the controls around it.',
+      key: 'Nobody here is a bad actor. Helpful people and helpful tools are moving faster than the controls.',
       points: [
-        '<b>Data leaves:</b> a caseworker pastes a claimant’s SSN into a chat to draft a reply. It now sits with an outside provider.',
-        '<b>Unapproved models:</b> a free public model is one setting away, and IT can’t see the switch.',
-        '<b>Manipulated AI:</b> instructions hidden in an email or a record can steer an agent. This is prompt injection.',
-        '<b>Wrong answers:</b> a confident, invented regulation ends up in a letter or a decision.',
-        '<b>No record:</b> when an auditor or the IG asks what was sent to which model, there’s no answer.',
+        '<b>Tell it as a story.</b> Picture a caseworker at 4:45 on a Friday with a backlog. They paste a claimant’s email into a chat tool to draft a reply: name, SSN, date of birth. Nothing malicious; they’re trying to help. That data now sits with a provider the agency has no agreement with, and there’s no way to pull it back.',
+        '<b>Why blocking doesn’t work.</b> Ban AI outright and people move it to personal phones and laptops, where you see even less. The goal is a safe default path, not a wall.',
+        '<b>Agents raise the stakes.</b> With a chat tool, a bad answer is a bad paragraph. With an agent that can send email, update records or query a database, a hidden instruction becomes an action. The more useful the agent, the bigger the blast radius.',
+        '<b>The problem with wrong answers</b> isn’t that AI is sometimes wrong; people are too. It’s that it’s wrong confidently, perfectly formatted, citing a rule that looks real. Busy people trust confident text.',
+        '<b>The accountability test:</b> if your IG asked tomorrow which AI models touched personal data last quarter, and what was sent, could you answer? For most organizations the honest answer today is no.',
       ],
+      ask: 'Which of these four worries you most? Let their answer decide which demo you open first.',
+      objection: '“We already have an AI policy” or “we have DLP.” A policy tells people what to do, and network tools see encrypted traffic, not the prompt. Neither one stops a request. That’s the gap on the next slide.',
       next: 'So how do you govern this without slowing people down?',
     },
   },
@@ -96,13 +99,16 @@ const SLIDES = [
       </div>
       <p class="d-note">Drop-in: an OpenAI-compatible base URL and a few headers · hosted or self-hosted</p>`,
     talk: {
-      key: 'One control point: the same rules for every app, agent and model.',
+      key: 'Invisible when everything is fine, decisive when it isn’t.',
       points: [
-        'Layer One sits between your apps and the models. It checks each request <b>before any model sees it</b>, and each answer <b>before any person does</b>.',
-        'Four outcomes. Most traffic simply <b>passes</b>, so governance is invisible for normal work. Otherwise it <b>redacts</b>, <b>blocks</b> or <b>holds</b> for review.',
-        'Every decision is recorded with an evidence ID and attributed to an agent, project and run. That’s the audit trail.',
-        'Low lift: point any OpenAI-compatible client at Layer One and add a few headers. Hosted or self-hosted; the proxy is the recommended first step.',
+        '<b>Use an analogy:</b> one security checkpoint at the front door instead of a different lock on every office. Set the rules once, and every app and agent inherits them.',
+        '<b>Two moments matter:</b> before a model sees the request, and before a person sees the answer. That’s where Layer One acts.',
+        '<b>Most traffic just passes,</b> and that’s the point. If governance slows people down, they route around it.',
+        '<b>The record is the quiet win:</b> every decision is tied to an agent, project and run, so an audit question takes minutes, not weeks of digging.',
+        '<b>Adoption is a configuration change:</b> teams keep their tools and point them at a new URL with a few headers. Hosted or in their own environment.',
       ],
+      ask: 'How many different AI tools or vendors are your teams using? Each one is somewhere you’d otherwise have to build these controls yourself.',
+      objection: '“Won’t this slow things down?” Don’t promise a number. Show it: the demo displays the real time of every request.',
       next: 'Rather than tell you, let me show you.',
     },
   },
@@ -118,14 +124,14 @@ const SLIDES = [
         ${go('console', 'search', 'Behind the scenes', 'The request, the checks, the audit record')}
       </div>`,
     talk: {
-      key: 'Real requests through Layer One. Flip it off to see the difference.',
+      key: 'Let them see it catch real problems, then flip it off and see what gets through.',
       points: [
-        '<b>Short slot or mixed audience:</b> Ask AI. Four clicks, about five minutes.',
-        '<b>Federal program staff:</b> A day in the life. Pick the mission closest to theirs.',
-        '<b>Data or agent teams:</b> AI agents and your data.',
-        '<b>Technical or security teams:</b> Behind the scenes, then the Connect tab.',
+        '<b>Set it up:</b> “Everything you’re about to see is a real request going through Layer One. I’ll also switch it off, so you can see exactly what it’s catching.”',
+        '<b>Let them choose</b> the scenario closest to their mission; people lean in when it looks like their own job.',
+        '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program staff, A day in the life. Data or agent teams, AI agents and your data. Security or engineering, Behind the scenes, then Connect.',
       ],
-      next: 'Click a card to start the demo.',
+      ask: 'Which of these looks most like your day-to-day?',
+      next: 'Click a card to start.',
     },
   },
 ];
@@ -192,6 +198,8 @@ function draw() {
     <div class="tp-head"><span class="tp-label">Talking points</span><span class="muted small">Slide ${st.i + 1} of ${SLIDES.length} · not shown when presenting</span></div>
     <p class="tp-key">${t.key}</p>
     <ul class="tp-list">${t.points.map((p) => `<li>${p}</li>`).join('')}</ul>
+    ${t.ask ? `<p class="tp-ask"><span>Ask the room</span>${t.ask}</p>` : ''}
+    ${t.objection ? `<p class="tp-obj"><span>If they say…</span>${t.objection}</p>` : ''}
     <p class="tp-next"><span>Lead-in to the next slide</span>${t.next}</p>`;
   wire();
 }

@@ -566,3 +566,9 @@ details[open] > summary::before { transform: rotate(90deg); }
 .deck-help { margin: 0; }
 @media (max-width: 760px) { .deck-tools { margin-left: 0; } .deck-stage { min-width: 0; } }
 @media (prefers-reduced-motion: reduce) { .d-wire i { animation: none; } }
+.tp-ask, .tp-obj { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 14.5px; line-height: 1.5; }
+.tp-ask { background: var(--ok-soft); }
+.tp-obj { background: var(--warn-soft); }
+.tp-ask span, .tp-obj span { display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+.tp-ask span { color: var(--ok); }
+.tp-obj span { color: var(--warn); }

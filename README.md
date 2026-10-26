@@ -75,7 +75,7 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 
 The **Overview** tab is a 4-slide deck to open a customer demo: the title, the problem (data leaving the boundary, unapproved models, manipulated AI, wrong answers, and no record), how Layer One works (apps and agents ⇄ Layer One ⇄ AI models, and its four decisions: pass, redact, block, hold), and a last slide that jumps straight into each demo.
 
-* **Talking points** sit under each slide: a key message, what to say, and the lead-in to the next slide. They don't show when presenting full screen; **N** hides or shows them.
+* **Talking points** sit under each slide. They add to the slide rather than repeat it: a key message, a story and why-it-matters points, a question to ask the room, a ready answer to the likely pushback, and the lead-in to the next slide. They don't show when presenting full screen; **N** hides or shows them.
 * **← →** (or click the slide's edges) to move, **F** or **⛶ Present** for full screen.
 * With a customer profile active, the title slide says *Prepared for* that customer.
 * Claims stay within the Layer One docs and what this demo shows. Edit the slides in `public/deck.js`.
