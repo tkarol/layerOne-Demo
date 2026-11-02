@@ -1,4 +1,4 @@
-// The slide engine shared by product decks (Layer One, Vellox Reverser): 16:9
+// The slide engine shared by product decks (Layer One, Vellox Reverser, Vellox Ranger): 16:9
 // slides, arrow keys, full-screen Present, and talking points under each slide.
 //
 //   createDeck({ slides, label, storageKey, context, onGoto }) → { mount(el) }
@@ -9,6 +9,13 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 
 // Simple line icons (24×24, drawn in the current color).
 export const ICONS = {
+  radar: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1"/>',
+  gitPr: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-4M13 4l-2 2 2 2"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  route: '<circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   layers: '<path d="M12 2l10 5-10 5L2 7z"/><path d="M2 12l10 5 10-5M2 17l10 5 10-5"/>',
   bug: '<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M12 20V10M8 13H4M20 13h-4M8 17l-3 2M16 17l3 2M8 9L5 7M16 9l3-2M9.5 6.5L8 4M14.5 6.5L16 4"/>',
   hourglass: '<path d="M6 2h12M6 22h12M7 2v4a5 5 0 0 0 10 0V2M7 22v-4a5 5 0 0 1 10 0v4"/>',

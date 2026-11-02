@@ -447,3 +447,12 @@ test('the Vellox Reverser page is served on its own, linked from the LayerOne he
   assert.match(await (await fetch(`${base}/`)).text(), /href="reverser.html"/);
   for (const f of ['reverser.js', 'deck-core.js']) assert.equal((await fetch(`${base}/${f}`)).status, 200);
 });
+
+test('the Vellox Ranger page is served on its own, linked from the other product pages', async () => {
+  const page = await (await fetch(`${base}/ranger.html`)).text();
+  assert.match(page, /<title>Vellox Ranger/);
+  assert.match(page, /separate product from Vellox LayerOne/);
+  assert.match(await (await fetch(`${base}/`)).text(), /href="ranger.html"/);
+  assert.match(await (await fetch(`${base}/reverser.html`)).text(), /href="ranger.html"/);
+  assert.equal((await fetch(`${base}/ranger.js`)).status, 200);
+});

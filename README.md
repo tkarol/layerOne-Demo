@@ -91,6 +91,22 @@ Slides animate as they appear: rotating rings on the title, the gap chart drawin
 
 Product details come from Booz Allen's public announcements and press coverage of them (listed under **Sources** on the page). Vendor-reported figures are labeled; confirm them, and anything about deployment or classification levels, with the Vellox team before customers see them. Slides live in `public/reverser.js`; both decks share the engine in `public/deck-core.js`.
 
+## Vellox Ranger: a separate product page
+
+`/ranger.html` is a separate page for **Vellox Ranger**, Booz Allen's AI detection engineering product (generally available July 2026). Like Reverser, it has nothing to do with Layer One: its own header, a violet accent, and a note under the header saying so. All three pages link to each other through the **LayerOne · Reverser · Ranger** switch in the top-right corner.
+
+* **Overview:** a 5-slide deck with talking points:
+  1. Title: *detections built for your environment, not someone else's*.
+  2. *Generic rules miss what matters*: a small network where generic-rule alerts keep firing on harmless systems while a real attack path (email → laptop → file server → domain controller → finance DB) draws through unnoticed. Noise, blind spots, dwell time.
+  3. *Detection from the inside out*: rings growing from *your environment* outward, matched to four steps (model the environment, add threat intelligence, map exposure to MITRE ATT&CK, write and prioritize detections).
+  4. *The same network, with Ranger*: the same picture, but the noise is gone, Ranger marks the attack path, and a detection fires at the file server before the crown jewels.
+  5. *Your engineers stay in charge*: an example pull request for a new rule (what, where, ATT&CK technique, why), reviewed in GitHub or GitLab, and a pilot as the next step.
+
+  The network pictures on slides 2 and 4 loop while the slide is up.
+* **Architecture (“Under the hood”):** your environment (assets, network layout, vulnerabilities, telemetry, existing rules) and threat intelligence → the Vellox Ranger box (an environment model, then AI agents that find exploitable paths, map them to MITRE ATT&CK and write and prioritize detections, all run by Booz Allen's agentic AI framework) → a pull request → an engineer approves → your detection tools. Click any part for a one-sentence explanation.
+
+Product details come from Booz Allen's announcements and press coverage (listed under **Sources** on the page). Lower dwell time and fewer false positives are Booz Allen's stated goals, so the talking points say so rather than quoting numbers. Confirm integrations (which SIEMs and detection tools) and deployment options with the Vellox team. Edit the page in `public/ranger.js`.
+
 ## Sample apps
 
 ### Ask AI: the 5-minute demo
@@ -320,8 +336,9 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/chat-app.js`, `public/chat-app.js` | Ask AI: the chat app and its four examples |
 | `src/core/data-app.js`, `public/data-app.js` | Customer Hub: the database app, its stand-in AI agent and LayerOne's query checks |
 | `public/deck.js` | Overview tab: the Layer One pitch deck (slides, talking points) |
-| `public/deck-core.js` | The slide engine both decks share (keys, Present, talking points, icons) |
+| `public/deck-core.js` | The slide engine all three decks share (keys, Present, talking points, icons) |
 | `public/reverser.html`, `public/reverser.js` | The separate Vellox Reverser page: deck and architecture explainer |
+| `public/ranger.html`, `public/ranger.js` | The separate Vellox Ranger page: deck and architecture explainer |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |
