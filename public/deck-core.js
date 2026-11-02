@@ -9,6 +9,7 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 
 // Simple line icons (24×24, drawn in the current color).
 export const ICONS = {
+  layers: '<path d="M12 2l10 5-10 5L2 7z"/><path d="M2 12l10 5 10-5M2 17l10 5 10-5"/>',
   bug: '<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M12 20V10M8 13H4M20 13h-4M8 17l-3 2M16 17l3 2M8 9L5 7M16 9l3-2M9.5 6.5L8 4M14.5 6.5L16 4"/>',
   hourglass: '<path d="M6 2h12M6 22h12M7 2v4a5 5 0 0 0 10 0V2M7 22v-4a5 5 0 0 1 10 0v4"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2a5 5 0 0 1 5.5 5"/>',

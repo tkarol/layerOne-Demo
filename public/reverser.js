@@ -4,9 +4,10 @@
 // Product facts come from Booz Allen's announcements (July 2025 launch,
 // general availability) and press coverage of them; vendor-reported results are
 // labeled as such. See SOURCES at the bottom.
-import { createDeck, icon, outcome, $, esc } from './deck-core.js';
+import { createDeck, icon, $, esc } from './deck-core.js';
 
-const fit = (ic, t, d) => `<div class="d-fit"><span class="d-ic">${icon(ic)}</span><span><b>${t}</b><small>${d}</small></span></div>`;
+const STEPS = ['Triage', 'Unpack', 'Disassemble', 'Analyze', 'Write detections'];
+const big = (ic, t, d) => `<div class="rv-big"><span class="d-ic">${icon(ic)}</span><b>${t}</b><p>${d}</p></div>`;
 
 const SLIDES = [
   {
@@ -26,149 +27,107 @@ const SLIDES = [
         'It’s part of Booz Allen’s Vellox line of cyber products that pair human operators with AI agents. It is a separate product from Layer One.',
       ],
       ask: 'Who on your team reverse engineers malware today, and how big is their queue?',
-      next: 'Let’s look at how that work happens today.',
+      next: 'Let’s start with the thing that matters most in an incident: time.',
     },
   },
   {
-    id: 'without',
-    title: 'Today, every sample waits for an expert',
+    id: 'speed',
+    title: 'From days to minutes',
     html: () => `
-      <div class="d-arch2 off">
-        <div class="d-end">${icon('bug')}<b>Suspicious<br />file</b></div>
-        <div class="d-wire"><span>queue →</span><i></i><i class="back"></i><span>← findings</span></div>
-        <div class="d-void">${icon('hourglass')}<b>Manual reverse engineering</b><small>A few scarce experts · days to weeks per complex sample</small></div>
-        <div class="d-wire"><span>eventually →</span><i></i><i class="back"></i><span>← waiting</span></div>
-        <div class="d-end">${icon('shieldPlus')}<b>Your<br />defenses</b></div>
+      <div class="rv-time">
+        <div class="rv-row">
+          <div class="rv-who"><b>Manual reverse engineering</b><small>One expert, one step at a time</small></div>
+          <div class="rv-track"><div class="rv-bar slow">${STEPS.map((x) => `<span>${x}</span>`).join('')}</div></div>
+          <div class="rv-dur bad">Days to weeks</div>
+        </div>
+        <div class="rv-row">
+          <div class="rv-who"><b>Vellox Reverser</b><small>AI agents, all steps in parallel</small></div>
+          <div class="rv-track"><div class="rv-bar fast"><span>${icon('zap')}</span></div></div>
+          <div class="rv-dur good">Minutes</div>
+        </div>
       </div>
-      <div class="d-outcomes">
-        ${outcome('bad', 'Backlog grows', 'More samples than experts')}
-        ${outcome('bad', 'Adversaries iterate', 'New variants keep coming')}
-        ${outcome('bad', 'Detections lag', 'Defenses wait on analysis')}
-        ${outcome('bad', 'Knowledge siloed', 'Findings in one analyst’s notes')}
-      </div>
-      <p class="d-note bad">Meanwhile, the attacker keeps operating.</p>`,
+      <div class="rv-callout">${icon('shieldPlus')}<span>Detections are ready <b>while the incident is still live</b>, not after it’s over.</span></div>
+      <p class="d-note">Minutes instead of days or weeks in representative cases (vendor-reported)</p>`,
     talk: {
-      key: 'The bottleneck isn’t detection tools. It’s the handful of people who can take malware apart.',
+      key: 'Speed is the whole game: the attacker keeps operating while you wait for analysis.',
       points: [
-        '<b>Point at the empty box.</b> Between “we found something” and “we can detect it everywhere” sits a manual, expert-only step.',
-        '<b>Tell it as a story.</b> Incident response pulls a loader off a server late on a Friday. The one person who can reverse it is already on two other cases. Everyone else waits, and so do the detections.',
-        '<b>Why it’s getting worse:</b> attackers use automation and AI too. Variants arrive faster, and evasive malware takes longer to unpack and understand.',
-        '<b>The hidden cost:</b> even when the work gets done, it often lives in one analyst’s notes and never becomes reusable detections or links to known campaigns.',
+        '<b>Walk the top bar:</b> today a skilled analyst triages, unpacks, disassembles, analyzes and finally writes detections. Each step waits on the one before, and on that analyst’s calendar.',
+        '<b>Then the bottom bar:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so the steps run in parallel.',
+        '<b>Why it matters:</b> if detections arrive after the incident is over, they only protect the next victim. Minutes means you can still contain this one.',
+        '<b>Be careful with the claim:</b> Booz Allen reports minutes instead of days or weeks in representative cases. In one evaluation it assessed more than 120 functions of a sophisticated sample and flagged dozens as malicious. Call these vendor-reported.',
       ],
       ask: 'When you last had a novel sample, how long did it take to get from “found it” to “detecting it everywhere”?',
-      objection: '“Our sandbox already does this.” A sandbox shows what a sample did in one run. Reverse engineering explains how it works, including paths that didn’t run, and that’s what turns into durable detections.',
-      next: 'Now, the same picture with Reverser in the middle.',
+      objection: '“Our sandbox already does this.” A sandbox shows what a sample did in one run. Reverse engineering explains how it works, including paths that didn’t run, and that is what turns into durable detections.',
+      next: 'Fast is only useful if what comes out is usable. Here’s what you get.',
     },
   },
   {
-    id: 'how',
-    title: 'AI agents take the sample apart',
+    id: 'outputs',
+    title: 'One sample in. Defenses out.',
     html: () => `
-      <div class="d-arch2">
-        <div class="d-end">${icon('bug')}<b>Malware<br />sample</b></div>
-        <div class="d-wire"><span>submit →</span><i></i><i class="back"></i><span>← results</span></div>
-        <div class="d-core">
-          <div class="d-core-h">${icon('nodes')}<b>Vellox Reverser</b></div>
-          <ol>
-            <li><span>1</span>Split the binary across agents</li>
-            <li><span>2</span>Assess every function</li>
-            <li><span>3</span>Match to known campaigns</li>
-            <li><span>4</span>Generate countermeasures</li>
-          </ol>
+      <div class="rv-io">
+        <div class="rv-file">${icon('bug')}<b>invoice_update.exe</b><small>Suspicious file</small></div>
+        <div class="rv-via"><span>${icon('nodes')}Vellox<br />Reverser</span><i></i></div>
+        <div class="rv-arts">
+          <div class="rv-art"><div class="rv-art-h">${icon('code')}<b>YARA rule</b><small>Ready for detection tools</small></div>
+            <pre>rule Invoice_Lure_Loader {
+  strings: $c2 = "update-cdn"
+  condition: $c2
+}</pre></div>
+          <div class="rv-art"><div class="rv-art-h">${icon('fingerprint')}<b>Indicators (IOCs)</b><small>To block and hunt</small></div>
+            <pre>domain  update-cdn[.]example
+ip      203.0.113.24
+sha256  9f2c…e41a</pre></div>
+          <div class="rv-art"><div class="rv-art-h">${icon('target')}<b>MITRE ATT&amp;CK</b><small>Behaviors mapped</small></div>
+            <div class="rv-tags"><span>T1059 Command &amp; scripting</span><span>T1071 Application-layer C2</span><span>T1547 Autostart persistence</span></div></div>
+          <div class="rv-art"><div class="rv-art-h">${icon('file')}<b>Reports</b><small>For leaders and analysts</small></div>
+            <div class="rv-tags"><span>Executive summary</span><span>Technical report</span><span>Mitigation guidance</span><span>Links to known campaigns</span></div></div>
         </div>
-        <div class="d-wire"><span>deploy →</span><i></i><i class="back"></i><span>← new samples</span></div>
-        <div class="d-end">${icon('shieldPlus')}<b>Your<br />defenses</b></div>
       </div>
-      <div class="d-outcomes">
-        ${outcome('ok', 'YARA rules', 'Ready for detection tools')}
-        ${outcome('ok', 'IOCs', 'Indicators to block and hunt')}
-        ${outcome('ok', 'MITRE ATT&amp;CK', 'Behaviors mapped')}
-        ${outcome('ok', 'Reports', 'Executive and technical')}
-      </div>
-      <p class="d-note">Minutes instead of days in representative cases (vendor-reported) · analysts stay in charge</p>`,
+      <p class="d-note">Illustrative example</p>`,
     talk: {
-      key: 'Same picture, but the expert-only step becomes a team of AI agents working in parallel.',
+      key: 'The output isn’t a report to read. It’s countermeasures you can deploy.',
       points: [
-        '<b>How it works, simply:</b> Reverser splits the binary across many cooperating agents (Booz Allen describes a peer-to-peer “swarm”), so the work runs in parallel instead of one function at a time.',
-        '<b>Every function gets looked at,</b> and similar code is matched to past samples and campaigns, so you learn not just what it does but who it may be tied to.',
-        '<b>The output is something you can use:</b> YARA rules and IOCs your detection tools can take in, behaviors mapped to MITRE ATT&amp;CK, mitigation guidance, and reports for both executives and analysts.',
-        '<b>Speed, carefully:</b> Booz Allen reports minutes instead of days or weeks in representative cases. In one evaluation, it assessed more than 120 functions of a sophisticated sample and flagged dozens as malicious. Call these vendor-reported.',
-        '<b>Analysts stay in charge.</b> It takes the grind off experts so they can spend their time on judgment.',
+        '<b>Go around the four boxes:</b> a YARA rule your detection tools can load, indicators to block and hunt across the network, the behaviors mapped to MITRE ATT&amp;CK, and reports for both leadership and analysts.',
+        '<b>The campaign link is the sleeper feature:</b> similarity matching connects the new sample to past samples and campaigns, so you learn not just what it does but what it’s related to.',
+        '<b>Point out it’s an example:</b> the file name, rule and indicators on screen are made up for illustration.',
       ],
-      ask: 'Where would the output go first for you: your SIEM, your EDR, or your threat intel platform?',
-      objection: '“Can we trust AI-generated detections?” Treat them like any detection: review and test before rollout. Reverser’s job is to get you to a reviewed, deployable rule in minutes instead of weeks.',
-      next: 'Here’s where that matters most.',
+      ask: 'Where would these go first for you: your SIEM, your EDR, or your threat intel platform?',
+      objection: '“Can we trust AI-generated detections?” Treat them like any detection: review and test before rollout. Reverser gets you to a reviewed, deployable rule in minutes instead of weeks.',
+      next: 'So what does that change for your team?',
     },
   },
   {
-    id: 'fit',
-    title: 'Where it fits',
+    id: 'team',
+    title: 'What changes for your team',
     html: () => `
-      <div class="d-grid d-2 d-fits">
-        ${fit('zap', 'Security operations', 'Understand a suspicious file fast, without waiting on an expert.')}
-        ${fit('target', 'Incident response', 'Know what an implant does while the incident is still live.')}
-        ${fit('link', 'Threat intelligence', 'Link new samples to known campaigns and evolving behaviors.')}
-        ${fit('code', 'Detection engineering', 'Start from YARA rules and IOCs instead of a blank page.')}
+      <div class="rv-bigs">
+        ${big('layers', 'Every sample', 'Not just the scariest one. Coverage stops depending on who’s free.')}
+        ${big('users', 'Experts on judgment', 'Not on the grind. Analysts review and decide; agents do the heavy lifting.')}
+        ${big('link', 'Every finding connected', 'Linked to known campaigns, and shared as detections, not lost in one analyst’s notes.')}
       </div>
-      <p class="d-note">Next step: a pilot with your own samples · runs on AWS, listed in AWS Marketplace</p>`,
+      <div class="rv-next">${icon('arrow')}<span><b>Next step:</b> a pilot with your own samples, compared side by side with your team’s analysis.</span></div>`,
     talk: {
       key: 'Prove it on their own malware: that’s the most convincing demo.',
       points: [
-        'Ask which team feels the pain most and lead with that card. It’s usually incident response or the threat intel team.',
-        'Suggest a pilot with samples they’ve already reversed by hand, so they can compare time-to-answer and quality side by side.',
-        'Deployment questions (environment, data handling, classification level) go to the Booz Allen Vellox team. Don’t guess.',
+        '<b>Every sample:</b> today, teams triage which samples deserve an expert. With Reverser, every sample gets analyzed, not only the ones that look scariest.',
+        '<b>Experts on judgment:</b> this doesn’t replace reverse engineers. It gives them their time back for the hard calls.',
+        '<b>Where it fits:</b> incident response (understand an implant while the incident is live), threat intel (link samples to campaigns), detection engineering (start from a rule, not a blank page), and the SOC.',
+        '<b>Close with a pilot:</b> use samples they’ve already reversed by hand, so they can compare time and quality side by side. Deployment questions (environment, data handling, classification level) go to the Booz Allen Vellox team; don’t guess.',
       ],
       ask: 'Do you have a recent sample that took a long time to reverse? That’s the perfect pilot candidate.',
-      next: 'Open the architecture view for a closer look, or take questions.',
+      next: 'Open the Architecture tab for a closer look, or take questions.',
     },
   },
 ];
 
-// ---------- architecture explainer ----------
-const STAGES = [
-  {
-    id: 'ingest',
-    icon: 'inbox',
-    title: 'Submit a sample',
-    what: 'A suspicious file comes in from incident response, an EDR alert, a phishing email or a threat intel feed.',
-    why: 'Starting is the same as today; what changes is everything after.',
-  },
-  {
-    id: 'deconstruct',
-    icon: 'nodes',
-    title: 'Deconstruct across agents',
-    what: 'The binary is broken into pieces and spread across a network of cooperating AI agents (described by Booz Allen as peer-to-peer nodes working as a swarm), so analysis runs in parallel.',
-    why: 'Parallel work is what turns days of sequential expert effort into minutes.',
-  },
-  {
-    id: 'analyze',
-    icon: 'code',
-    title: 'Assess every function',
-    what: 'Agents examine the code function by function and flag malicious behavior, using AI and patented algorithms from Booz Allen’s U.S. government cyber defense work.',
-    why: 'Reverse engineering explains how the malware works, including paths a sandbox run never triggers.',
-  },
-  {
-    id: 'match',
-    icon: 'link',
-    title: 'Match to known campaigns',
-    what: 'Function and binary similarity matching links the new sample to historical samples, campaigns and evolving behaviors.',
-    why: 'You learn not only what it does, but what it is related to.',
-  },
-  {
-    id: 'synthesize',
-    icon: 'shieldPlus',
-    title: 'Generate countermeasures',
-    what: 'Findings are synthesized into YARA rules, indicators of compromise, MITRE ATT&CK mappings, mitigation guidance, and executive and technical reports.',
-    why: 'The answer arrives in the formats defenders already use.',
-  },
-  {
-    id: 'deploy',
-    icon: 'zap',
-    title: 'Defend, with analysts in charge',
-    what: 'Analysts review the results and push rules and indicators into detection platforms (SIEM, EDR, threat intel).',
-    why: 'Experts spend their time on judgment, not on the grind.',
-  },
-];
+// ---------- architecture: one picture, one sentence at a time ----------
+const PARTS = {
+  in: 'Any suspicious file: from incident response, an EDR alert or a phishing email.',
+  core: 'Many AI agents split the file and analyze every function in parallel, then match it to known campaigns.',
+  out: 'Countermeasures ready to use, not just a report to read.',
+  tools: 'Analysts review the results and push rules and indicators into the tools they already use.',
+};
 
 const SOURCES = [
   ['Booz Allen: Vellox Reverser product page', 'https://www.boozallen.com/expertise/products/vellox-reverser.html'],
@@ -179,31 +138,31 @@ const SOURCES = [
   ['AWS Marketplace: Vellox Reverser', 'https://aws.amazon.com/marketplace/pp/prodview-neuhq5xqsisaa'],
 ];
 
-const st = { stage: 0 };
+const st = { part: 'core' };
 
 function drawArch(el) {
-  const s = STAGES[st.stage];
+  const sel = (k) => (st.part === k ? 'on' : '');
   el.innerHTML = `
-    <p class="rv-intro">How a sample moves through Reverser. Click a step to explain it.</p>
-    <ol class="rv-flow">
-      ${STAGES.map((x, n) => `<li><button type="button" class="rv-step ${n === st.stage ? 'on' : ''} ${n === 1 || n === 2 || n === 3 || n === 4 ? 'core' : ''}" data-stage="${n}"><span class="rv-n">${n + 1}</span>${icon(x.icon)}<b>${esc(x.title)}</b></button></li>`).join('')}
-    </ol>
-    <div class="rv-bracket"><span>Inside Vellox Reverser · AI agents working in parallel</span></div>
-    <section class="rv-detail">
-      <div class="rv-detail-h">${icon(s.icon)}<div><small>Step ${st.stage + 1} of ${STAGES.length}</small><h3>${esc(s.title)}</h3></div></div>
-      <p>${esc(s.what)}</p>
-      <p class="rv-why"><b>Why it matters:</b> ${esc(s.why)}</p>
-      <div class="rv-detail-nav"><button type="button" class="secondary" data-step="-1" ${st.stage === 0 ? 'disabled' : ''}>← Previous</button><button type="button" class="con-go" data-step="1" ${st.stage === STAGES.length - 1 ? 'disabled' : ''}>Next step →</button></div>
-    </section>
-    <div class="rv-cards">
-      <div class="rv-card"><h4>What comes out</h4><ul><li>YARA rules, ready for detection tools</li><li>Indicators of compromise (IOCs)</li><li>MITRE ATT&amp;CK mapping</li><li>Mitigation guidance</li><li>Executive and technical reports</li></ul></div>
-      <div class="rv-card"><h4>How it’s built</h4><ul><li>Agentic AI: many cooperating agents, not one model</li><li>Reported to run on AWS (Lambda workers, Amazon Bedrock models, Step Functions orchestration)</li><li>Listed in AWS Marketplace</li></ul></div>
-      <div class="rv-card"><h4>Results (vendor-reported)</h4><ul><li>Minutes instead of days or weeks in representative cases</li><li>One evaluation: 120+ functions assessed, dozens flagged as malicious</li></ul><p class="muted small">Confirm current figures with the Vellox team before quoting them.</p></div>
+    <div class="rva-head"><h2>How Reverser works</h2><span class="muted">Click any part</span></div>
+    <div class="rva">
+      <button type="button" class="rva-node ${sel('in')}" data-part="in">${icon('bug')}<b>Malware sample</b></button>
+      <div class="rva-arrow" aria-hidden="true"></div>
+      <button type="button" class="rva-core ${sel('core')}" data-part="core">
+        <span class="rva-core-h">${icon('nodes')}<b>Vellox Reverser</b></span>
+        <span class="rva-swarm" aria-hidden="true">${'<i></i>'.repeat(15)}</span>
+        <span class="rva-chips"><span>Split</span><span>Analyze</span><span>Match</span></span>
+      </button>
+      <div class="rva-arrow" aria-hidden="true"></div>
+      <button type="button" class="rva-outs ${sel('out')}" data-part="out"><span>YARA rules</span><span>IOCs</span><span>ATT&amp;CK</span><span>Reports</span></button>
+      <div class="rva-arrow" aria-hidden="true"></div>
+      <button type="button" class="rva-node ${sel('tools')}" data-part="tools">${icon('shieldPlus')}<b>Your tools</b><small>SIEM · EDR · Threat intel</small></button>
     </div>
+    <div class="rva-loop">↺ Analysts review, deploy, and send new samples back in</div>
+    <p class="rva-tip">${esc(PARTS[st.part])}</p>
+    <div class="rva-meta"><span><b>Speed</b> Minutes, not days (vendor-reported)</span><span><b>Runs on</b> AWS · listed in AWS Marketplace</span></div>
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">Descriptions on this page summarize Booz Allen’s public announcements and press coverage of them. Product details such as deployment options and classification levels should come from the Vellox team.</p></details>`;
-  el.querySelectorAll('[data-stage]').forEach((b) => (b.onclick = () => ((st.stage = Number(b.dataset.stage)), drawArch(el))));
-  el.querySelectorAll('[data-step]').forEach((b) => (b.onclick = () => ((st.stage = Math.max(0, Math.min(STAGES.length - 1, st.stage + Number(b.dataset.step)))), drawArch(el))));
+      <p class="muted small">Summarizes Booz Allen’s public announcements and press coverage. Reported to be built on AWS Lambda, Amazon Bedrock and AWS Step Functions. Confirm figures, deployment options and classification levels with the Vellox team.</p></details>`;
+  el.querySelectorAll('[data-part]').forEach((b) => (b.onclick = () => ((st.part = b.dataset.part), drawArch(el))));
 }
 
 // ---------- page ----------
