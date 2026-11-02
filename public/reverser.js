@@ -50,7 +50,7 @@ const SLIDES = [
           <span class="rv-lbl atk">Attacks: speed &amp; volume</span>
           <span class="rv-lbl def">Defenders: manual capacity</span>
           <span class="rv-lbl gap">The gap</span>
-          <span class="rv-lbl time">Time → · illustrative</span>
+          <span class="rv-lbl time">Time →</span>
         </figure>
         <div class="rv-drivers">
           <div class="rv-drv">${icon('sparkle')}<span><b>New attacks</b><small>Frontier AI models help write and mutate malware</small></span></div>
@@ -63,7 +63,7 @@ const SLIDES = [
     talk: {
       key: 'The market gap: AI has made attacking cheaper and faster, and defense hasn’t kept up.',
       points: [
-        '<b>Read the chart, don’t explain it:</b> attacks are climbing in both speed and volume, while the number of people who can take malware apart stays roughly flat. The red wedge is the gap, and it’s widening.',
+        '<b>Read the chart, don’t explain it:</b> attacks are climbing in both speed and volume, while the number of people who can take malware apart stays roughly flat. The red wedge is the gap, and it’s widening. The chart shows the trend, not real data, so don’t quote numbers off it.',
         '<b>What changed:</b> frontier AI models lower the skill and time needed to build and modify malicious code. Attackers can generate new variants quickly and try more of them.',
         '<b>Why defenders feel it:</b> every new variant can mean another sample to analyze, and reverse engineering is the slowest, most specialized step. More samples, same experts.',
         '<b>If you cite evidence,</b> point to public 2025 threat reports from AI labs and threat intelligence teams describing attackers using AI models in their operations. Pull the specific report you’ll reference before the meeting; don’t quote numbers from memory.',
@@ -96,13 +96,12 @@ const SLIDES = [
           <div class="rclock good"><span>Minutes</span></div>
         </div>
         <div class="race-flag">${icon('shieldPlus')}<b>Detections ready</b><span>while the manual lane is still working</span></div>
-      </div>
-      <p class="d-note">Illustrative timing · Reverser’s minutes-not-weeks is vendor-reported · loops while the slide is up</p>`,
+      </div>`,
     talk: {
       key: 'Speed is the whole game: the attacker keeps operating while you wait for analysis.',
       points: [
         '<b>Let the animation run first, then narrate it.</b> Top lane: a skilled analyst triages, unpacks, disassembles, analyzes and finally writes detections. Each step waits on the one before, and on that analyst’s calendar; watch the clock tick into weeks.',
-        '<b>Bottom lane:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so every step runs at once. Point at the flag: detections are ready while the manual lane has barely started. It replays on a loop, so you can point at it again whenever you like.',
+        '<b>Bottom lane:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so every step runs at once. Point at the flag: detections are ready while the manual lane has barely started. It replays on a loop, so you can point at it again whenever you like. The timing is illustrative; Reverser’s minutes-not-weeks figure is vendor-reported, so say so if asked.',
         '<b>Why it matters:</b> if detections arrive after the incident is over, they only protect the next victim. Minutes means you can still contain this one.',
         '<b>Be careful with the claim:</b> Booz Allen reports minutes instead of days or weeks in representative cases. In one evaluation it assessed more than 120 functions of a sophisticated sample and flagged dozens as malicious. Call these vendor-reported.',
       ],
@@ -133,8 +132,7 @@ sha256  9f2c…e41a</pre></div>
           <div class="rv-art"><div class="rv-art-h">${icon('file')}<b>Reports</b><small>For leaders and analysts</small></div>
             <div class="rv-tags"><span>Executive summary</span><span>Technical report</span><span>Mitigation guidance</span><span>Links to known campaigns</span></div></div>
         </div>
-      </div>
-      <p class="d-note">Illustrative example</p>`,
+      </div>`,
     talk: {
       key: 'The output isn’t a report to read. It’s countermeasures you can deploy.',
       points: [
@@ -205,7 +203,6 @@ function drawArch(el) {
   const on = (k) => (st.part === k ? 'on' : '');
   let n = 0;
   const swarm = GROUPS.map(([name, count]) => `<div class="uh-col"><span class="uh-role">${esc(name)}</span><div class="uh-dots">${Array.from({ length: count }, () => `<i style="--i:${n++}"></i>`).join('')}</div></div>`).join('');
-  const total = GROUPS.reduce((t, [, c]) => t + c, 0);
   el.innerHTML = `
     <div class="rva-head"><h2>Under the hood</h2><span class="muted">Click any part</span></div>
     <div class="uh">
@@ -232,12 +229,12 @@ function drawArch(el) {
             </svg>
             ${[20, 40, 60, 80].map((x, i) => `<span class="uh-check" style="left:${x}%;--k:${i}">✓</span>`).join('')}
           </button>
-          <div class="uh-swarm-cap"><b>${total} subagents</b> in this example · <span class="uh-val-cap">⇄ they cross-check each other’s findings</span> · example roles</div>
+          <div class="uh-swarm-cap"><b>20+ subagents</b> · <span class="uh-val-cap">⇄ they cross-check each other’s findings</span></div>
         </div>
 
         <button type="button" class="uh-bedrock ${on('bedrock')}" data-part="bedrock">
           <span class="uh-bedrock-main"><b>Amazon Bedrock</b> foundation models power every agent</span>
-          <span class="uh-bedrock-sub">Runs on AWS · Lambda workers and Step Functions orchestration (as reported)</span>
+          <span class="uh-bedrock-sub">Runs on AWS · Lambda workers and Step Functions orchestration</span>
         </button>
       </div>
 
