@@ -82,7 +82,7 @@ The **Overview** tab is a 4-slide deck to open a customer demo: the title; **tod
 
 ## Vellox Reverser: a separate product page
 
-`/reverser.html` is a separate page for **Vellox Reverser**, Booz Allen's AI malware reverse engineering product. It has nothing to do with Layer One: its own header, a cyan accent, and a note under the header saying so. A **LayerOne | Reverser** switch in both headers moves between the two.
+`/reverser.html` is a separate page for **Vellox Reverser**, Booz Allen's AI malware reverse engineering product. It has nothing to do with Layer One: its own header and a cyan accent. The **LayerOne · Reverser · Ranger** switch in the top-right corner moves between the product pages.
 
 * **Overview:** a 5-slide deck with talking points: the title; *attackers are outpacing defenders* (an illustrative chart of attack speed and volume climbing while manual defender capacity stays flat, the widening gap between them, and the drivers: frontier AI models helping write and mutate malware, faster attacks, more novel samples); *from days to minutes*, an animated race: the same five steps in two lanes, with the manual lane crawling one step at a time while a clock ticks into weeks, and Reverser's agents lighting up every step at once, with detections ready while the manual lane is still working (it loops while the slide is up); *one sample in, defenses out* (a suspicious file in, and an illustrative YARA rule, IOCs, ATT&CK techniques and reports out); and *what changes for your team* (every sample, experts on judgment, every finding connected, and a pilot as the next step).
 * **Architecture (“Under the hood”):** malware sample → the Vellox Reverser box → countermeasures. Inside the box, one orchestrator agent sits on top and fans work out to 20+ subagents (grouped by example roles), the subagents cross-check each other’s findings, and Amazon Bedrock powers every agent along the bottom. It has light motion (work flowing in and out, the orchestrator fanning out), stacks vertically on phones, and clicking any part shows a one-sentence explanation. Sources sit underneath.
@@ -93,7 +93,7 @@ Product details come from Booz Allen's public announcements and press coverage o
 
 ## Vellox Ranger: a separate product page
 
-`/ranger.html` is a separate page for **Vellox Ranger**, Booz Allen's AI detection engineering product (generally available July 2026). Like Reverser, it has nothing to do with Layer One: its own header, a violet accent, and a note under the header saying so. All three pages link to each other through the **LayerOne · Reverser · Ranger** switch in the top-right corner.
+`/ranger.html` is a separate page for **Vellox Ranger**, Booz Allen's AI detection engineering product (generally available July 2026). Like Reverser, it has nothing to do with Layer One: its own header and a violet accent. All three pages link to each other through the **LayerOne · Reverser · Ranger** switch in the top-right corner.
 
 * **Overview:** a 5-slide deck with talking points:
   1. Title: *detections built for your environment, not someone else's*.
