@@ -27,7 +27,50 @@ const SLIDES = [
         'It’s part of Booz Allen’s Vellox line of cyber products that pair human operators with AI agents. It is a separate product from Layer One.',
       ],
       ask: 'Who on your team reverse engineers malware today, and how big is their queue?',
-      next: 'Let’s start with the thing that matters most in an incident: time.',
+      next: 'First, the bigger picture: why defenders are falling behind.',
+    },
+  },
+  {
+    id: 'gap',
+    title: 'Attackers are outpacing defenders',
+    html: () => `
+      <div class="rv-gap">
+        <figure class="rv-chart" aria-label="Illustrative chart: attacker speed and volume rising steeply while defender capacity stays nearly flat">
+          <svg viewBox="0 0 600 300" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="rvGapFill" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#f87171" stop-opacity="0"/><stop offset="1" stop-color="#f87171" stop-opacity="0.28"/></linearGradient>
+            </defs>
+            <path class="rv-gap-area" d="M40 222 C 240 214, 420 150, 580 26 L 580 196 C 420 202, 240 214, 40 222 Z" fill="url(#rvGapFill)"/>
+            <line x1="40" y1="260" x2="580" y2="260" class="rv-axis"/>
+            <line x1="40" y1="20" x2="40" y2="260" class="rv-axis"/>
+            <path class="rv-line atk" d="M40 222 C 240 214, 420 150, 580 26"/>
+            <path class="rv-line def" d="M40 222 C 240 214, 420 202, 580 196"/>
+          </svg>
+          <span class="rv-lbl atk">Attacks: speed &amp; volume</span>
+          <span class="rv-lbl def">Defenders: manual capacity</span>
+          <span class="rv-lbl gap">The gap</span>
+          <span class="rv-lbl time">Time → · illustrative</span>
+        </figure>
+        <div class="rv-drivers">
+          <div class="rv-drv">${icon('sparkle')}<span><b>New attacks</b><small>Frontier AI models help write and mutate malware</small></span></div>
+          <div class="rv-drv">${icon('zap')}<span><b>Faster</b><small>From idea to working attack in less time</small></span></div>
+          <div class="rv-drv">${icon('layers')}<span><b>More</b><small>A rising volume of novel samples</small></span></div>
+          <div class="rv-drv def">${icon('users')}<span><b>Defense</b><small>The same handful of reverse engineers</small></span></div>
+        </div>
+      </div>
+      <div class="rv-callout">${icon('shieldPlus')}<span><b>Machine-speed attacks need machine-speed defense.</b> Human-only analysis can’t close this gap.</span></div>`,
+    talk: {
+      key: 'The market gap: AI has made attacking cheaper and faster, and defense hasn’t kept up.',
+      points: [
+        '<b>Read the chart, don’t explain it:</b> attacks are climbing in both speed and volume, while the number of people who can take malware apart stays roughly flat. The red wedge is the gap, and it’s widening.',
+        '<b>What changed:</b> frontier AI models lower the skill and time needed to build and modify malicious code. Attackers can generate new variants quickly and try more of them.',
+        '<b>Why defenders feel it:</b> every new variant can mean another sample to analyze, and reverse engineering is the slowest, most specialized step. More samples, same experts.',
+        '<b>If you cite evidence,</b> point to public 2025 threat reports from AI labs and threat intelligence teams describing attackers using AI models in their operations. Pull the specific report you’ll reference before the meeting; don’t quote numbers from memory.',
+        '<b>The bridge to Reverser:</b> Booz Allen built the Vellox line on exactly this idea: pair human operators with AI agents to counter adversaries who are already using AI.',
+      ],
+      ask: 'Are you seeing more novel or modified samples than a year or two ago? How is your team keeping up?',
+      objection: '“Isn’t this just hype about AI?” Skip the hype and use their data: queue length, time to analysis, how many samples never get a full look. The gap shows up there.',
+      next: 'The fastest way to close that gap is time-to-answer. Here’s what that looks like.',
     },
   },
   {
