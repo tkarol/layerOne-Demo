@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vellox Navigator · Booz Allen</title>
+    <meta name="description" content="Vellox Navigator overview: continuous cyber compliance that keeps controls, evidence and authorization records current. A separate product from Vellox LayerOne." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000000'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='15' fill='%2360a5fa' text-anchor='middle'%3ENV%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="rv-page nv-page">
+    <header class="topbar rv-topbar">
+      <div class="brand">
+        <img class="brand-logo-img" src="brand/logo.svg" alt="Booz Allen" onerror="this.remove()" />
+        <span class="wordmark">Booz Allen</span>
+        <span class="brand-sep" aria-hidden="true"></span>
+        <h1>Vellox Navigator<small>Product overview</small></h1>
+      </div>
+      <nav class="view-tabs" role="tablist" aria-label="View">
+        <button role="tab" data-view="overview">Overview</button>
+        <button role="tab" data-view="architecture">Architecture</button>
+      </nav>
+      <div class="top-right">
+        <nav class="product-switch" aria-label="Product">
+          <a href="./#overview">LayerOne</a>
+          <a href="reverser.html">Reverser</a>
+          <a href="ranger.html">Ranger</a>
+          <a href="navigator.html" class="on" aria-current="page">Navigator</a>
+        </nav>
+        <button id="tailorBtn" type="button" class="tailor-btn">✎ Tailor</button>
+        <button id="themeToggle" class="icon-btn" title="Toggle light/dark" aria-label="Toggle light/dark theme">◐</button>
+      </div>
+    </header>
+
+    <main class="deck-page rv nv" id="rvOverview"><div id="rvDeck"></div></main>
+    <main class="page rv nv rv-arch" id="rvArch" hidden><div id="rvArchRoot"></div></main>
+
+    <script src="navigator.js" type="module"></script>
+  </body>
+</html>

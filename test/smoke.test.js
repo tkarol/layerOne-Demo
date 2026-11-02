@@ -490,3 +490,13 @@ test('Reverser and Ranger tailoring is optional, stored in the customer profile,
   await api(`/api/profiles/${id}`, 'DELETE');
   assert.deepEqual((await api('/api/pitch')).data, { customer: null, pitch: {} });
 });
+
+test('the Vellox Navigator page is served on its own, linked from every product page, and tailorable', async () => {
+  const page = await (await fetch(`${base}/navigator.html`)).text();
+  assert.match(page, /<title>Vellox Navigator/);
+  for (const p of ['/', '/reverser.html', '/ranger.html']) assert.match(await (await fetch(`${base}${p}`)).text(), /href="navigator.html"/);
+  assert.equal((await fetch(`${base}/navigator.js`)).status, 200);
+  const created = await api('/api/profiles', 'POST', { name: 'Nav Example', pitch: { navigator: { system: 'Claims System', baseline: 'NIST SP 800-53 Moderate', hide: ['drift'], bogus: 'x' } } });
+  assert.deepEqual(created.data.pitch.navigator, { system: 'Claims System', baseline: 'NIST SP 800-53 Moderate', hide: ['drift'] });
+  await api(`/api/profiles/${created.data.id}`, 'DELETE');
+});

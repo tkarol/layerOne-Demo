@@ -95,16 +95,18 @@ export async function listProfiles(storage) {
   return all.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// ----- tailoring the Vellox Reverser and Ranger pages (all optional) -----
+// ----- tailoring the Vellox Reverser, Ranger and Navigator pages (all optional) -----
 // profile.pitch = { logo, hidePrepared, reverser: {...}, ranger: {...} }. Anything
 // left out keeps the standard slide; an empty pitch changes nothing.
 export const PITCH_SLIDES = {
   reverser: ['title', 'gap', 'speed', 'outputs', 'team'],
   ranger: ['title', 'noise', 'inside', 'caught', 'control'],
+  navigator: ['title', 'drift', 'loop', 'live', 'lineage'],
 };
 const PITCH_FIELDS = {
   reverser: { lead: 120, callout: 140, file: 60, tools: 120, next: 200 },
   ranger: { lead: 120, jewel: 40, tools: 120, review: 10, next: 200 },
+  navigator: { lead: 120, system: 50, baseline: 60, reviewer: 40, next: 200 },
 };
 
 function validatePitch(input, errors) {

@@ -108,18 +108,35 @@ Product details come from Booz Allen's public announcements and press coverage o
 Product details come from Booz Allen's announcements and press coverage (listed under **Sources** on the page). Lower dwell time and fewer false positives are Booz Allen's stated goals, so the talking points say so rather than quoting numbers. Confirm integrations (which SIEMs and detection tools) and deployment options with the Vellox team. Edit the page in `public/ranger.js`.
 
 
-## Tailoring Reverser and Ranger for a customer (optional)
+## Vellox Navigator: a separate product page
 
-Both product pages look exactly as described above until you choose to tailor them. **✎ Tailor** in the header opens a short form:
+`/navigator.html` is a separate page for **Vellox Navigator**, Booz Allen's continuous cyber compliance product (listed by Booz Allen as *coming soon*; the talking points say so). It has its own header and a blue accent, and sits in the **LayerOne · Reverser · Ranger · Navigator** switch.
+
+* **Overview:** a 5-slide deck with talking points:
+  1. Title: *compliance that keeps pace with your systems, not a snapshot that goes stale*.
+  2. *Signed today, stale tomorrow*: changes keep landing on the systems while a red “drift” bar grows under the compliance package until the next assessment. Screenshots and spreadsheets, true for a day, surprises at audit time.
+  3. *A living compliance layer*: a continuous loop with four steps (collect evidence automatically, tie evidence to controls, flag gaps as they appear, keep the SSP, POA&Ms, assessments and authorization records current).
+  4. *Your package, always current*: an example authorization package where each control shows its evidence and how fresh it is; a configuration change flips one control to a gap, and Navigator flags it, drafts the POA&M item and updates the SSP section for review.
+  5. *Every status has a reason*: evidence lineage from evidence → control → finding → a person's decision, and a next step.
+
+  Slides 2 and 4 loop while they're up.
+* **Architecture (“Under the hood”):** your systems and your control baseline → the Vellox Navigator box (collect evidence → map to controls → flag gaps, running continuously → living records: SSP, POA&Ms, assessments, authorization records, with evidence lineage underneath) → human review → assessors and authorizing officials.
+
+Systems, controls and findings on the slides are examples. Confirm availability, supported control frameworks and integrations with the Vellox team. Edit the page in `public/navigator.js`.
+
+## Tailoring Reverser, Ranger and Navigator for a customer (optional)
+
+All three product pages look exactly as described above until you choose to tailor them. **✎ Tailor** in the header opens a short form:
 
 * **Customer:** pick an existing customer, add a new one, or choose **Standard (no customer)** to go back. While a customer is active the button reads *For &lt;customer&gt;*.
 * **Title slide:** *Prepared for &lt;customer&gt;* (can be turned off), an optional customer logo, and an optional tagline.
 * **Product details** (blank keeps the standard text):
   * Reverser: the key message on the threat slide, the sample file name (slide 4 and architecture), their tools for detections (architecture) and the next step.
   * Ranger: their crown-jewel system (it replaces *Finance DB* on the network slides and in the example pull request), GitHub or GitLab, their detection tools (architecture) and the next step.
+  * Navigator: their system name and control baseline (e.g. *NIST SP 800-53 Moderate*) on the package slide and architecture, who reviews changes (e.g. *the ISSO*), and the next step.
 * **Slides:** untick a slide to skip it, give any slide a new title, or add **your notes for this customer**. Notes appear at the top of that slide's talking points and are never shown on the slide.
 
-Tailoring is saved in the same customer profile that white-labels the LayerOne demo apps (`pitch` in the profile), so one customer setting covers all three pages, and saving from the LayerOne **Customize** dialog keeps it. It's stored on the server and protected by `SETTINGS_PASSWORD` / `ALLOW_UI_SETTINGS` like the rest of Customize. **Reset to standard** in the form clears just one product's tailoring.
+Tailoring is saved in the same customer profile that white-labels the LayerOne demo apps (`pitch` in the profile), so one customer setting covers every page, and saving from the LayerOne **Customize** dialog keeps it. It's stored on the server and protected by `SETTINGS_PASSWORD` / `ALLOW_UI_SETTINGS` like the rest of Customize. **Reset to standard** in the form clears just one product's tailoring.
 ## Sample apps
 
 ### Ask AI: the 5-minute demo
@@ -349,10 +366,11 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/chat-app.js`, `public/chat-app.js` | Ask AI: the chat app and its four examples |
 | `src/core/data-app.js`, `public/data-app.js` | Customer Hub: the database app, its stand-in AI agent and LayerOne's query checks |
 | `public/deck.js` | Overview tab: the Layer One pitch deck (slides, talking points) |
-| `public/deck-core.js` | The slide engine all three decks share (keys, Present, talking points, icons) |
+| `public/deck-core.js` | The slide engine all four decks share (keys, Present, talking points, icons) |
 | `public/reverser.html`, `public/reverser.js` | The separate Vellox Reverser page: deck and architecture explainer |
 | `public/ranger.html`, `public/ranger.js` | The separate Vellox Ranger page: deck and architecture explainer |
-| `public/tailor.js` | The optional **Tailor** form for the Reverser and Ranger pages |
+| `public/navigator.html`, `public/navigator.js` | The separate Vellox Navigator page: deck and architecture explainer |
+| `public/tailor.js` | The optional **Tailor** form for the Reverser, Ranger and Navigator pages |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |
