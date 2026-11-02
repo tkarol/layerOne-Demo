@@ -80,6 +80,15 @@ The **Overview** tab is a 4-slide deck to open a customer demo: the title; **tod
 * With a customer profile active, the title slide says *Prepared for* that customer.
 * Claims stay within the Layer One docs and what this demo shows. Edit the slides in `public/deck.js`.
 
+## Vellox Reverser: a separate product page
+
+`/reverser.html` is a separate page for **Vellox Reverser**, Booz Allen's AI malware reverse engineering product. It has nothing to do with Layer One: its own header, a cyan accent, and a note under the header saying so. A **LayerOne | Reverser** switch in both headers moves between the two.
+
+* **Overview:** a 4-slide deck with talking points, built like the Layer One deck: the title; *today, every sample waits for an expert* (a suspicious file stuck behind manual reverse engineering, with backlog, faster adversaries, lagging detections and siloed knowledge); *AI agents take the sample apart* (the same picture with Reverser in the middle: split the binary across agents, assess every function, match to known campaigns, generate countermeasures, with YARA rules, IOCs, MITRE ATT&CK and reports coming out); and *where it fits* (SOC, incident response, threat intel, detection engineering).
+* **Architecture:** an interactive walk-through of the six steps a sample goes through, with what comes out, how it's built, vendor-reported results, and sources.
+
+Product details come from Booz Allen's public announcements and press coverage of them (listed under **Sources** on the page). Vendor-reported figures are labeled; confirm them, and anything about deployment or classification levels, with the Vellox team before customers see them. Slides live in `public/reverser.js`; both decks share the engine in `public/deck-core.js`.
+
 ## Sample apps
 
 ### Ask AI: the 5-minute demo
@@ -308,7 +317,9 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/sample-apps.js` | The four workflow sample apps |
 | `src/core/chat-app.js`, `public/chat-app.js` | Ask AI: the chat app and its four examples |
 | `src/core/data-app.js`, `public/data-app.js` | Customer Hub: the database app, its stand-in AI agent and LayerOne's query checks |
-| `public/deck.js` | Overview tab: the pitch deck (slides, speaker notes) |
+| `public/deck.js` | Overview tab: the Layer One pitch deck (slides, talking points) |
+| `public/deck-core.js` | The slide engine both decks share (keys, Present, talking points, icons) |
+| `public/reverser.html`, `public/reverser.js` | The separate Vellox Reverser page: deck and architecture explainer |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |

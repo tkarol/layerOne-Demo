@@ -439,3 +439,11 @@ test('connect: host-level paths like /health, and tidy base URLs', async () => {
   assert.equal(tidyBaseUrl('http://localhost:4000'), 'http://localhost:4000');
   assert.equal(tidyBaseUrl('http://proxy.example:80/v1/'), 'http://proxy.example/v1');
 });
+
+test('the Vellox Reverser page is served on its own, linked from the LayerOne header', async () => {
+  const page = await (await fetch(`${base}/reverser.html`)).text();
+  assert.match(page, /<title>Vellox Reverser/);
+  assert.match(page, /separate product from Vellox LayerOne/);
+  assert.match(await (await fetch(`${base}/`)).text(), /href="reverser.html"/);
+  for (const f of ['reverser.js', 'deck-core.js']) assert.equal((await fetch(`${base}/${f}`)).status, 200);
+});
