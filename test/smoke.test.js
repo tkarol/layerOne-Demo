@@ -171,34 +171,41 @@ const fired = (t) => Object.fromEntries((t.governance?.policies || []).filter((p
 test('sample apps are listed without request builders or full documents', async () => {
   const { apps, customer } = await (await fetch(`${base}/api/apps`)).json();
   assert.equal(customer, null);
-  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'acquisition', 'foia', 'dod', 'data']);
+  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'acquisition', 'contact', 'intel', 'data']);
   for (const a of apps.filter((x) => !x.type)) {
     assert.equal(a.workflows[0].mock, undefined, 'stand-in answers stay on the server');
-    assert.equal(a.workflows.length, 5);
+    assert.equal(a.workflows.length, 4);
     assert.ok(JSON.stringify(a).length < 40000, 'payload should not include the full long documents');
   }
 });
 
-test('each sample workflow triggers its LayerOne policy when protected', async () => {
-  const expected = {
-    'draft-reply': ['redacted', 'L1-IN-003', 'redact'],
-    'summarize-file': ['blocked', 'L1-IN-006', 'block'],
-    'unapproved-model': ['blocked', 'L1-IN-005', 'block'],
-    'hidden-instructions': ['blocked', 'L1-IN-001', 'block'],
-  };
-  const judgeStep = { benefits: 'eligibility', acquisition: 'far-question', foia: 'exemption', dod: 'foreign-disclosure' };
-  for (const app of Object.keys(judgeStep)) {
-    for (const [wf, [decision, id, result]] of Object.entries(app === 'dod' ? { ...expected, 'draft-reply': ['blocked', 'L1-IN-002', 'block'] } : expected)) {
-      const t = await appRun(app, wf);
-      assert.equal(t.governance.decision, decision, `${app}/${wf}`);
-      assert.equal(fired(t)[id], result, `${app}/${wf}`);
+test('each sample workflow triggers the LayerOne policy it shows when protected', async () => {
+  // What each policy looks like in the trace: [decision, rule id, rule result].
+  const expect = [
+    [/^Regex: personal data in the answer/, ['redacted', 'L1-OUT-001', 'redact']],
+    [/^Regex: personal data/, ['redacted', 'L1-IN-003', 'redact']],
+    [/^Regex: CUI/, ['blocked', 'L1-IN-002', 'block']],
+    [/^Max tokens/, ['blocked', 'L1-IN-006', 'block']],
+    [/^Model denylist/, ['blocked', 'L1-IN-005', 'block']],
+    [/^Prompt injection/, ['blocked', 'L1-IN-001', 'block']],
+    [/^LLM judge/, ['held', 'L1-OUT-003', 'hold']],
+  ];
+  const { apps } = await (await fetch(`${base}/api/apps`)).json();
+  const seen = new Set();
+  for (const app of apps.filter((a) => !a.type)) {
+    for (const w of app.workflows) {
+      const [, [decision, id, result]] = expect.find(([re]) => re.test(w.policy)) || assert.fail(`no expectation for ${w.policy}`);
+      const t = await appRun(app.id, w.id);
+      assert.equal(t.governance.decision, decision, `${app.id}/${w.id}`);
+      assert.equal(fired(t)[id], result, `${app.id}/${w.id}`);
+      if (decision === 'held') {
+        assert.equal(t.governance.judge.verdict, 'fail');
+        assert.match(t.governance.judge.url, /\/mock\/judge\//);
+      }
+      seen.add(id);
     }
-    const judged = await appRun(app, judgeStep[app]);
-    assert.equal(judged.governance.decision, 'held');
-    assert.equal(fired(judged)['L1-OUT-003'], 'hold');
-    assert.equal(judged.governance.judge.verdict, 'fail');
-    assert.match(judged.governance.judge.url, /\/mock\/judge\//);
   }
+  assert.equal(seen.size, expect.length, 'every policy is shown somewhere');
 });
 
 test('Ask AI: each example shows one policy, and what the AI received', async () => {
@@ -223,25 +230,30 @@ test('Ask AI: each example shows one policy, and what the AI received', async ()
 });
 
 test('with LayerOne off, requests go straight to the model and the risks get through', async () => {
-  const draft = await appRun('benefits', 'draft-reply', false);
+  const draft = await appRun('benefits', 'decision-notice', false);
   assert.equal(draft.bypass, true);
   assert.equal(draft.governance.decision, 'unprotected');
   assert.match(draft.endpoint.url, /\/mock\/model\//);
   assert.equal(draft.upstream, null);
   assert.match(draft.output, /123-45-6789/);
-  const vendor = await appRun('acquisition', 'draft-reply', false);
-  assert.match(vendor.output, /532-71-9046/);
-  const injected = await appRun('acquisition', 'hidden-instructions', false);
-  assert.match(injected.output, /Vector Dynamics has been marked as the apparent awardee/);
+  const account = await appRun('contact', 'payment-plan', false);
+  assert.match(account.output, /532-71-9046/);
+  // Injected instructions are obeyed: hidden in a vendor's proposal, or typed into the public chat.
+  const proposal = await appRun('acquisition', 'evaluate-proposal', false);
+  assert.match(proposal.output, /^Done\. Evaluation: Outstanding in every factor/);
+  const jailbreak = await appRun('contact', 'jailbreak', false);
+  assert.match(jailbreak.output, /^Done\. Maintenance mode enabled/);
+  const osint = await appRun('intel', 'osint-article', false);
+  assert.match(osint.output, /civilian fishing facility/);
   const big = await appRun('benefits', 'summarize-file', false);
   assert.equal(big.status, 'completed');
   assert.ok(big.promptTokens > 8000);
 });
 
 test('the approved model passes the model denylist; unknown models fall back to the offered default', async () => {
-  const ok = await appRun('benefits', 'unapproved-model', true, 'demo-model');
+  const ok = await appRun('acquisition', 'unapproved-model', true, 'demo-model');
   assert.equal(ok.governance.decision, 'allowed');
-  const sneaky = await appRun('benefits', 'unapproved-model', true, 'anything-else');
+  const sneaky = await appRun('intel', 'unapproved-model', true, 'anything-else');
   assert.equal(sneaky.request.body.model, 'deepseek-r1');
 });
 
@@ -257,14 +269,14 @@ test('live mode with LayerOne off uses the direct model when set, otherwise a la
   const put = (body) => fetch(`${base}/api/settings`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.json());
   // Live, no direct model configured: OFF falls back to the stand-in and says so.
   await put({ mode: 'live', baseUrl: 'http://127.0.0.1:9' });
-  const sim = await appRun('benefits', 'draft-reply', false);
+  const sim = await appRun('benefits', 'decision-notice', false);
   assert.equal(sim.simulatedModel, true);
   assert.match(sim.bypassNote, /no direct AI model/i);
   // Direct model configured: OFF calls it directly, with its own key, never shown.
   const saved = await put({ directUrl: 'http://127.0.0.1:9/v1/chat/completions', directApiKey: 'sk-direct-5678', directModel: 'gpt-x' });
   assert.equal(saved.settings.directApiKeyHint, '…5678');
   assert.doesNotMatch(JSON.stringify(saved), /sk-direct/);
-  const direct = await appRun('benefits', 'draft-reply', false);
+  const direct = await appRun('benefits', 'decision-notice', false);
   assert.equal(direct.endpoint.url, 'http://127.0.0.1:9/v1/chat/completions');
   assert.equal(direct.request.body.model, 'gpt-x');
   assert.match(direct.request.headers.Authorization, /••••/);
@@ -286,7 +298,10 @@ test('a customer profile renames, rebrands and filters the sample apps, and reac
   const created = await api('/api/profiles', 'POST', {
     name: 'Acme Federal',
     show: ['acquisition', 'benefits'],
-    apps: { acquisition: { org: 'Acme Contracting', personName: 'Sam Ortiz', color: '#aa2244', logo: 'https://example.com/logo.png' } },
+    apps: {
+      acquisition: { org: 'Acme Contracting', personName: 'Sam Ortiz', color: '#aa2244', logo: 'https://example.com/logo.png' },
+      benefits: { org: 'Acme Benefits', product: 'AcmeClaims' },
+    },
   });
   assert.equal(created.status, 200);
   const id = created.data.id;
@@ -300,22 +315,23 @@ test('a customer profile renames, rebrands and filters the sample apps, and reac
   assert.equal(acquisition.person.name, 'Sam Ortiz');
   assert.equal(acquisition.person.initials, 'SO');
   assert.equal(acquisition.brand.color, '#aa2244');
-  assert.match(acquisition.tagline, /Sam's solicitation/);
   const defaults = await api('/api/apps?default=1');
   assert.equal(defaults.data.apps.find((a) => a.id === 'acquisition').org, 'Eastgate Contracting Office');
 
+  assert.equal(apps.apps[1].product, 'AcmeClaims');
+
   // Names flow into the stand-in AI's answer.
-  const t = await appRun('acquisition', 'draft-reply');
-  assert.match(t.output, /Sam Ortiz, Contracting officer\nAcme Contracting/);
+  const t = await appRun('benefits', 'decision-notice');
+  assert.match(t.output, /\nAcme Benefits$/);
 
   // Edited step text is what gets sent and checked.
   const profile = (await api(`/api/profiles/${id}`)).data;
-  profile.steps = { 'acquisition:draft-reply': { body: 'My SSN is 987-65-4321, please call me.' } };
+  profile.steps = { 'acquisition:far-question': { message: 'My SSN is 987-65-4321, please call me.' } };
   assert.equal((await api(`/api/profiles/${id}`, 'PUT', profile)).status, 200);
-  const edited = await appRun('acquisition', 'draft-reply');
+  const edited = await appRun('acquisition', 'far-question');
   assert.match(edited.prompt, /987-65-4321/);
-  assert.equal(edited.governance.decision, 'redacted');
-  assert.ok((await api('/api/apps')).data.apps[0].workflows[0].edited);
+  assert.ok(fired(edited)['L1-IN-003'] === 'redact');
+  assert.ok((await api('/api/apps')).data.apps[0].workflows.find((w) => w.id === 'far-question').edited);
 
   // Deleting the active profile goes back to the default demo.
   await api(`/api/profiles/${id}`, 'DELETE');

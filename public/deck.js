@@ -108,7 +108,7 @@ const SLIDES = [
       <p class="d-sub">Real requests through Layer One. Switch it off to see the difference.</p>
       <div class="d-grid d-2 d-demo">
         ${go('apps:chat', 'chat', 'Ask AI', 'A company AI chat · 5 minutes')}
-        ${go('apps:benefits', 'landmark', 'A day in the life', 'Benefits, acquisition, FOIA, DoD')}
+        ${go('apps:benefits', 'landmark', 'Government missions', 'Claims, proposals, a public agent, intel')}
         ${go('apps:data', 'db', 'AI agents and your data', 'An agent that queries a database')}
         ${go('console', 'search', 'Behind the scenes', 'The request, the checks, the audit record')}
       </div>`,
@@ -117,7 +117,7 @@ const SLIDES = [
       points: [
         '<b>Set it up:</b> “Everything you’re about to see is a real request going through Layer One. I’ll also switch it off, so you can see exactly what it’s catching.”',
         '<b>Let them choose</b> the scenario closest to their mission; people lean in when it looks like their own job.',
-        '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program staff, A day in the life. Data or agent teams, AI agents and your data. Security or engineering, Behind the scenes, then Connect.',
+        '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program or mission staff, Government missions (pick the one closest to them). Data or agent teams, AI agents and your data. Security or engineering, Behind the scenes, then Connect.',
       ],
       ask: 'Which of these looks most like your day-to-day?',
       next: 'Click a card to start.',

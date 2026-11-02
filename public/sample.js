@@ -32,6 +32,8 @@ const currentApp = () => state.apps.find((a) => a.id === state.appId);
 const currentWorkflow = () => currentApp()?.workflows.find((w) => w.id === state.workflowId);
 const findWf = (appId, wfId) => state.apps.find((a) => a.id === appId)?.workflows.find((w) => w.id === wfId);
 const firstName = (name) => String(name || '').split(' ')[0];
+// "Renee's day", or an app's own label (e.g. a public website has no single employee).
+const dayName = (app) => app.dayLabel || `${firstName(app.person.name)}'s day`;
 
 function remember() {
   try {
@@ -115,7 +117,7 @@ function render() {
       <div class="demo-actions">
         ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
         <button class="demo-btn" id="presentBtn" title="Full-screen presenter view">⛶ Present</button>
-        ${features().play && !custom ? `<button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(firstName(app.person.name))}'s day</button>` : ''}
+        ${features().play && !custom ? `<button class="demo-btn play" id="playBtn" ${state.play ? 'disabled' : ''} title="Run the whole day automatically, with captions">▶ Play ${esc(dayName(app))}</button>` : ''}
       </div>
     </div>
 
@@ -161,7 +163,7 @@ function render() {
 function renderDayBody(app, wf) {
   return `<div class="appwin-body">
         <aside class="day">
-          <div class="day-title">${esc(firstName(app.person.name))}'s day</div>
+          <div class="day-title">${esc(dayName(app))}</div>
           <ol class="day-list">
             ${app.workflows
               .map(
@@ -208,7 +210,8 @@ function renderEditor(wf) {
     s.type === 'email'
       ? field('from', 'From', s.from) + field('subject', 'Subject', s.subject) + field('body', 'Email body', s.body, 8) + (s.hidden != null ? field('hidden', 'Hidden text (prompt injection)', s.hidden, 3) : '')
       : s.type === 'document'
-        ? field('docTitle', 'Document title', s.title) + '<p class="muted">The document body stays the same, so the token-limit step still triggers.</p>'
+        ? field('docTitle', 'Document title', s.title) +
+          (s.hidden != null ? field('hidden', 'Hidden text (prompt injection)', s.hidden, 3) : '<p class="muted">The document body stays the same, so the token-limit step still triggers.</p>')
         : field('message', 'Question or request', s.message, 4);
   return `
     <form class="step-editor" id="stepEditor">
@@ -240,9 +243,12 @@ function renderScreen(wf) {
     </article>`;
   }
   if (s.type === 'document') {
+    // A long document shows an excerpt; a short one from outside the agency shows in full, with any hidden text.
+    const more = s.hidden == null ? '…' : '';
     return `<article class="screen doc">
       <div class="doc-head"><span class="doc-icon">📄</span><span><b>${esc(s.title)}</b><small>${esc(s.meta)} · ${fmtInt(Math.round(s.size / 4))} tokens</small></span></div>
-      <pre class="doc-excerpt">${esc(s.excerpt)}…</pre>
+      <pre class="doc-excerpt ${s.hidden != null ? 'full' : ''}">${esc(s.excerpt)}${more}${s.hidden ? `<span class="hidden-text ${state.showHidden ? 'shown' : ''}">${esc(s.hidden)}</span>` : ''}</pre>
+      ${s.hidden ? `<button class="reveal" id="revealBtn">${state.showHidden ? '🙈 Hide' : '👁 Reveal'} hidden text</button>` : ''}
     </article>`;
   }
   return `<article class="screen chat">
@@ -289,7 +295,8 @@ function unprotectedIssues(t) {
   const model = t.request?.body?.model || '';
   // The step's own risk first, then anything else that got through.
   const issues = [];
-  if (w?.policy === 'Prompt injection' && /^Done\./.test(t.output || '')) issues.push('the AI followed instructions hidden in the email');
+  if (w?.policy === 'Prompt injection' && /^Done\./.test(t.output || '')) issues.push(w.screen?.type === 'chat' ? 'the AI obeyed the attempt to override its instructions' : `the AI followed instructions hidden in the ${w.screen?.type === 'document' ? 'document' : 'email'}`);
+  if (/\b\d{3}-\d{2}-\d{4}\b/.test(t.prompt || '')) issues.push('a Social Security number went to the AI model provider');
   if (w?.policy === 'Model denylist' && /deepseek|qwen|public/i.test(model)) issues.push(`the data went to "${model}", a model that is not approved`);
   if (w?.policy === 'LLM judge') issues.push('the answer was not checked for accuracy or policy compliance');
   if (/CUI\/\//.test(t.prompt || '')) issues.push('controlled (CUI) data went to an AI model that is not authorized for it');
@@ -644,7 +651,7 @@ function showSummary(run) {
   const dlg = document.createElement('dialog');
   dlg.className = 'settings summary';
   dlg.innerHTML = `
-    <div class="s-head"><h2>End of ${esc(firstName(app.person.name))}'s day</h2><button class="icon-btn" data-close aria-label="Close">✕</button></div>
+    <div class="s-head"><h2>End of ${esc(dayName(app))}</h2><button class="icon-btn" data-close aria-label="Close">✕</button></div>
     <div class="s-body">
       ${hasOn ? `<p class="summary-lead">LayerOne stepped in <b>${stopped} of ${outcomes.length}</b> times today, and kept an audit record of every request.</p>` : '<p class="summary-lead">LayerOne was off all day: nothing was checked or recorded.</p>'}
       <table class="summary-table">

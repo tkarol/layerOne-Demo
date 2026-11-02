@@ -29,7 +29,9 @@ async function workflowAnswer(request, prompt, storage) {
   const { workflow: w } = found;
   const sender = prompt.match(/EMAIL FROM ([A-Z][\w'’-]*)/)?.[1] || 'there';
   const fill = (t) => t.split('{{ref}}').join(referenceLine(prompt)).split('{{sender_first}}').join(sender);
-  // An unprotected model obeys instructions hidden in the email.
+  // An unprotected model obeys injected instructions: hidden in an email or document, or typed into the chat.
+  const injectedChat = !w.screen.hidden && w.screen.message && prompt.includes(w.screen.message) && /ignore|disregard/i.test(w.screen.message);
+  if (w.mock.obey && injectedChat) return fill(w.mock.obey);
   if (w.mock.obey && w.screen.hidden && prompt.includes(w.screen.hidden) && /ignore|disregard/i.test(w.screen.hidden)) {
     if (!w.customHidden) return fill(w.mock.obey);
     const action = w.screen.hidden.replace(/^.*?instructions[.,]?\s*(and\s+)?/i, '').replace(/\s*Do not mention.*$/i, '').trim();

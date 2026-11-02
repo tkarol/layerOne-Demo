@@ -89,6 +89,9 @@
 .hidden-text { display: block; margin-top: 10px; color: var(--panel-2); font-size: 6px; line-height: 1.2; user-select: none; }
 .hidden-text.shown { color: var(--bad); font-size: 14px; background: var(--bad-soft); border: 1px dashed var(--bad); border-radius: 8px; padding: 8px 10px; user-select: text; }
 .hidden-text.shown::before { content: 'Hidden text (invisible to the reader): '; font-weight: 800; }
+.doc-excerpt.full { max-height: none; -webkit-mask-image: none; mask-image: none; }
+.doc-excerpt .hidden-text { white-space: normal; font-family: inherit; }
+.doc-excerpt .hidden-text:not(.shown) { color: transparent; }
 .reveal { margin-top: 10px; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 5px 10px; font-size: 13px; }
 .doc-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
 .doc-icon { font-size: 26px; }
