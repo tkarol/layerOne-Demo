@@ -7,6 +7,7 @@
 import { createDeck, icon, $, esc } from './deck-core.js';
 
 const STEPS = ['Triage', 'Unpack', 'Disassemble', 'Analyze', 'Write detections'];
+const CLOCK = ['Hour 1', 'Day 2', 'Day 5', 'Week 2', 'Week 3']; // illustrative
 const big = (ic, t, d) => `<div class="rv-big"><span class="d-ic">${icon(ic)}</span><b>${t}</b><p>${d}</p></div>`;
 
 const SLIDES = [
@@ -77,25 +78,31 @@ const SLIDES = [
     id: 'speed',
     title: 'From days to minutes',
     html: () => `
-      <div class="rv-time">
-        <div class="rv-row">
-          <div class="rv-who"><b>Manual reverse engineering</b><small>One expert, one step at a time</small></div>
-          <div class="rv-track"><div class="rv-bar slow">${STEPS.map((x) => `<span>${x}</span>`).join('')}</div></div>
-          <div class="rv-dur bad">Days to weeks</div>
+      <div class="race go">
+        <div class="rlane slow">
+          <div class="rlane-h"><b>Manual reverse engineering</b><small>One expert · one step at a time</small></div>
+          <div class="rlane-track">
+            ${STEPS.map((x, i) => `<div class="stn" style="--d:${(0.9 + i * 1.5).toFixed(1)}s"><span>${x}</span></div>`).join('')}
+            <div class="runner">${icon('bug')}</div>
+          </div>
+          <div class="rclock bad">${CLOCK.map((t, i) => `<span style="--d:${(0.9 + i * 1.5).toFixed(1)}s;--e:${(2.4 + i * 1.5).toFixed(1)}s" class="${i === CLOCK.length - 1 ? 'last' : ''}">${t}</span>`).join('')}</div>
         </div>
-        <div class="rv-row">
-          <div class="rv-who"><b>Vellox Reverser</b><small>AI agents, all steps in parallel</small></div>
-          <div class="rv-track"><div class="rv-bar fast"><span>${icon('zap')}</span></div></div>
-          <div class="rv-dur good">Minutes</div>
+        <div class="rlane fast">
+          <div class="rlane-h"><b>Vellox Reverser</b><small>AI agents · all steps in parallel</small></div>
+          <div class="rlane-track">
+            ${STEPS.map((x, i) => `<div class="stn" style="--d:${(1.5 + i * 0.06).toFixed(2)}s"><span>${x}</span></div>`).join('')}
+            ${STEPS.map((_, i) => `<i class="agent" style="--x:${i * 20 + 10}%"></i>`).join('')}
+          </div>
+          <div class="rclock good"><span>Minutes</span></div>
         </div>
+        <div class="race-flag">${icon('shieldPlus')}<b>Detections ready</b><span>while the manual lane is still working</span></div>
       </div>
-      <div class="rv-callout">${icon('shieldPlus')}<span>Detections are ready <b>while the incident is still live</b>, not after it’s over.</span></div>
-      <p class="d-note">Minutes instead of days or weeks in representative cases (vendor-reported)</p>`,
+      <p class="d-note">Illustrative timing · Reverser’s minutes-not-weeks is vendor-reported · <button type="button" class="race-replay">↻ Replay</button></p>`,
     talk: {
       key: 'Speed is the whole game: the attacker keeps operating while you wait for analysis.',
       points: [
-        '<b>Walk the top bar:</b> today a skilled analyst triages, unpacks, disassembles, analyzes and finally writes detections. Each step waits on the one before, and on that analyst’s calendar.',
-        '<b>Then the bottom bar:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so the steps run in parallel.',
+        '<b>Let the animation run first, then narrate it.</b> Top lane: a skilled analyst triages, unpacks, disassembles, analyzes and finally writes detections. Each step waits on the one before, and on that analyst’s calendar; watch the clock tick into weeks.',
+        '<b>Bottom lane:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so every step runs at once. Point at the flag: detections are ready while the manual lane has barely started. Hit ↻ Replay if they want to see it again.',
         '<b>Why it matters:</b> if detections arrive after the incident is over, they only protect the next victim. Minutes means you can still contain this one.',
         '<b>Be careful with the claim:</b> Booz Allen reports minutes instead of days or weeks in representative cases. In one evaluation it assessed more than 120 functions of a sophisticated sample and flagged dozens as malicious. Call these vendor-reported.',
       ],
@@ -241,6 +248,17 @@ const deck = createDeck({
   label: 'Vellox Reverser',
   storageKey: 'rv',
   onGoto: () => setView('architecture'),
+});
+
+// ↻ Replay on the race slide restarts its animation.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.race-replay');
+  if (!btn) return;
+  const race = btn.closest('.slide')?.querySelector('.race');
+  if (!race) return;
+  race.classList.remove('go');
+  void race.offsetWidth;
+  race.classList.add('go');
 });
 
 initTheme();

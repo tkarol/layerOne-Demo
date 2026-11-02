@@ -613,29 +613,8 @@ details[open] > summary::before { transform: rotate(90deg); }
 @media (max-width: 900px) { .product-switch a { padding: 5px 8px; } }
 
 /* Reverser slide 2: days vs minutes */
-.rv-time { display: grid; gap: 2.6cqw; margin-top: auto; }
-.rv-row { display: grid; grid-template-columns: 20cqw minmax(0, 1fr) 13cqw; align-items: center; gap: 2cqw; }
-.rv-who b { display: block; font-size: 1.2em; letter-spacing: -0.01em; }
-.rv-who small { color: var(--d-muted); font-size: 0.9em; }
-.rv-track { height: 5.4cqw; border-radius: 1cqw; background: rgb(255 255 255 / 3%); box-shadow: inset 0 0 0 1px var(--d-line); overflow: hidden; }
-.rv-bar { height: 100%; display: flex; border-radius: 1cqw; }
-.rv-bar.slow { width: 100%; gap: 0.3cqw; padding: 0.4cqw; }
-.rv-bar.slow span { flex: 1; display: grid; place-items: center; border-radius: 0.7cqw; font-size: 0.82em; font-weight: 600; text-align: center; line-height: 1.15; padding: 0 0.4cqw; background: rgb(248 113 113 / 16%); color: #fecaca; box-shadow: inset 0 0 0 1px rgb(248 113 113 / 35%); }
-.slide.in .rv-bar.slow span { animation: rv-grow 0.4s ease both; }
-.slide.in .rv-bar.slow span:nth-child(2) { animation-delay: 0.15s; }
-.slide.in .rv-bar.slow span:nth-child(3) { animation-delay: 0.3s; }
-.slide.in .rv-bar.slow span:nth-child(4) { animation-delay: 0.45s; }
-.slide.in .rv-bar.slow span:nth-child(5) { animation-delay: 0.6s; }
-@keyframes rv-grow { from { opacity: 0; transform: scaleX(0.6); } }
-.rv-bar.fast { width: 9%; margin: 0.4cqw; height: calc(100% - 0.8cqw); background: linear-gradient(90deg, rgb(var(--d-acc-rgb) / 55%), var(--d-acc)); box-shadow: 0 0 2.4cqw rgb(var(--d-acc-rgb) / 55%); display: grid; place-items: center; color: #042f36; font-size: 2cqw; }
-.slide.in .rv-bar.fast { animation: rv-zip 0.5s 0.9s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
-@keyframes rv-zip { from { width: 0; opacity: 0; } }
-.rv-dur { font-size: 1.6em; font-weight: 800; letter-spacing: -0.02em; }
-.rv-dur.bad { color: var(--d-bad); }
-.rv-dur.good { color: var(--d-acc); }
 .rv-callout { display: flex; align-items: center; gap: 1.2cqw; margin: 1cqw 0 0; padding: 1.4cqw 1.8cqw; border-radius: 1.2cqw; font-size: 1.2em; background: rgb(var(--d-acc-rgb) / 8%); border: 1px solid rgb(var(--d-acc-rgb) / 30%); }
 .rv-callout .d-svg { width: 2.4cqw; height: 2.4cqw; color: var(--d-acc); flex: none; }
-.slide[data-slide='speed'] .d-note { margin: 0 0 auto; }
 
 /* Reverser slide 3: one sample in, defenses out */
 .rv-io { display: grid; grid-template-columns: 0.85fr 2.6fr; gap: 2cqw; align-items: center; margin: auto 0 0; }
@@ -714,8 +693,6 @@ details[open] > summary::before { transform: rotate(90deg); }
 .rv-via span { flex-direction: column; text-align: center; line-height: 1.2; }
 .rv-via i { position: relative; }
 .rv-via i::after { content: ''; position: absolute; right: -0.2cqw; top: -0.45cqw; border: 0.5cqw solid transparent; border-left: 0.8cqw solid var(--d-acc); }
-.rv-row { grid-template-columns: 20cqw minmax(0, 1fr) 15cqw; }
-.rv-dur { white-space: nowrap; font-size: 1.45em; }
 .rva-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .rva-head h2 { margin: 0; font-size: 22px; }
 
@@ -752,3 +729,102 @@ details[open] > summary::before { transform: rotate(90deg); }
 .rv-drivers { gap: 0.8cqw; }
 .rv-drv { padding: 0.9cqw 1.3cqw; }
 .slide[data-slide='gap'] .rv-callout { margin: 1.8cqw 0 auto; }
+
+
+/* Reverser slide 3: the race (manual one step at a time vs agents in parallel) */
+.race { position: relative; display: grid; gap: 1.6cqw; margin-top: auto; }
+.rlane { display: grid; grid-template-columns: 19cqw minmax(0, 1fr) 10cqw; gap: 1.6cqw; align-items: center; }
+.rlane-h b { display: block; font-size: 1.12em; letter-spacing: -0.01em; }
+.rlane-h small { color: var(--d-muted); font-size: 0.85em; }
+.rlane-track { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5cqw; padding: 0.5cqw; border-radius: 1.1cqw; background: rgb(255 255 255 / 3%); box-shadow: inset 0 0 0 1px var(--d-line); height: 6.2cqw; }
+.stn { display: grid; place-items: center; border-radius: 0.8cqw; font-size: 0.8em; font-weight: 600; text-align: center; line-height: 1.15; padding: 0 0.4cqw; color: var(--d-dim); background: rgb(255 255 255 / 3%); box-shadow: inset 0 0 0 1px var(--d-line); transition: none; }
+.race.go .rlane.slow .stn { animation: stn-slow 0.35s var(--d) forwards; }
+.race.go .rlane.fast .stn { animation: stn-fast 0.35s var(--d) forwards; }
+@keyframes stn-slow { to { color: #fecaca; background: rgb(248 113 113 / 16%); box-shadow: inset 0 0 0 1px rgb(248 113 113 / 40%); } }
+@keyframes stn-fast { to { color: #042f36; background: var(--d-acc); box-shadow: 0 0 1.6cqw rgb(var(--d-acc-rgb) / 55%); } }
+/* the manual runner crawls from step to step */
+.runner { position: absolute; top: 0; left: 2%; width: 2.6cqw; height: 2.6cqw; margin-top: -1.3cqw; display: grid; place-items: center; border-radius: 50%; background: #1f0b0b; box-shadow: 0 0 0 1px rgb(248 113 113 / 60%), 0 0 1.2cqw rgb(248 113 113 / 50%); color: var(--d-bad); z-index: 2; }
+.runner .d-svg { width: 1.6cqw; height: 1.6cqw; }
+.race.go .runner { animation: runner 7.8s 0.4s cubic-bezier(0.5, 0, 0.5, 1) forwards; }
+@keyframes runner {
+  0% { left: 2%; } 8% { left: 7%; } 19% { left: 7%; } 27% { left: 27%; } 38% { left: 27%; } 46% { left: 47%; }
+  57% { left: 47%; } 65% { left: 67%; } 76% { left: 67%; } 84% { left: 87%; } 100% { left: 87%; }
+}
+/* the agents: one sample splits and reaches every step at once */
+.agent { position: absolute; top: 0; left: 0; width: 1.2cqw; height: 1.2cqw; margin: -0.6cqw 0 0 -0.6cqw; border-radius: 50%; background: var(--d-acc); box-shadow: 0 0 1.2cqw var(--d-acc); opacity: 0; z-index: 2; }
+.race.go .agent { animation: agent 0.8s 0.7s cubic-bezier(0.22, 0.8, 0.24, 1) forwards; }
+@keyframes agent { 0% { left: 0; opacity: 0; transform: scale(0.4); } 15% { opacity: 1; } 85% { opacity: 1; transform: scale(1); } 100% { left: var(--x); opacity: 0; transform: scale(1.8); } }
+/* clocks */
+.rclock { position: relative; height: 2.4em; font-weight: 800; font-size: 1.45em; letter-spacing: -0.02em; white-space: nowrap; }
+.rclock span { position: absolute; left: 0; top: 50%; transform: translateY(-50%); opacity: 0; }
+.rclock.bad { color: var(--d-bad); }
+.rclock.good { color: var(--d-acc); }
+.race.go .rclock.bad span { animation: clk-on 0.25s var(--d) forwards, clk-off 0.25s var(--e) forwards; }
+.race.go .rclock.bad span.last { animation: clk-on 0.25s var(--d) forwards; }
+.race.go .rclock.good span { animation: clk-on 0.3s 1.7s forwards; }
+@keyframes clk-on { from { opacity: 0; transform: translateY(-20%); } to { opacity: 1; transform: translateY(-50%); } }
+@keyframes clk-off { to { opacity: 0; transform: translateY(-80%); } }
+/* the flag: Reverser is done while manual is still on step 1 */
+.race-flag { display: flex; align-items: center; gap: 1.2cqw; justify-self: start; margin-left: 18.6cqw; padding: 1cqw 1.6cqw; border-radius: 1.1cqw; background: rgb(var(--d-acc-rgb) / 10%); border: 1px solid rgb(var(--d-acc-rgb) / 45%); box-shadow: 0 0 3cqw -0.5cqw rgb(var(--d-acc-rgb) / 45%); opacity: 0; font-size: 1.05em; }
+.race-flag .d-svg { width: 2.2cqw; height: 2.2cqw; color: var(--d-acc); }
+.race-flag span { color: var(--d-muted); }
+.race.go .race-flag { animation: flag 0.5s 2.1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+@keyframes flag { from { opacity: 0; transform: translateY(1cqw) scale(0.94); } to { opacity: 1; transform: none; } }
+.slide[data-slide='speed'] .d-note { margin: 0 0 auto; }
+.race-replay { font: inherit; color: var(--d-acc); background: none; border: 1px solid rgb(var(--d-acc-rgb) / 40%); border-radius: 999px; padding: 0.2cqw 1cqw; cursor: pointer; position: relative; z-index: 3; }
+.race-replay:hover { background: rgb(var(--d-acc-rgb) / 10%); }
+
+/* ---------- more motion across the decks ---------- */
+.d-orbit div:nth-child(1) { border-style: dashed; animation: d-spin 60s linear infinite; }
+.d-orbit div:nth-child(2) { animation: d-spin 90s linear infinite reverse; border-style: dotted; }
+.d-orbit div:nth-child(3) { animation: d-breathe 5s ease-in-out infinite; }
+@keyframes d-spin { to { transform: rotate(360deg); } }
+@keyframes d-breathe { 50% { transform: scale(1.12); opacity: 0.7; } }
+/* staggered entrances for cards and tiles */
+.slide.in .d-outcomes > *, .slide.in .d-grid > *, .slide.in .rv-drv, .slide.in .rv-art, .slide.in .rv-big { animation: d-rise 0.5s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
+.slide.in .d-outcomes > :nth-child(1), .slide.in .d-grid > :nth-child(1) { animation-delay: 0.25s; }
+.slide.in .d-outcomes > :nth-child(2), .slide.in .d-grid > :nth-child(2) { animation-delay: 0.35s; }
+.slide.in .d-outcomes > :nth-child(3), .slide.in .d-grid > :nth-child(3) { animation-delay: 0.45s; }
+.slide.in .d-outcomes > :nth-child(4), .slide.in .d-grid > :nth-child(4) { animation-delay: 0.55s; }
+@keyframes d-rise { from { opacity: 0; transform: translateY(1.2cqw) scale(0.98); } }
+/* the gap: drivers arrive after the chart draws, and the gap pulses */
+.slide.in .rv-drv { animation-name: d-slide-in; }
+.slide.in .rv-drv:nth-child(1) { animation-delay: 0.9s; }
+.slide.in .rv-drv:nth-child(2) { animation-delay: 1.15s; }
+.slide.in .rv-drv:nth-child(3) { animation-delay: 1.4s; }
+.slide.in .rv-drv:nth-child(4) { animation-delay: 1.75s; }
+@keyframes d-slide-in { from { opacity: 0; transform: translateX(2cqw); } }
+.slide.in .rv-lbl.gap { animation: rv-fade 0.6s 1.4s ease both, d-pulse 2.4s 2s ease-in-out infinite; opacity: 0; }
+@keyframes d-pulse { 50% { text-shadow: 0 0 1.6cqw rgb(248 113 113 / 80%); } }
+/* outputs: the file is scanned, then each output pops in and the YARA rule types out */
+.rv-file { position: relative; overflow: hidden; }
+.rv-file::after { content: ''; position: absolute; left: 0; right: 0; top: -20%; height: 18%; background: linear-gradient(180deg, transparent, rgb(var(--d-acc-rgb) / 45%), transparent); }
+.slide.in .rv-file::after { animation: d-scan 1.4s 0.2s ease-in-out 2 both; }
+@keyframes d-scan { from { top: -20%; } to { top: 105%; } }
+.slide.in .rv-art:nth-child(1) { animation-delay: 1.1s; }
+.slide.in .rv-art:nth-child(2) { animation-delay: 1.4s; }
+.slide.in .rv-art:nth-child(3) { animation-delay: 1.7s; }
+.slide.in .rv-art:nth-child(4) { animation-delay: 2s; }
+.slide.in .rv-art:nth-child(1) pre { animation: d-type 1.2s 1.4s steps(28) both; }
+.slide.in .rv-art:nth-child(2) pre { animation: d-type 0.9s 1.7s steps(20) both; }
+@keyframes d-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.slide.in .rv-tags span { animation: d-rise 0.4s both; }
+.slide.in .rv-art:nth-child(3) .rv-tags span:nth-child(1) { animation-delay: 2s; }
+.slide.in .rv-art:nth-child(3) .rv-tags span:nth-child(2) { animation-delay: 2.15s; }
+.slide.in .rv-art:nth-child(3) .rv-tags span:nth-child(3) { animation-delay: 2.3s; }
+.slide.in .rv-art:nth-child(4) .rv-tags span { animation-delay: 2.4s; }
+/* team: cards rise in turn, icons pop, the next step comes last */
+.slide.in .rv-big:nth-child(1) { animation-delay: 0.25s; }
+.slide.in .rv-big:nth-child(2) { animation-delay: 0.45s; }
+.slide.in .rv-big:nth-child(3) { animation-delay: 0.65s; }
+.slide.in .rv-big .d-ic { animation: d-pop-icon 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.slide.in .rv-big:nth-child(1) .d-ic { animation-delay: 0.5s; }
+.slide.in .rv-big:nth-child(2) .d-ic { animation-delay: 0.7s; }
+.slide.in .rv-big:nth-child(3) .d-ic { animation-delay: 0.9s; }
+@keyframes d-pop-icon { from { transform: scale(0.4); opacity: 0; } }
+.slide.in .rv-next { animation: d-rise 0.5s 1.1s both; }
+@media (prefers-reduced-motion: reduce) {
+  .race .stn, .race .runner, .race .agent, .race .rclock span, .race-flag, .d-orbit div, .rv-file::after { animation: none !important; }
+  .race .rlane.fast .stn { color: #042f36; background: var(--d-acc); }
+  .race .rclock span.last, .race .rclock.good span, .race-flag { opacity: 1; }
+}
