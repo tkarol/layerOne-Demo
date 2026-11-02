@@ -3,7 +3,7 @@
 // anything else so the platform can serve the static page from /public.
 import { envConfig, mergeSaved, publicConfig } from './config.js';
 import { SCENARIOS } from './scenarios.js';
-import { publicApps, findWorkflow, getActiveProfile, listProfiles, validateProfile } from './profiles.js';
+import { publicApps, publicPitch, findWorkflow, getActiveProfile, listProfiles, validateProfile } from './profiles.js';
 import { createTrace, runWorkflow } from './workflow.js';
 import { handleMockChat } from './mock-layerone.js';
 import { handleMockModel, handleMockJudge } from './mock-model.js';
@@ -179,6 +179,9 @@ export function createApp({ env, storage }) {
 
       // ----- Customer Hub: the interactive database sample app -----
       if (pathname === '/api/data' || pathname.startsWith('/api/data/')) return handleDataApi(request, { storage, pathname, method, readJson });
+
+      // ----- Tailoring for the Vellox Reverser and Ranger pages (from the active customer profile) -----
+      if (pathname === '/api/pitch' && method === 'GET') return json(200, publicPitch(await getActiveProfile(storage)));
 
       // ----- Customer profiles (white-labeling) -----
       if (pathname === '/api/profiles' || pathname.startsWith('/api/profiles/')) {

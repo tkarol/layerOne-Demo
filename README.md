@@ -107,6 +107,19 @@ Product details come from Booz Allen's public announcements and press coverage o
 
 Product details come from Booz Allen's announcements and press coverage (listed under **Sources** on the page). Lower dwell time and fewer false positives are Booz Allen's stated goals, so the talking points say so rather than quoting numbers. Confirm integrations (which SIEMs and detection tools) and deployment options with the Vellox team. Edit the page in `public/ranger.js`.
 
+
+## Tailoring Reverser and Ranger for a customer (optional)
+
+Both product pages look exactly as described above until you choose to tailor them. **✎ Tailor** in the header opens a short form:
+
+* **Customer:** pick an existing customer, add a new one, or choose **Standard (no customer)** to go back. While a customer is active the button reads *For &lt;customer&gt;*.
+* **Title slide:** *Prepared for &lt;customer&gt;* (can be turned off), an optional customer logo, and an optional tagline.
+* **Product details** (blank keeps the standard text):
+  * Reverser: the key message on the threat slide, the sample file name (slide 4 and architecture), their tools for detections (architecture) and the next step.
+  * Ranger: their crown-jewel system (it replaces *Finance DB* on the network slides and in the example pull request), GitHub or GitLab, their detection tools (architecture) and the next step.
+* **Slides:** untick a slide to skip it, give any slide a new title, or add **your notes for this customer**. Notes appear at the top of that slide's talking points and are never shown on the slide.
+
+Tailoring is saved in the same customer profile that white-labels the LayerOne demo apps (`pitch` in the profile), so one customer setting covers all three pages, and saving from the LayerOne **Customize** dialog keeps it. It's stored on the server and protected by `SETTINGS_PASSWORD` / `ALLOW_UI_SETTINGS` like the rest of Customize. **Reset to standard** in the form clears just one product's tailoring.
 ## Sample apps
 
 ### Ask AI: the 5-minute demo
@@ -339,6 +352,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `public/deck-core.js` | The slide engine all three decks share (keys, Present, talking points, icons) |
 | `public/reverser.html`, `public/reverser.js` | The separate Vellox Reverser page: deck and architecture explainer |
 | `public/ranger.html`, `public/ranger.js` | The separate Vellox Ranger page: deck and architecture explainer |
+| `public/tailor.js` | The optional **Tailor** form for the Reverser and Ranger pages |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |

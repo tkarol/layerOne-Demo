@@ -7,6 +7,15 @@
 // Results such as less dwell time and fewer false positives are Booz Allen's own
 // claims; the talking points say so. See SOURCES at the bottom.
 import { createDeck, icon, $, esc } from './deck-core.js';
+import { loadTailoring, tailorButton, openTailor } from './tailor.js';
+
+// Optional tailoring for one customer (see tailor.js); empty means the standard version.
+let T = { p: {} };
+const tx = (k, fallback) => (T.p[k] ? esc(T.p[k]) : fallback);
+const prepared = (ctx) => `${ctx.logo ? `<img class="d-cust-logo" src="${esc(ctx.logo)}" alt="" />` : ''}${ctx.prepared ? `<div class="d-for">Prepared for <b>${esc(ctx.prepared)}</b></div>` : ''}`;
+const jewel = () => tx('jewel', 'finance DB'); // the system an attacker is after
+const review = () => ({ github: 'GitHub', gitlab: 'GitLab' })[T.p.review] || 'GitHub or GitLab';
+const hostPattern = () => (T.p.jewel ? `${T.p.jewel.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 16)}-*` : 'FIN-DB-*');
 
 // ---------- the network picture used on slides 2 and 4 ----------
 const NODES = {
@@ -32,6 +41,7 @@ function netMap(mode) {
   const edges = EDGES.map(([a, b]) => `<line class="rg-edge" x1="${NODES[a][0]}" y1="${NODES[a][1]}" x2="${NODES[b][0]}" y2="${NODES[b][1]}"/>`).join('');
   const halos = mode === 'without' ? '' : PATH.map((id) => `<circle class="rg-halo" cx="${NODES[id][0]}" cy="${NODES[id][1]}" r="17"/>`).join('');
   const nodes = Object.entries(NODES)
+    .map(([id, [x, y, base]]) => [id, [x, y, id === 'db' && T.p.jewel ? esc(T.p.jewel.slice(0, 22)) : base]])
     .map(([id, [x, y, label]]) => `<g class="rg-n ${id === 'dc' || id === 'db' ? 'jewel' : ''}"><circle cx="${x}" cy="${y}" r="11"/>${mode === 'mini' ? '' : `<text x="${x}" y="${id === 'dc' ? y - 24 : y + 33}" text-anchor="middle">${label}</text>`}</g>`)
     .join('');
   let story = '';
@@ -59,11 +69,12 @@ const why = (ic, t, d) => `<div class="rg-why">${icon(ic)}<span><b>${t}</b><smal
 const SLIDES = [
   {
     id: 'title',
-    html: () => `
+    html: (ctx) => `
       <div class="d-title">
         <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
         <h1>Ranger</h1>
-        <p class="d-lead">Detections built for your environment, <span>not someone else’s.</span></p>
+        <p class="d-lead">${tx('lead', 'Detections built for your environment, <span>not someone else’s.</span>')}</p>
+        ${prepared(ctx)}
       </div>
       <div class="d-orbit" aria-hidden="true"><div></div><div></div><div></div></div>`,
     talk: {
@@ -168,10 +179,10 @@ const SLIDES = [
     html: () => `
       <div class="rg-ctl">
         <div class="rg-pr">
-          <div class="rg-pr-h">${icon('gitPr')}<span><small>Ranger opened a pull request</small><b>#214 · Detect credential dumping on finance DB servers</b></span></div>
-          <div class="rg-pr-tags"><span>ATT&amp;CK T1003</span><span>Priority: high</span><span>Laptop → file server → DC → finance DB</span></div>
-          <pre>title:    Credential dumping on finance DB servers
-hosts:    FIN-DB-*
+          <div class="rg-pr-h">${icon('gitPr')}<span><small>Ranger opened a pull request</small><b>#214 · Detect credential dumping on ${jewel()} servers</b></span></div>
+          <div class="rg-pr-tags"><span>ATT&amp;CK T1003</span><span>Priority: high</span><span>Laptop → file server → DC → ${jewel()}</span></div>
+          <pre>title:    Credential dumping on ${jewel()} servers
+hosts:    ${esc(hostPattern())}
 when:     a process reads lsass.exe memory
   and:    the process is not an approved backup tool
 priority: high</pre>
@@ -179,12 +190,12 @@ priority: high</pre>
           <div class="rg-pr-btns"><span class="rg-approve">${icon('check')}Approve</span><span class="rg-changes">Request changes</span></div>
         </div>
         <div class="rg-whys">
-          ${why('gitPr', 'Reviewed like code', 'New rules arrive as pull requests in GitHub or GitLab')}
+          ${why('gitPr', 'Reviewed like code', `New rules arrive as pull requests in ${review()}`)}
           ${why('help', 'Explains every rule', 'The asset, the exposure and the ATT&amp;CK technique behind it')}
           ${why('users', 'People decide', 'Engineers approve, edit or reject before anything ships')}
         </div>
       </div>
-      <div class="rv-next">${icon('arrow')}<span><b>Next step:</b> a pilot on your environment, compared side by side with your current rules.</span></div>`,
+      <div class="rv-next">${icon('arrow')}<span><b>Next step:</b> ${tx('next', 'a pilot on your environment, compared side by side with your current rules.')}</span></div>`,
     talk: {
       key: 'Autonomous where it saves time, human-led where it matters.',
       points: [
@@ -266,12 +277,12 @@ function drawArch(el) {
       <div class="rga-outs">
         <button type="button" class="uh-side rga-pr ${on('pr')}" data-part="pr">
           <span class="rga-in-h">${icon('gitPr')}<b>Pull request</b></span>
-          <small>GitHub · GitLab</small>
+          <small>${T.p.review ? review() : 'GitHub · GitLab'}</small>
         </button>
         <div class="rga-approve" aria-hidden="true">${icon('check')}Engineer approves</div>
         <button type="button" class="uh-side rga-deploy ${on('deploy')}" data-part="deploy">
           <span class="rga-in-h">${icon('shield')}<b>Your detection tools</b></span>
-          <small>Where your rules run today</small>
+          <small>${tx('tools', 'Where your rules run today')}</small>
         </button>
       </div>
     </div>
@@ -313,12 +324,30 @@ const deck = createDeck({
   slides: SLIDES,
   label: 'Vellox Ranger',
   storageKey: 'rg',
+  context: async () => (T = await loadTailoring('ranger')),
   onGoto: () => setView('architecture'),
 });
+
+// Optional tailoring: what can be changed for a customer, and where it shows.
+const TAILOR_FIELDS = [
+  { k: 'lead', label: 'Title slide tagline', where: 'slide 1', placeholder: 'Detections built for your environment, not someone else’s.', full: true },
+  { k: 'jewel', label: 'Their crown jewel system', where: 'slides 2, 4, 5', placeholder: 'Finance DB (e.g. Claims database)' },
+  { k: 'review', label: 'Where they review rules', where: 'slide 5, architecture', options: [['', 'GitHub or GitLab'], ['github', 'GitHub'], ['gitlab', 'GitLab']] },
+  { k: 'tools', label: 'Their detection tools', where: 'architecture', placeholder: 'e.g. Splunk · Microsoft Sentinel', full: true },
+  { k: 'next', label: 'Next step', where: 'last slide', placeholder: 'a pilot on your environment, compared side by side with your current rules.', full: true },
+];
+async function retailor() {
+  await deck.refresh();
+  drawArch($('#rvArchRoot'));
+  tailorButton($('#tailorBtn'), T);
+}
+$('#tailorBtn').onclick = () =>
+  openTailor({ product: 'ranger', label: 'Ranger', fields: TAILOR_FIELDS, slides: SLIDES.map((x) => ({ id: x.id, title: x.title || 'Title slide' })), onSaved: retailor });
 
 initTheme();
 document.querySelectorAll('.view-tabs button').forEach((b) => (b.onclick = () => setView(b.dataset.view)));
 window.addEventListener('hashchange', () => setView(location.hash.slice(1)));
 setView(location.hash.slice(1));
-deck.mount($('#rvDeck'));
+await deck.mount($('#rvDeck'));
 drawArch($('#rvArchRoot'));
+tailorButton($('#tailorBtn'), T);

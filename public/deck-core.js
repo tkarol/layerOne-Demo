@@ -3,6 +3,8 @@
 //
 //   createDeck({ slides, label, storageKey, context, onGoto }) → { mount(el) }
 //   slides: [{ id, title?, html(ctx), talk: { key, points[], ask?, objection?, next } }]
+//   context() may also return optional tailoring: { hide: [ids], titles: { id: text }, notes: { id: text }, customer }
+//   → hidden slides are skipped, titles replaced, and notes added to the talking points.
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -48,10 +50,17 @@ export const icon = (name) => `<svg class="d-svg" viewBox="0 0 24 24" fill="none
 export const outcome = (tone, t, d) => `<div class="d-out ${tone}"><span class="d-led"></span><b>${t}</b><small>${d}</small></div>`;
 export const goCard = (to, ic, t, d) => `<button type="button" class="d-go" data-goto="${to}"><span class="d-ic">${icon(ic)}</span><span class="d-go-t"><b>${t}</b><small>${d}</small></span><span class="d-go-arrow">${icon('arrow')}</span></button>`;
 
-export function createDeck({ slides, label, storageKey = 'deck', context = async () => ({}), onGoto = () => {} }) {
+export function createDeck({ slides: allSlides, label, storageKey = 'deck', context = async () => ({}), onGoto = () => {} }) {
   const st = { i: 0, notes: true, ctx: {} };
+  let slides = allSlides;
+  // Slides a customer doesn't need can be hidden; never all of them.
+  const pick = () => {
+    const shown = allSlides.filter((x) => !st.ctx.hide?.includes(x.id));
+    slides = shown.length ? shown : allSlides;
+    st.i = Math.min(st.i, slides.length - 1);
+  };
   try {
-    st.i = Math.min(Number(sessionStorage.getItem(`${storageKey}-slide`)) || 0, slides.length - 1);
+    st.i = Math.min(Number(sessionStorage.getItem(`${storageKey}-slide`)) || 0, allSlides.length - 1);
     st.notes = sessionStorage.getItem(`${storageKey}-notes`) !== '0';
   } catch {}
   let root;
@@ -76,7 +85,8 @@ export function createDeck({ slides, label, storageKey = 'deck', context = async
     const s = slides[st.i];
     const slide = $('.slide', root);
     slide.dataset.slide = s.id;
-    slide.innerHTML = `${s.title ? `<h2 class="d-h">${s.title}</h2>` : ''}${s.html(st.ctx)}<div class="d-foot"><span>${esc(label)}</span><span>${st.i + 1} / ${slides.length}</span></div>`;
+    const title = st.ctx.titles?.[s.id] ? esc(st.ctx.titles[s.id]) : s.title;
+    slide.innerHTML = `${title ? `<h2 class="d-h">${title}</h2>` : ''}${s.html(st.ctx)}<div class="d-foot"><span>${esc(label)}</span><span>${st.i + 1} / ${slides.length}</span></div>`;
     slide.classList.remove('in');
     void slide.offsetWidth; // restart the entrance animation
     slide.classList.add('in');
@@ -84,7 +94,7 @@ export function createDeck({ slides, label, storageKey = 'deck', context = async
     $('.deck-hit.next', root).hidden = st.i === slides.length - 1;
     $('.deck-bar', root).innerHTML = `
       <button type="button" class="secondary" data-move="-1" ${st.i === 0 ? 'disabled' : ''}>← Back</button>
-      <div class="deck-dots">${slides.map((x, n) => `<button type="button" class="${n === st.i ? 'on' : ''}" data-to="${n}" aria-label="Slide ${n + 1}" title="${esc(String(x.title || 'Title').replace(/<[^>]+>/g, ' '))}"></button>`).join('')}</div>
+      <div class="deck-dots">${slides.map((x, n) => `<button type="button" class="${n === st.i ? 'on' : ''}" data-to="${n}" aria-label="Slide ${n + 1}" title="${esc(String(st.ctx.titles?.[x.id] || x.title || 'Title').replace(/<[^>]+>/g, ' '))}"></button>`).join('')}</div>
       <button type="button" class="secondary" data-move="1" ${st.i === slides.length - 1 ? 'disabled' : ''}>Next →</button>
       <span class="deck-tools">
         <button type="button" class="secondary" data-notes aria-pressed="${st.notes}">${st.notes ? 'Hide talking points' : 'Talking points'}</button>
@@ -96,6 +106,7 @@ export function createDeck({ slides, label, storageKey = 'deck', context = async
     notes.innerHTML = `
       <div class="tp-head"><span class="tp-label">Talking points</span><span class="muted small">Slide ${st.i + 1} of ${slides.length} · not shown when presenting</span></div>
       <p class="tp-key">${t.key}</p>
+      ${st.ctx.notes?.[s.id] ? `<p class="tp-cust"><span>For ${esc(st.ctx.customer || 'this customer')}</span>${esc(st.ctx.notes[s.id]).replace(/\n/g, '<br />')}</p>` : ''}
       <ul class="tp-list">${t.points.map((p) => `<li>${p}</li>`).join('')}</ul>
       ${t.ask ? `<p class="tp-ask"><span>Ask the room</span>${t.ask}</p>` : ''}
       ${t.objection ? `<p class="tp-obj"><span>If they say…</span>${t.objection}</p>` : ''}
@@ -152,8 +163,17 @@ export function createDeck({ slides, label, storageKey = 'deck', context = async
       try {
         st.ctx = (await context()) || {};
       } catch {}
+      pick();
       draw();
       document.addEventListener('keydown', onKey);
+    },
+    // Reload the context (e.g. after tailoring changes) and redraw in place.
+    async refresh() {
+      try {
+        st.ctx = (await context()) || {};
+      } catch {}
+      pick();
+      if (root) draw();
     },
   };
 }

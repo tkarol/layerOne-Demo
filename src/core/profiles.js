@@ -95,6 +95,62 @@ export async function listProfiles(storage) {
   return all.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// ----- tailoring the Vellox Reverser and Ranger pages (all optional) -----
+// profile.pitch = { logo, hidePrepared, reverser: {...}, ranger: {...} }. Anything
+// left out keeps the standard slide; an empty pitch changes nothing.
+export const PITCH_SLIDES = {
+  reverser: ['title', 'gap', 'speed', 'outputs', 'team'],
+  ranger: ['title', 'noise', 'inside', 'caught', 'control'],
+};
+const PITCH_FIELDS = {
+  reverser: { lead: 120, callout: 140, file: 60, tools: 120, next: 200 },
+  ranger: { lead: 120, jewel: 40, tools: 120, review: 10, next: 200 },
+};
+
+function validatePitch(input, errors) {
+  if (!input || typeof input !== 'object') return undefined;
+  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const out = {};
+  const logo = str(input.logo);
+  if (logo) {
+    if (!isLogo(logo)) errors['pitch.logo'] = 'Use an https image URL, or a PNG/JPEG/SVG/WebP under 150 KB';
+    out.logo = logo;
+  }
+  if (input.hidePrepared === true) out.hidePrepared = true;
+  for (const [product, fields] of Object.entries(PITCH_FIELDS)) {
+    const src = input[product];
+    if (!src || typeof src !== 'object') continue;
+    const slides = PITCH_SLIDES[product];
+    const p = {};
+    for (const [k, max] of Object.entries(fields)) {
+      const v = str(src[k]);
+      if (!v) continue;
+      if (k === 'review' && !['github', 'gitlab'].includes(v)) continue;
+      if (v.length > max) errors[`pitch.${product}.${k}`] = 'Too long';
+      p[k] = v;
+    }
+    const hide = Array.isArray(src.hide) ? [...new Set(src.hide.filter((id) => slides.includes(id)))] : [];
+    if (hide.length && hide.length < slides.length) p.hide = hide;
+    for (const [key, max] of [['titles', 120], ['notes', 2000]]) {
+      const m = {};
+      for (const id of slides) {
+        const v = str(src[key]?.[id]);
+        if (!v) continue;
+        if (v.length > max) errors[`pitch.${product}.${key}.${id}`] = 'Too long';
+        m[id] = v;
+      }
+      if (Object.keys(m).length) p[key] = m;
+    }
+    if (Object.keys(p).length) out[product] = p;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+// What the Reverser and Ranger pages need: the active customer and its tailoring.
+export function publicPitch(profile) {
+  return { customer: profile ? { id: profile.id, name: profile.name } : null, pitch: profile?.pitch || {} };
+}
+
 // ----- validation -----
 function isLogo(s) {
   if (!s) return true;
@@ -144,6 +200,8 @@ export function validateProfile(input, existingId) {
     if (Object.keys(out).length) steps[key] = out;
   }
 
-  const profile = { id: existingId || `p_${randomHex(6)}`, name, show, apps, steps, updatedAt: new Date().toISOString() };
+  const pitch = validatePitch(input.pitch, errors);
+
+  const profile = { id: existingId || `p_${randomHex(6)}`, name, show, apps, steps, ...(pitch ? { pitch } : {}), updatedAt: new Date().toISOString() };
   return { profile, errors, ok: Object.keys(errors).length === 0 };
 }

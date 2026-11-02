@@ -454,3 +454,39 @@ test('the Vellox Ranger page is served on its own, linked from the other product
   assert.match(await (await fetch(`${base}/reverser.html`)).text(), /href="ranger.html"/);
   assert.equal((await fetch(`${base}/ranger.js`)).status, 200);
 });
+
+test('Reverser and Ranger tailoring is optional, stored in the customer profile, and cleaned up', async () => {
+  // No customer: the pages get nothing to change.
+  await api('/api/profiles/active', 'PUT', { id: null });
+  assert.deepEqual((await api('/api/pitch')).data, { customer: null, pitch: {} });
+
+  const bad = await api('/api/profiles', 'POST', { name: 'Too long', pitch: { ranger: { jewel: 'x'.repeat(200) }, logo: 'javascript:alert(1)' } });
+  assert.equal(bad.status, 400);
+
+  const created = await api('/api/profiles', 'POST', {
+    name: 'Example Agency',
+    pitch: {
+      hidePrepared: false,
+      reverser: { file: 'loader.dll', hide: ['gap', 'nope'], titles: { team: 'What changes for Example', bogus: 'x' }, notes: { speed: 'They lost a week on the last sample.' }, unknown: 'dropped' },
+      ranger: { jewel: 'Claims database', review: 'gitlab', next: '  ', hide: ['title', 'noise', 'inside', 'caught', 'control'] },
+    },
+  });
+  assert.equal(created.status, 200);
+  const { id, pitch } = created.data;
+  assert.deepEqual(pitch.reverser, { file: 'loader.dll', hide: ['gap'], titles: { team: 'What changes for Example' }, notes: { speed: 'They lost a week on the last sample.' } });
+  // Hiding every slide is ignored; blank fields are dropped.
+  assert.deepEqual(pitch.ranger, { jewel: 'Claims database', review: 'gitlab' });
+  assert.equal(pitch.hidePrepared, undefined);
+
+  await api('/api/profiles/active', 'PUT', { id });
+  const live = (await api('/api/pitch')).data;
+  assert.equal(live.customer.name, 'Example Agency');
+  assert.equal(live.pitch.ranger.jewel, 'Claims database');
+
+  // Saving the profile from the LayerOne Customize dialog keeps the tailoring.
+  const full = (await api(`/api/profiles/${id}`)).data;
+  assert.equal((await api(`/api/profiles/${id}`, 'PUT', { ...full, name: 'Example Agency HQ' })).data.pitch.reverser.file, 'loader.dll');
+
+  await api(`/api/profiles/${id}`, 'DELETE');
+  assert.deepEqual((await api('/api/pitch')).data, { customer: null, pitch: {} });
+});

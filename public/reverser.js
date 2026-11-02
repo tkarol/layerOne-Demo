@@ -5,6 +5,12 @@
 // general availability) and press coverage of them; vendor-reported results are
 // labeled as such. See SOURCES at the bottom.
 import { createDeck, icon, $, esc } from './deck-core.js';
+import { loadTailoring, tailorButton, openTailor } from './tailor.js';
+
+// Optional tailoring for one customer (see tailor.js); empty means the standard version.
+let T = { p: {} };
+const tx = (k, fallback) => (T.p[k] ? esc(T.p[k]) : fallback);
+const prepared = (ctx) => `${ctx.logo ? `<img class="d-cust-logo" src="${esc(ctx.logo)}" alt="" />` : ''}${ctx.prepared ? `<div class="d-for">Prepared for <b>${esc(ctx.prepared)}</b></div>` : ''}`;
 
 const STEPS = ['Triage', 'Unpack', 'Disassemble', 'Analyze', 'Write detections'];
 const CLOCK = ['Hour 1', 'Day 2', 'Day 5', 'Week 2', 'Week 3']; // illustrative
@@ -13,11 +19,12 @@ const big = (ic, t, d) => `<div class="rv-big"><span class="d-ic">${icon(ic)}</s
 const SLIDES = [
   {
     id: 'title',
-    html: () => `
+    html: (ctx) => `
       <div class="d-title">
         <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
         <h1>Reverser</h1>
-        <p class="d-lead">Malware reverse engineering, <span>at machine speed.</span></p>
+        <p class="d-lead">${tx('lead', 'Malware reverse engineering, <span>at machine speed.</span>')}</p>
+        ${prepared(ctx)}
       </div>
       <div class="d-orbit" aria-hidden="true"><div></div><div></div><div></div></div>`,
     talk: {
@@ -59,7 +66,7 @@ const SLIDES = [
           <div class="rv-drv def">${icon('users')}<span><b>Defense</b><small>The same handful of reverse engineers</small></span></div>
         </div>
       </div>
-      <div class="rv-callout">${icon('shieldPlus')}<span><b>Machine-speed attacks need machine-speed defense.</b> Human-only analysis can’t close this gap.</span></div>`,
+      <div class="rv-callout">${icon('shieldPlus')}<span>${T.p.callout ? `<b>${esc(T.p.callout)}</b>` : '<b>Machine-speed attacks need machine-speed defense.</b> Human-only analysis can’t close this gap.'}</span></div>`,
     talk: {
       key: 'The market gap: AI has made attacking cheaper and faster, and defense hasn’t kept up.',
       points: [
@@ -115,7 +122,7 @@ const SLIDES = [
     title: 'One sample in. Defenses out.',
     html: () => `
       <div class="rv-io">
-        <div class="rv-file">${icon('bug')}<b>invoice_update.exe</b><small>Suspicious file</small></div>
+        <div class="rv-file">${icon('bug')}<b>${tx('file', 'invoice_update.exe')}</b><small>Suspicious file</small></div>
         <div class="rv-via"><span>${icon('nodes')}Vellox<br />Reverser</span><i></i></div>
         <div class="rv-arts">
           <div class="rv-art"><div class="rv-art-h">${icon('code')}<b>YARA rule</b><small>Ready for detection tools</small></div>
@@ -154,7 +161,7 @@ sha256  9f2c…e41a</pre></div>
         ${big('users', 'Experts on judgment', 'Not on the grind. Analysts review and decide; agents do the heavy lifting.')}
         ${big('link', 'Every finding connected', 'Linked to known campaigns, and shared as detections, not lost in one analyst’s notes.')}
       </div>
-      <div class="rv-next">${icon('arrow')}<span><b>Next step:</b> a pilot with your own samples, compared side by side with your team’s analysis.</span></div>`,
+      <div class="rv-next">${icon('arrow')}<span><b>Next step:</b> ${tx('next', 'a pilot with your own samples, compared side by side with your team’s analysis.')}</span></div>`,
     talk: {
       key: 'Prove it on their own malware: that’s the most convincing demo.',
       points: [
@@ -206,7 +213,7 @@ function drawArch(el) {
   el.innerHTML = `
     <div class="rva-head"><h2>Under the hood</h2><span class="muted">Click any part</span></div>
     <div class="uh">
-      <button type="button" class="uh-side uh-sample ${on('sample')}" data-part="sample">${icon('bug')}<b>Malware sample</b><small>invoice_update.exe</small></button>
+      <button type="button" class="uh-side uh-sample ${on('sample')}" data-part="sample">${icon('bug')}<b>Malware sample</b><small>${tx('file', 'invoice_update.exe')}</small></button>
       <div class="uh-flow in" aria-hidden="true"><i></i></div>
 
       <div class="uh-box">
@@ -242,7 +249,7 @@ function drawArch(el) {
       <button type="button" class="uh-side uh-out ${on('out')}" data-part="out">
         <span class="uh-out-h">${icon('shieldPlus')}<b>Countermeasures</b></span>
         <span class="uh-chip">YARA rules</span><span class="uh-chip">IOCs</span><span class="uh-chip">MITRE ATT&amp;CK</span><span class="uh-chip">Reports</span>
-        <small>→ SIEM · EDR · threat intel, after analyst review</small>
+        <small>→ ${tx('tools', 'SIEM · EDR · threat intel')}, after analyst review</small>
       </button>
     </div>
     <p class="rva-tip"><b>${esc(PARTS[st.part][0])}:</b> ${esc(PARTS[st.part][1])}</p>
@@ -283,8 +290,25 @@ const deck = createDeck({
   slides: SLIDES,
   label: 'Vellox Reverser',
   storageKey: 'rv',
+  context: async () => (T = await loadTailoring('reverser')),
   onGoto: () => setView('architecture'),
 });
+
+// Optional tailoring: what can be changed for a customer, and where it shows.
+const TAILOR_FIELDS = [
+  { k: 'lead', label: 'Title slide tagline', where: 'slide 1', placeholder: 'Malware reverse engineering, at machine speed.', full: true },
+  { k: 'callout', label: 'Key message on the threat slide', where: 'slide 2', placeholder: 'Machine-speed attacks need machine-speed defense.', full: true },
+  { k: 'file', label: 'Sample file name', where: 'slide 4, architecture', placeholder: 'invoice_update.exe' },
+  { k: 'tools', label: 'Their tools for detections', where: 'architecture', placeholder: 'SIEM · EDR · threat intel' },
+  { k: 'next', label: 'Next step', where: 'last slide', placeholder: 'a pilot with your own samples, compared side by side with your team’s analysis.', full: true },
+];
+async function retailor() {
+  await deck.refresh();
+  drawArch($('#rvArchRoot'));
+  tailorButton($('#tailorBtn'), T);
+}
+$('#tailorBtn').onclick = () =>
+  openTailor({ product: 'reverser', label: 'Reverser', fields: TAILOR_FIELDS, slides: SLIDES.map((x) => ({ id: x.id, title: x.title || 'Title slide' })), onSaved: retailor });
 
 // The race slide loops while it's on screen: when the manual runner reaches the end,
 // hold the finished picture for a moment, fade out, and start again.
@@ -307,5 +331,6 @@ initTheme();
 document.querySelectorAll('.view-tabs button').forEach((b) => (b.onclick = () => setView(b.dataset.view)));
 window.addEventListener('hashchange', () => setView(location.hash.slice(1)));
 setView(location.hash.slice(1));
-deck.mount($('#rvDeck'));
+await deck.mount($('#rvDeck'));
 drawArch($('#rvArchRoot'));
+tailorButton($('#tailorBtn'), T);

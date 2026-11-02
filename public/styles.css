@@ -1009,3 +1009,23 @@ details[open] > summary::before { transform: rotate(90deg); }
   .rg-atk { stroke-dashoffset: 0; }
   .rg-tag, .rg-halo, .rg-catch { opacity: 1; }
 }
+
+/* ============ Optional tailoring for the Reverser and Ranger pages ============ */
+.tailor-btn { font: inherit; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 9px; border: 1px solid var(--chrome-line); background: none; color: var(--chrome-muted); cursor: pointer; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.tailor-btn:hover { color: var(--on-chrome); border-color: rgb(255 255 255 / 40%); }
+.tailor-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rv); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rv) 30%, transparent); flex: none; }
+.tailor-btn:has(.tailor-dot) { color: var(--on-chrome); border-color: color-mix(in srgb, var(--rv) 60%, transparent); }
+.d-cust-logo { max-height: 5cqw; max-width: 18cqw; object-fit: contain; justify-self: start; margin-top: 1cqw; }
+.tp-cust { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--rv-soft, var(--accent-soft)); font-size: 15px; line-height: 1.5; }
+.tp-cust span { display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--rv, var(--muted)); margin-bottom: 4px; }
+.tailor .grid2 select, .tailor .grid2 textarea { font: inherit; font-size: 14px; font-weight: 400; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; width: 100%; resize: vertical; }
+.tailor .grid2 label.check { margin-top: 0; }
+.tl-slide { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; background: var(--panel); }
+.tl-slide > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.tl-slide > summary::-webkit-details-marker { display: none; }
+.tl-slide > summary .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.tl-slide[open] > summary { margin-bottom: 10px; }
+.tl-n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); font-size: 12px; font-weight: 800; flex: none; }
+.tl-slide b { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-edited { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--rv-soft); color: var(--rv); }
+@media (max-width: 900px) { .tailor-btn { max-width: 140px; padding: 6px 9px; } }
