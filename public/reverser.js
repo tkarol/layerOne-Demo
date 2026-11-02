@@ -171,13 +171,24 @@ sha256  9f2c…e41a</pre></div>
   },
 ];
 
-// ---------- architecture: one picture, one sentence at a time ----------
+// ---------- architecture: under the hood ----------
+// One orchestrator agent directs 20+ specialized subagents that cross-check each
+// other's findings; Amazon Bedrock models power every agent.
 const PARTS = {
-  in: 'Any suspicious file: from incident response, an EDR alert or a phishing email.',
-  core: 'Many AI agents split the file and analyze every function in parallel, then match it to known campaigns.',
-  out: 'Countermeasures ready to use, not just a report to read.',
-  tools: 'Analysts review the results and push rules and indicators into the tools they already use.',
+  sample: ['Malware sample', 'Any suspicious file: from incident response, an EDR alert or a phishing email.'],
+  orch: ['Orchestrator agent', 'One orchestrator plans the analysis, hands tasks to the subagents, and assembles their findings into one answer.'],
+  swarm: ['20+ subagents', 'More than twenty specialized subagents each take a piece of the work and run in parallel.'],
+  validate: ['Peer validation', 'Subagents check each other’s findings, so a conclusion is confirmed before it is reported.'],
+  bedrock: ['Amazon Bedrock', 'Foundation models on Amazon Bedrock power every agent; the work runs on AWS.'],
+  out: ['Countermeasures', 'YARA rules, IOCs, ATT&CK mappings and reports, ready for the tools your analysts already use.'],
 };
+const GROUPS = [
+  ['Unpack', 4],
+  ['Disassemble', 5],
+  ['Analyze functions', 5],
+  ['Match campaigns', 4],
+  ['Map behaviors', 4],
+];
 
 const SOURCES = [
   ['Booz Allen: Vellox Reverser product page', 'https://www.boozallen.com/expertise/products/vellox-reverser.html'],
@@ -188,30 +199,58 @@ const SOURCES = [
   ['AWS Marketplace: Vellox Reverser', 'https://aws.amazon.com/marketplace/pp/prodview-neuhq5xqsisaa'],
 ];
 
-const st = { part: 'core' };
+const st = { part: 'orch' };
 
 function drawArch(el) {
-  const sel = (k) => (st.part === k ? 'on' : '');
+  const on = (k) => (st.part === k ? 'on' : '');
+  let n = 0;
+  const swarm = GROUPS.map(([name, count]) => `<div class="uh-col"><span class="uh-role">${esc(name)}</span><div class="uh-dots">${Array.from({ length: count }, () => `<i style="--i:${n++}"></i>`).join('')}</div></div>`).join('');
+  const total = GROUPS.reduce((t, [, c]) => t + c, 0);
   el.innerHTML = `
-    <div class="rva-head"><h2>How Reverser works</h2><span class="muted">Click any part</span></div>
-    <div class="rva">
-      <button type="button" class="rva-node ${sel('in')}" data-part="in">${icon('bug')}<b>Malware sample</b></button>
-      <div class="rva-arrow" aria-hidden="true"></div>
-      <button type="button" class="rva-core ${sel('core')}" data-part="core">
-        <span class="rva-core-h">${icon('nodes')}<b>Vellox Reverser</b></span>
-        <span class="rva-swarm" aria-hidden="true">${'<i></i>'.repeat(15)}</span>
-        <span class="rva-chips"><span>Split</span><span>Analyze</span><span>Match</span></span>
+    <div class="rva-head"><h2>Under the hood</h2><span class="muted">Click any part</span></div>
+    <div class="uh">
+      <button type="button" class="uh-side uh-sample ${on('sample')}" data-part="sample">${icon('bug')}<b>Malware sample</b><small>invoice_update.exe</small></button>
+      <div class="uh-flow in" aria-hidden="true"><i></i></div>
+
+      <div class="uh-box">
+        <div class="uh-box-h">${icon('nodes')}<b>Vellox Reverser</b></div>
+
+        <button type="button" class="uh-orch ${on('orch')}" data-part="orch">
+          <span class="uh-orch-ic">${icon('sparkle')}</span>
+          <span><b>Orchestrator agent</b><small>Plans · delegates · assembles the answer</small></span>
+        </button>
+
+        <svg class="uh-fan" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+          ${[10, 30, 50, 70, 90].map((x) => `<path d="M50 0 C 50 22, ${x} 18, ${x} 40"/>`).join('')}
+        </svg>
+
+        <div class="uh-swarm-wrap">
+          <button type="button" class="uh-swarm ${on('swarm')}" data-part="swarm">${swarm}</button>
+          <button type="button" class="uh-validate ${on('validate')}" data-part="validate" aria-label="Peer validation">
+            <svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M10 0 Q 20 26, 30 0"/><path d="M30 0 Q 40 26, 50 0"/><path d="M50 0 Q 60 26, 70 0"/><path d="M70 0 Q 80 26, 90 0"/>
+            </svg>
+            ${[20, 40, 60, 80].map((x, i) => `<span class="uh-check" style="left:${x}%;--k:${i}">✓</span>`).join('')}
+          </button>
+          <div class="uh-swarm-cap"><b>${total} subagents</b> in this example · <span class="uh-val-cap">⇄ they cross-check each other’s findings</span> · example roles</div>
+        </div>
+
+        <button type="button" class="uh-bedrock ${on('bedrock')}" data-part="bedrock">
+          <span class="uh-bedrock-main"><b>Amazon Bedrock</b> foundation models power every agent</span>
+          <span class="uh-bedrock-sub">Runs on AWS · Lambda workers and Step Functions orchestration (as reported)</span>
+        </button>
+      </div>
+
+      <div class="uh-flow out" aria-hidden="true"><i></i></div>
+      <button type="button" class="uh-side uh-out ${on('out')}" data-part="out">
+        <span class="uh-out-h">${icon('shieldPlus')}<b>Countermeasures</b></span>
+        <span class="uh-chip">YARA rules</span><span class="uh-chip">IOCs</span><span class="uh-chip">MITRE ATT&amp;CK</span><span class="uh-chip">Reports</span>
+        <small>→ SIEM · EDR · threat intel, after analyst review</small>
       </button>
-      <div class="rva-arrow" aria-hidden="true"></div>
-      <button type="button" class="rva-outs ${sel('out')}" data-part="out"><span>YARA rules</span><span>IOCs</span><span>ATT&amp;CK</span><span>Reports</span></button>
-      <div class="rva-arrow" aria-hidden="true"></div>
-      <button type="button" class="rva-node ${sel('tools')}" data-part="tools">${icon('shieldPlus')}<b>Your tools</b><small>SIEM · EDR · Threat intel</small></button>
     </div>
-    <div class="rva-loop">↺ Analysts review, deploy, and send new samples back in</div>
-    <p class="rva-tip">${esc(PARTS[st.part])}</p>
-    <div class="rva-meta"><span><b>Speed</b> Minutes, not days (vendor-reported)</span><span><b>Runs on</b> AWS · listed in AWS Marketplace</span></div>
+    <p class="rva-tip"><b>${esc(PARTS[st.part][0])}:</b> ${esc(PARTS[st.part][1])}</p>
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">Summarizes Booz Allen’s public announcements and press coverage. Reported to be built on AWS Lambda, Amazon Bedrock and AWS Step Functions. Confirm figures, deployment options and classification levels with the Vellox team.</p></details>`;
+      <p class="muted small">Public descriptions: Booz Allen’s announcements and press coverage. The architecture (one orchestrator, 20+ subagents with peer validation, Amazon Bedrock) reflects the product team’s description; subagent role names here are examples. Confirm figures and deployment options with the Vellox team.</p></details>`;
   el.querySelectorAll('[data-part]').forEach((b) => (b.onclick = () => ((st.part = b.dataset.part), drawArch(el))));
 }
 
