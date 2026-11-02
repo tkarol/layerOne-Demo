@@ -762,7 +762,8 @@ details[open] > summary::before { transform: rotate(90deg); }
 
 
 /* Reverser slide 3: the race (manual one step at a time vs agents in parallel) */
-.race { position: relative; display: grid; gap: 1.6cqw; margin-top: auto; }
+.race { position: relative; display: grid; gap: 1.6cqw; margin-top: auto; transition: opacity 0.4s ease; }
+.race.fade { opacity: 0; }
 .rlane { display: grid; grid-template-columns: 19cqw minmax(0, 1fr) 10cqw; gap: 1.6cqw; align-items: center; }
 .rlane-h b { display: block; font-size: 1.12em; letter-spacing: -0.01em; }
 .rlane-h small { color: var(--d-muted); font-size: 0.85em; }
@@ -795,14 +796,12 @@ details[open] > summary::before { transform: rotate(90deg); }
 @keyframes clk-on { from { opacity: 0; transform: translateY(-20%); } to { opacity: 1; transform: translateY(-50%); } }
 @keyframes clk-off { to { opacity: 0; transform: translateY(-80%); } }
 /* the flag: Reverser is done while manual is still on step 1 */
-.race-flag { display: flex; align-items: center; gap: 1.2cqw; justify-self: start; margin-left: 18.6cqw; padding: 1cqw 1.6cqw; border-radius: 1.1cqw; background: rgb(var(--d-acc-rgb) / 10%); border: 1px solid rgb(var(--d-acc-rgb) / 45%); box-shadow: 0 0 3cqw -0.5cqw rgb(var(--d-acc-rgb) / 45%); opacity: 0; font-size: 1.05em; }
+.race-flag { display: flex; align-items: center; gap: 1.2cqw; justify-self: center; margin: 0 11.6cqw 0 20.6cqw; padding: 1cqw 1.6cqw; border-radius: 1.1cqw; background: rgb(var(--d-acc-rgb) / 10%); border: 1px solid rgb(var(--d-acc-rgb) / 45%); box-shadow: 0 0 3cqw -0.5cqw rgb(var(--d-acc-rgb) / 45%); opacity: 0; font-size: 1.05em; }
 .race-flag .d-svg { width: 2.2cqw; height: 2.2cqw; color: var(--d-acc); }
 .race-flag span { color: var(--d-muted); }
 .race.go .race-flag { animation: flag 0.5s 2.1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 @keyframes flag { from { opacity: 0; transform: translateY(1cqw) scale(0.94); } to { opacity: 1; transform: none; } }
 .slide[data-slide='speed'] .d-note { margin: 0 0 auto; }
-.race-replay { font: inherit; color: var(--d-acc); background: none; border: 1px solid rgb(var(--d-acc-rgb) / 40%); border-radius: 999px; padding: 0.2cqw 1cqw; cursor: pointer; position: relative; z-index: 3; }
-.race-replay:hover { background: rgb(var(--d-acc-rgb) / 10%); }
 
 /* ---------- more motion across the decks ---------- */
 .d-orbit div:nth-child(1) { border-style: dashed; animation: d-spin 60s linear infinite; }

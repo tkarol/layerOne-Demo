@@ -85,7 +85,7 @@ const SLIDES = [
             ${STEPS.map((x, i) => `<div class="stn" style="--d:${(0.9 + i * 1.5).toFixed(1)}s"><span>${x}</span></div>`).join('')}
             <div class="runner">${icon('bug')}</div>
           </div>
-          <div class="rclock bad">${CLOCK.map((t, i) => `<span style="--d:${(0.9 + i * 1.5).toFixed(1)}s;--e:${(2.4 + i * 1.5).toFixed(1)}s" class="${i === CLOCK.length - 1 ? 'last' : ''}">${t}</span>`).join('')}</div>
+          <div class="rclock bad">${CLOCK.map((t, i) => `<span style="--d:${(0.9 + i * 1.5).toFixed(1)}s;--e:${(2.15 + i * 1.5).toFixed(2)}s" class="${i === CLOCK.length - 1 ? 'last' : ''}">${t}</span>`).join('')}</div>
         </div>
         <div class="rlane fast">
           <div class="rlane-h"><b>Vellox Reverser</b><small>AI agents · all steps in parallel</small></div>
@@ -97,12 +97,12 @@ const SLIDES = [
         </div>
         <div class="race-flag">${icon('shieldPlus')}<b>Detections ready</b><span>while the manual lane is still working</span></div>
       </div>
-      <p class="d-note">Illustrative timing · Reverser’s minutes-not-weeks is vendor-reported · <button type="button" class="race-replay">↻ Replay</button></p>`,
+      <p class="d-note">Illustrative timing · Reverser’s minutes-not-weeks is vendor-reported · loops while the slide is up</p>`,
     talk: {
       key: 'Speed is the whole game: the attacker keeps operating while you wait for analysis.',
       points: [
         '<b>Let the animation run first, then narrate it.</b> Top lane: a skilled analyst triages, unpacks, disassembles, analyzes and finally writes detections. Each step waits on the one before, and on that analyst’s calendar; watch the clock tick into weeks.',
-        '<b>Bottom lane:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so every step runs at once. Point at the flag: detections are ready while the manual lane has barely started. Hit ↻ Replay if they want to see it again.',
+        '<b>Bottom lane:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so every step runs at once. Point at the flag: detections are ready while the manual lane has barely started. It replays on a loop, so you can point at it again whenever you like.',
         '<b>Why it matters:</b> if detections arrive after the incident is over, they only protect the next victim. Minutes means you can still contain this one.',
         '<b>Be careful with the claim:</b> Booz Allen reports minutes instead of days or weeks in representative cases. In one evaluation it assessed more than 120 functions of a sophisticated sample and flagged dozens as malicious. Call these vendor-reported.',
       ],
@@ -289,15 +289,21 @@ const deck = createDeck({
   onGoto: () => setView('architecture'),
 });
 
-// ↻ Replay on the race slide restarts its animation.
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.race-replay');
-  if (!btn) return;
-  const race = btn.closest('.slide')?.querySelector('.race');
-  if (!race) return;
-  race.classList.remove('go');
-  void race.offsetWidth;
-  race.classList.add('go');
+// The race slide loops while it's on screen: when the manual runner reaches the end,
+// hold the finished picture for a moment, fade out, and start again.
+document.addEventListener('animationend', (e) => {
+  if (e.animationName !== 'runner') return;
+  const race = e.target.closest('.race');
+  setTimeout(() => {
+    if (!race?.isConnected) return;
+    race.classList.add('fade');
+    setTimeout(() => {
+      race.classList.remove('go');
+      void race.offsetWidth;
+      race.classList.add('go');
+      race.classList.remove('fade');
+    }, 450);
+  }, 2600);
 });
 
 initTheme();
