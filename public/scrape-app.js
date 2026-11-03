@@ -2,7 +2,7 @@
 // writes one record per page into a vendor database. Each page's AI request goes
 // through LayerOne. Poisoned pages either get quarantined (LayerOne on) or write
 // planted "facts" into the database that analysts later search (LayerOne off).
-import { esc, mark, sleep, runStep, outcome, showTrace } from './fmt-common.js';
+import { esc, mark, sleep, runStep, outcome, showTrace, cmpCols } from './fmt-common.js';
 
 const s = { runs: { on: null, off: null }, running: false, current: null, showHidden: false };
 let ctx; // { el, app, isProtected, paceMs }
@@ -46,41 +46,45 @@ function rowFor(wf, r) {
 
 function draw() {
   if (!ctx?.el?.isConnected) return;
-  const m = mode();
+  const cmp = ctx.isCompare?.();
+  const m = cmp ? 'off' : mode(); // in Compare the database shows what gets stored without LayerOne
   const run = s.runs[m];
   const wf = pages().find((w) => w.id === s.current) || pages()[0];
-  const rows = pages().map((w) => ({ w, row: rowFor(w, run?.results[w.id]) }));
+  const rows = pages().map((w) => ({ w, row: rowFor(w, run?.results[w.id]), on: rowFor(w, s.runs.on?.results[w.id]) }));
   const stored = rows.filter((x) => ['ok', 'clean', 'risky', 'poisoned'].includes(x.row.kind));
   const done = rows.filter((x) => !['pending', 'running'].includes(x.row.kind)).length;
   ctx.el.innerHTML = `
-    <div class="fmt-flow ${m === 'on' ? '' : 'off'}">
+    <div class="fmt-flow ${m === 'on' || cmp ? '' : 'off'}">
       <span class="hop">🌐 Web pages</span><span class="arr">→</span><span class="hop">🕷️ Crawler</span><span class="arr">→</span>
-      <span class="hop l1">${m === 'on' ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">✨ AI extracts a record</span><span class="arr">→</span><span class="hop">🗄️ Vendor database</span>
+      <span class="hop l1">${cmp ? '⇆ With and without LayerOne' : m === 'on' ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">✨ AI extracts a record</span><span class="arr">→</span><span class="hop">🗄️ Vendor database</span>
     </div>
     <div class="sc-top">
       <button class="batch-go" id="crawlGo" ${s.running ? 'disabled' : ''}>${s.running ? `<span class="spinner small"></span> Crawling… ${done}/${pages().length}` : run ? '↻ Crawl again' : `▶ Crawl ${pages().length} pages`}</button>
-      <span class="muted small">Every page on the web is untrusted. LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b>.${run?.finished && !s.runs[m === 'on' ? 'off' : 'on'] ? ` Switch it ${m === 'on' ? 'off' : 'on'} and crawl again to compare.` : ''}</span>
+      <span class="muted small">Every page on the web is untrusted. ${cmp ? 'Compare: each page is read with and without LayerOne.' : `LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b>.${run?.finished && !s.runs[m === 'on' ? 'off' : 'on'] ? ` Switch it ${m === 'on' ? 'off' : 'on'} and crawl again to compare.` : ''}`}</span>
     </div>
     <div class="sc-app">
       <aside class="sc-queue">
         <div class="side-title">Crawl queue</div>
         <ol>${rows
-          .map(({ w, row }) => `<li><button class="sq-item ${w.id === wf.id ? 'active' : ''}" data-page="${esc(w.id)}" ${s.running ? 'disabled' : ''}>
-            <span class="sq-host">${esc(host(w.screen.url))}</span><b>${esc(w.site)}</b><span class="sq-st k-${row.kind}">${esc(statusText(row))}</span></button></li>`)
+          .map(({ w, row, on }) => `<li><button class="sq-item ${w.id === wf.id ? 'active' : ''}" data-page="${esc(w.id)}" ${s.running ? 'disabled' : ''}>
+            <span class="sq-host">${esc(host(w.screen.url))}</span><b>${esc(w.site)}</b>${cmp ? `<span class="chip2"><span class="${rowTone(on.kind)}">🛡️ ${esc(statusText(on))}</span><span class="${rowTone(row.kind)}">⚠️ ${esc(statusText(row))}</span></span>` : `<span class="sq-st k-${row.kind}">${esc(statusText(row))}</span>`}</button></li>`)
           .join('')}</ol>
       </aside>
-      ${drawBrowser(wf, rowFor(wf, run?.results[wf.id]), run?.results[wf.id])}
+      ${drawBrowser(wf, rowFor(wf, run?.results[wf.id]), run?.results[wf.id], cmp)}
     </div>
-    ${drawDb(rows, stored, m)}
-    ${run?.finished ? drawSearch(rows, m) : ''}`;
+    ${drawDb(rows, stored, m, cmp)}
+    ${cmp ? (s.runs.on?.finished && run?.finished ? cmpCols(drawSearch(rows.map((x) => ({ w: x.w, row: x.on })), 'on'), drawSearch(rows, 'off')) : '') : run?.finished ? drawSearch(rows, m) : ''}`;
   wire();
 }
+
+// Chip color follows the outcome, not the side.
+const rowTone = (k) => (['poisoned', 'risky', 'error'].includes(k) ? 'bad' : ['quarantine', 'held', 'clean'].includes(k) ? 'caught' : k === 'ok' ? 'good' : '');
 
 function statusText(row) {
   return { pending: 'Waiting', running: 'Reading…', ok: '✓ Stored', clean: '🛡️ Stored, cleaned', quarantine: '⛔ Quarantined', held: '✋ Held', poisoned: '☠ Poisoned record stored', risky: '⚠ Stored unchecked', error: 'Error' }[row.kind] || '';
 }
 
-function drawBrowser(wf, row, r) {
+function drawBrowser(wf, row, r, cmp) {
   const sc = wf.screen;
   return `<section class="sc-browser">
     <div class="br-bar"><span class="br-dots"><i></i><i></i><i></i></span><span class="br-url">🔒 ${esc(sc.url)}</span></div>
@@ -92,7 +96,7 @@ function drawBrowser(wf, row, r) {
       ${sc.hidden ? `<p class="hidden-text ${s.showHidden ? 'shown' : ''}">${esc(sc.hidden)}</p>` : ''}
     </div>
     ${sc.hidden ? `<div class="br-hide"><button class="reveal" id="scReveal">${s.showHidden ? '🙈 Hide' : '👁 Reveal'} what the reader can’t see</button><span class="muted small">Hidden in ${esc(sc.hideIn)}</span></div>` : ''}
-    <div class="br-result">${drawPageResult(row, r)}</div>
+    <div class="br-result">${cmp ? cmpCols(drawPageResult(rowFor(wf, s.runs.on?.results[wf.id]), s.runs.on?.results[wf.id]), drawPageResult(row, r)) : drawPageResult(row, r)}</div>
   </section>`;
 }
 
@@ -108,22 +112,22 @@ function drawPageResult(row, r) {
   return `${head}${row.leak ? `<p class="sc-leak">☠ ${mark(row.leak)}</p>` : ''}<p class="ac-recv"><span>Written to the database</span>${Object.entries(row.rec).map(([k, v]) => `<b>${esc(k)}:</b> ${mark(v)}`).join('<br>')}</p>${link}`;
 }
 
-function drawDb(rows, stored, m) {
+function drawDb(rows, stored, m, cmp) {
   const quarantined = rows.filter((x) => x.row.kind === 'quarantine');
   const held = rows.filter((x) => x.row.kind === 'held');
   return `<section class="sc-db">
-    <div class="db-cyl-head"><span>🗄️</span><b>Vendor database</b><code>${esc(ctx.app.table || 'vendors')}</code><small>${stored.length} record${stored.length === 1 ? '' : 's'}</small></div>
+    <div class="db-cyl-head"><span>🗄️</span><b>Vendor database${cmp ? ', as stored without LayerOne' : ''}</b><code>${esc(ctx.app.table || 'vendors')}</code><small>${stored.length} record${stored.length === 1 ? '' : 's'}</small></div>
     <div class="sc-table-wrap"><table class="sc-table">
-      <thead><tr><th>Source</th><th>Company</th><th>Summary</th><th>Past performance</th><th>Flags</th></tr></thead>
+      <thead><tr>${cmp ? '<th>🛡️ With LayerOne</th>' : ''}<th>Source</th><th>Company</th><th>Summary</th><th>Past performance</th><th>Flags</th></tr></thead>
       <tbody>${
         stored.length
           ? stored
-              .map(({ w, row }) => `<tr class="r-${row.kind}"><td>${esc(host(w.screen.url))}</td><td>${esc(row.rec.Company || '')}</td><td>${mark(row.rec.Summary || '')}</td><td>${esc(row.rec['Past performance'] || '')}</td><td>${row.kind === 'poisoned' ? '☠ ' : ''}${esc(row.rec.Flags || '')}</td></tr>`)
+              .map(({ w, row, on }) => `<tr class="r-${row.kind}">${cmp ? `<td class="on-col">${esc(statusText(on))}</td>` : ''}<td>${esc(host(w.screen.url))}</td><td>${esc(row.rec.Company || '')}</td><td>${mark(row.rec.Summary || '')}</td><td>${esc(row.rec['Past performance'] || '')}</td><td>${row.kind === 'poisoned' ? '☠ ' : ''}${esc(row.rec.Flags || '')}</td></tr>`)
               .join('')
-          : `<tr><td colspan="5" class="muted">Empty. Crawl the pages to fill it.</td></tr>`
+          : `<tr><td colspan="${cmp ? 6 : 5}" class="muted">Empty. Crawl the pages to fill it.</td></tr>`
       }</tbody>
     </table></div>
-    ${quarantined.length || held.length ? `<div class="sc-side-lists">${quarantined.length ? `<div class="sc-q"><b>⛔ Quarantined pages</b> (not in the database)<ul>${quarantined.map(({ w }) => `<li>${esc(host(w.screen.url))}: ${esc(w.title)}</li>`).join('')}</ul></div>` : ''}${held.length ? `<div class="sc-h"><b>✋ Held for review</b><ul>${held.map(({ w }) => `<li>${esc(host(w.screen.url))}: ${esc(w.title)}</li>`).join('')}</ul></div>` : ''}</div>` : ''}
+    ${!cmp && (quarantined.length || held.length) ? `<div class="sc-side-lists">${quarantined.length ? `<div class="sc-q"><b>⛔ Quarantined pages</b> (not in the database)<ul>${quarantined.map(({ w }) => `<li>${esc(host(w.screen.url))}: ${esc(w.title)}</li>`).join('')}</ul></div>` : ''}${held.length ? `<div class="sc-h"><b>✋ Held for review</b><ul>${held.map(({ w }) => `<li>${esc(host(w.screen.url))}: ${esc(w.title)}</li>`).join('')}</ul></div>` : ''}</div>` : ''}
     ${m === 'off' && stored.some((x) => x.row.kind === 'poisoned') ? '<p class="sc-warn">☠ Rows in red were written by instructions hidden in web pages. Nothing marks them as different: analysts will trust them like any other record.</p>' : ''}
   </section>`;
 }
@@ -171,27 +175,30 @@ function wire() {
   el.querySelectorAll('[data-trace]').forEach((a) => (a.onclick = (e) => (e.preventDefault(), showTrace(a.dataset.trace))));
 }
 
-// One page at a time, so the browser view follows the crawler.
+// One page at a time, so the browser view follows the crawler (both ways at once in Compare).
 async function crawl() {
   if (s.running) return;
-  const m = mode();
-  const run = { results: {}, finished: false };
-  s.runs[m] = run;
+  const modes = ctx.isCompare?.() ? ['on', 'off'] : [mode()];
+  for (const m of modes) s.runs[m] = { results: {}, finished: false };
   s.running = true;
   for (const wf of pages()) {
     s.current = wf.id;
     s.showHidden = Boolean(wf.screen.hidden);
-    const r = (run.results[wf.id] = { trace: { status: 'running' } });
-    draw();
-    try {
-      await runStep(ctx.app.id, wf.id, m === 'on', (tr) => ((r.trace = tr), draw()));
-    } catch (err) {
-      r.error = err.message;
-    }
+    await Promise.all(
+      modes.map(async (m) => {
+        const r = (s.runs[m].results[wf.id] = { trace: { status: 'running' } });
+        draw();
+        try {
+          await runStep(ctx.app.id, wf.id, m === 'on', (tr) => ((r.trace = tr), draw()));
+        } catch (err) {
+          r.error = err.message;
+        }
+      }),
+    );
     draw();
     await sleep(ctx.paceMs());
   }
-  run.finished = true;
+  for (const m of modes) s.runs[m].finished = true;
   s.running = false;
   draw();
 }

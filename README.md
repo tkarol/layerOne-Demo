@@ -170,7 +170,11 @@ One app in the picker, with a **mission switch** (Claims · Proposals · Public 
 With LayerOne the data is removed, the request is blocked, or the answer is held for review. Without it, the problem gets through, and the page says exactly what went wrong.
 
 * **LayerOne ON / OFF switch:** OFF sends the same request straight to the AI model, and a red ribbon makes that obvious. OFF runs appear in Behind the scenes with LayerOne marked *switched off*.
-* **Compare:** runs every action both ways, side by side.
+* **⇆ Compare (every sample app):** the same button in the header of every app. With it on, each AI action runs twice, once through LayerOne and once without it. The result shows as a simple pair, **🛡️ With LayerOne** next to **⚠️ Without LayerOne**, in the same style everywhere; the rest of the screen doesn't change:
+  * **Ask AI and Grounded answers:** both replies under the message.
+  * **Agent:** both runs of the ticket. With LayerOne the plan is stopped and no tool runs; without it, the tools fire.
+  * **Batch review and Web scraper:** both runs go at once. Each tile or page shows two small status chips, colored by outcome. The scraper's database shows what gets stored without LayerOne, with a column saying what LayerOne did instead, and the two "two weeks later" searches sit side by side.
+  * **Live call assist and Customer Hub:** "With" is stacked above "Without", since those panels are narrow. Customer Hub runs the protected request first, because both runs change the same table.
 * **See what LayerOne did →** under each result opens that exact request in *Behind the scenes*.
 * **Presenter notes** under each step give a one-line talk track for ON and OFF.
 * **Reveal hidden text** on the poisoned documents shows the audience the instruction the reader can't see.

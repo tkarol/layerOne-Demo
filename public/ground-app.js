@@ -2,7 +2,7 @@
 // cites them (retrieval-augmented generation). LayerOne's grounding check (its
 // LLM judge, given the retrieved sources) holds answers the sources don't
 // support: wrong numbers, invented sections, benefits that don't exist.
-import { esc, mark, runStep, outcome, showTrace } from './fmt-common.js';
+import { esc, mark, runStep, outcome, showTrace, cmpCols } from './fmt-common.js';
 
 const s = { selected: null, results: { on: {}, off: {} }, running: false };
 let ctx; // { el, app, isProtected }
@@ -24,9 +24,11 @@ const isDryRun = (t) => /\/mock\//.test(t?.endpoint?.url || '') || /\/mock\//.te
 
 function draw() {
   if (!ctx?.el?.isConnected) return;
-  const m = mode();
+  const cmp = ctx.isCompare?.();
+  const m = cmp ? 'on' : mode();
   const wf = qs().find((w) => w.id === s.selected) || qs()[0];
   const r = s.results[m][wf.id];
+  const rOff = s.results.off[wf.id];
   const t = r?.trace;
   const done = t && t.status !== 'running';
   const checked = done && !t.bypass && isDryRun(t);
@@ -36,9 +38,9 @@ function draw() {
   if (checked) for (const c of wf.claims || []) claimBy[c.cite] = c.status;
 
   ctx.el.innerHTML = `
-    <div class="fmt-flow ${m === 'on' ? '' : 'off'}">
+    <div class="fmt-flow ${m === 'on' || cmp ? '' : 'off'}">
       <span class="hop">❓ Question</span><span class="arr">→</span><span class="hop">📚 Search the agency’s documents</span><span class="arr">→</span>
-      <span class="hop">✨ AI answers with citations</span><span class="arr">→</span><span class="hop l1">${m === 'on' ? '🛡️ LayerOne checks it against the sources' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">👤 Employee</span>
+      <span class="hop">✨ AI answers with citations</span><span class="arr">→</span><span class="hop l1">${cmp ? '⇆ With and without LayerOne' : m === 'on' ? '🛡️ LayerOne checks it against the sources' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">👤 Employee</span>
     </div>
     <div class="gr-app">
       <aside class="gr-lib">
@@ -65,9 +67,9 @@ function draw() {
         <div class="gr-ask">
           <div class="cbubble b-you">${esc(wf.screen.message)}</div>
           <button class="ai-btn" id="grAsk" ${s.running ? 'disabled' : ''}>${s.running ? '<span class="spinner small"></span> Answering…' : r ? '↻ Ask again' : '📚 Ask Policy Answers'}</button>
-          <span class="muted small">LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b></span>
+          <span class="muted small">${cmp ? 'Compare: asked with and without LayerOne' : `LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b>`}</span>
         </div>
-        ${r ? drawResult(wf, r, checked) : '<p class="muted">The assistant searches the documents on the left, then answers with a citation for every claim.</p>'}
+        ${cmp ? (r || rOff ? drawCompare(wf, r, rOff, checked) : '<p class="muted">Ask, and the answer appears twice: with LayerOne and without it.</p>') : r ? drawResult(wf, r, checked) : '<p class="muted">The assistant searches the documents on the left, then answers with a citation for every claim.</p>'}
       </section>
     </div>`;
   wire();
@@ -102,6 +104,24 @@ function drawResult(wf, r, checked) {
   return `${found}${head}${answerBox}${claimTable}${right}${t.id ? `<a href="#" class="muted small" data-trace="${esc(t.id)}">See what LayerOne did →</a>` : ''}`;
 }
 
+// Compare: the two answers side by side, kept short; the source's real answer once, underneath.
+function drawCompare(wf, rOn, rOff, checked) {
+  const side = (r, on) => {
+    if (!r) return '<p class="muted">…</p>';
+    if (r.error) return `<p class="ac-issues">${esc(r.error)}</p>`;
+    const t = r.trace;
+    if (!t || t.status === 'running') return '<p class="muted"><span class="spinner small"></span> Answering…</p>';
+    const v = outcome(t, wf);
+    const held = t.governance?.decision === 'held';
+    const supported = wf.claims ? wf.claims.filter((c) => c.status === 'supported').length : 0;
+    return `<div class="bd-verdict v-${v.cls}"><span class="ac-badge">${v.cls === 'ok' ? '✅ Grounded' : v.badge}</span></div>
+      ${held ? `<div class="gr-held"><b>Held. The employee doesn’t see it.</b>${on && checked && wf.claims ? `<span>${supported} of ${wf.claims.length} claims supported by the sources</span>` : ''}</div>` : `<div class="cbubble b-ai gr-answer ${!on && v.cls === 'bad' ? 'risky' : ''}">${cites(t.output || '', wf, on && checked)}</div>`}
+      ${!on && v.list?.length ? `<ul class="ac-issues">${v.list.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}`;
+  };
+  const right = wf.right && (rOn?.trace?.governance?.decision === 'held' || rOff?.trace?.bypass) ? `<div class="gr-right"><span>What the documents actually say</span>${cites(wf.right, wf, false)}</div>` : '';
+  return `<div class="gr-found"><span>Found in the documents:</span>${wf.sources.map((x) => `<span class="cite">${esc(x)}</span>`).join('')}</div>${cmpCols(side(rOn, true), side(rOff, false))}${right}`;
+}
+
 function wire() {
   const el = ctx.el;
   el.querySelectorAll('[data-q]').forEach(
@@ -117,16 +137,21 @@ function wire() {
 
 async function ask() {
   if (s.running) return;
-  const m = mode();
   const id = s.selected;
-  const r = (s.results[m][id] = { trace: { status: 'running' } });
+  const modes = ctx.isCompare?.() ? ['on', 'off'] : [mode()];
   s.running = true;
   draw();
-  try {
-    await runStep(ctx.app.id, id, m === 'on', (tr) => ((r.trace = tr), draw()));
-  } catch (err) {
-    r.error = err.message;
-  }
+  await Promise.all(
+    modes.map(async (m) => {
+      const r = (s.results[m][id] = { trace: { status: 'running' } });
+      try {
+        await runStep(ctx.app.id, id, m === 'on', (tr) => ((r.trace = tr), draw()));
+      } catch (err) {
+        r.error = err.message;
+      }
+      draw();
+    }),
+  );
   s.running = false;
   draw();
 }

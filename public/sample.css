@@ -724,3 +724,26 @@ body.present .story, body.present .email-body, body.present .ai-output, body.pre
 .gr-right { padding: 10px 12px; border-radius: 10px; background: var(--ok-soft); font-size: 14.5px; }
 .gr-right > span:first-child { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ok); margin-bottom: 3px; }
 @media (max-width: 900px) { .gr-app { grid-template-columns: minmax(0, 1fr); } }
+
+/* Compare: with and without LayerOne, side by side (same look in every app) */
+.cmp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.cmp.stack { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.cmp-col { min-width: 0; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); padding: 10px 12px; display: grid; gap: 6px; align-content: start; }
+.cmp-col.on { border-color: color-mix(in srgb, var(--ok) 55%, var(--border)); }
+.cmp-col.off { border-color: color-mix(in srgb, var(--bad) 55%, var(--border)); background: color-mix(in srgb, var(--bad) 4%, var(--panel)); }
+.cmp-h { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.cmp-col.on .cmp-h { color: var(--ok); } .cmp-col.off .cmp-h { color: var(--bad); }
+.cmp-col > :last-child { margin-bottom: 0; }
+.cmp.stack .cmp-col { padding: 7px 10px; }
+.chip2 { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip2 > span { font-size: 11.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+.chip2 > .good { color: var(--ok); } .chip2 > .caught { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); } .chip2 > .bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); background: var(--bad-soft); }
+@media (max-width: 900px) { .cmp { grid-template-columns: minmax(0, 1fr); } }
+.cmp-tag { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; min-width: 150px; }
+.cmp-tag.on { color: var(--ok); } .cmp-tag.off { color: var(--bad); }
+.btile .chip2 { margin-top: 2px; }
+.assist-card.both { display: grid; gap: 6px; }
+.sc-table td.on-col { font-weight: 700; color: var(--ok); white-space: nowrap; background: var(--panel) !important; }
+.cmp-col { overflow: hidden; }
+.cmp-col .table-wrap { max-width: 100%; overflow-x: auto; }
+.cmp-col .sc-search { border: none; padding: 0; background: none; }

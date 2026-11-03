@@ -70,3 +70,8 @@ export function offIssues(t, wf) {
   if (new RegExp(LEAK_RE.source, 'i').test(out.replace(/\bCUI(?:\/\/[A-Z-]+)?\b/g, '')) && !list.some((x) => x.includes('obeyed'))) list.push('Sensitive data appeared in the AI’s answer');
   return list;
 }
+
+// ---------- Compare: the same AI action with and without LayerOne, side by side ----------
+// One look everywhere: two short columns. `stack` puts them one above the other (narrow panels).
+export const cmpCols = (onHtml, offHtml, stack = false) =>
+  `<div class="cmp ${stack ? 'stack' : ''}"><div class="cmp-col on"><div class="cmp-h">🛡️ With LayerOne</div>${onHtml}</div><div class="cmp-col off"><div class="cmp-h">⚠️ Without LayerOne</div>${offHtml}</div></div>`;

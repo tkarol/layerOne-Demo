@@ -1,6 +1,7 @@
 // "Ask AI": a company AI chat. Under every message, one line says what
 // LayerOne did and what the AI model actually received.
 import { readTraceStream, LEAK_RE, REDACTED_RE } from './stream.js';
+import { cmpCols } from './fmt-common.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const mark = (text) =>
@@ -23,15 +24,18 @@ function draw() {
   if (!ctx?.el?.isConnected) return;
   const prot = ctx.isProtected();
   const busy = s.turns.some((t) => t.running);
-  const stopped = s.turns.filter((t) => !t.running && t.protected && ['redacted', 'blocked', 'held'].includes(t.trace?.governance?.decision)).length;
-  const exposed = s.turns.filter((t) => !t.running && !t.protected && t.trace && issues(t).length).length;
+  // A compared message counts on both sides.
+  const sides = s.turns.filter((t) => !t.running).flatMap((t) => (t.both ? [side(t, true), side(t, false)] : [t]));
+  const stopped = sides.filter((t) => t.protected && ['redacted', 'blocked', 'held'].includes(t.trace?.governance?.decision)).length;
+  const exposed = sides.filter((t) => !t.protected && t.trace && issues(t).length).length;
+  const cmp = ctx.isCompare?.();
   ctx.el.innerHTML = `
     <div class="chat-app">
-      <div class="chat-flow ${prot ? '' : 'off'}">
+      <div class="chat-flow ${prot || cmp ? '' : 'off'}">
         <span class="hop">💬 You type</span><span class="arr">→</span>
-        <span class="hop l1">${prot ? '🛡️ LayerOne checks it' : '⚠️ LayerOne off'}</span><span class="arr">→</span>
+        <span class="hop l1">${cmp ? '⇆ With and without LayerOne' : prot ? '🛡️ LayerOne checks it' : '⚠️ LayerOne off'}</span><span class="arr">→</span>
         <span class="hop">✨ Outside AI model</span>
-        <small>${prot ? 'LayerOne checks what goes out to the AI, and what comes back.' : 'Everything goes straight to the AI model, as typed.'}</small>
+        <small>${cmp ? 'Each message is sent twice: once through LayerOne, once straight to the AI.' : prot ? 'LayerOne checks what goes out to the AI, and what comes back.' : 'Everything goes straight to the AI model, as typed.'}</small>
       </div>
 
       <div class="chat-grid">
@@ -65,8 +69,22 @@ function draw() {
   log.scrollTop = log.scrollHeight;
 }
 
+// One side of a compared message, shaped like a single turn.
+const side = (t, on) => ({ ...t, both: false, protected: on, trace: (on ? t.on : t.off).trace, error: (on ? t.on : t.off).error, running: (on ? t.on : t.off).running });
+
+// The check, what the AI received and the answer, for one side.
+function drawSide(t) {
+  const v = verdict(t);
+  return `<div class="cx-check v-${v.cls}">
+      <div class="cx-verdict"><span class="cx-badge">${v.badge}</span><span>${esc(v.text)}</span></div>
+      ${v.list?.length ? `<ul class="cx-issues">${v.list.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
+    </div>
+    ${v.answer != null ? `<div class="cbubble b-ai ${v.answerCls || ''}">${v.answer}</div>` : ''}`;
+}
+
 // One message: what you typed, what LayerOne did, what the AI received, the answer.
 function drawTurn(t) {
+  if (t.both) return `<div class="cx"><div class="cx-you"><div class="cbubble b-you">${mark(t.message)}</div></div>${cmpCols(drawSide(side(t, true)), drawSide(side(t, false)))}</div>`;
   const v = verdict(t);
   return `<div class="cx">
     <div class="cx-you"><div class="cbubble b-you">${mark(t.message)}</div></div>
@@ -196,6 +214,7 @@ async function send(wfId, text, prot = ctx.isProtected()) {
   if (s.turns.some((t) => t.running)) return;
   const wf = ctx.app.workflows.find((w) => w.id === wfId);
   const message = wfId === 'free' ? text : wf.screen.message;
+  if (ctx.isCompare?.()) return sendBoth(wfId, message);
   const turn = { id: `c${Date.now()}`, wfId, message, protected: prot, running: true, trace: null };
   s.turns.push(turn);
   if (wfId === 'free') s.draft = '';
@@ -213,4 +232,30 @@ async function send(wfId, text, prot = ctx.isProtected()) {
     turn.running = false;
     draw();
   }
+}
+
+// Compare: the same message through LayerOne and straight to the AI, at the same time.
+async function sendBoth(wfId, message) {
+  const turn = { id: `c${Date.now()}`, wfId, message, both: true, running: true, on: { running: true, trace: null }, off: { running: true, trace: null } };
+  s.turns.push(turn);
+  if (wfId === 'free') s.draft = '';
+  draw();
+  const go = async (slot, prot) => {
+    try {
+      const res = await fetch('/api/app/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: ctx.app.id, workflow: wfId, protected: prot, message: wfId === 'free' ? message : undefined }),
+      });
+      await readTraceStream(res, (tr) => ((slot.trace = tr), draw()));
+    } catch (err) {
+      slot.error = err.message;
+    } finally {
+      slot.running = false;
+      draw();
+    }
+  };
+  await Promise.all([go(turn.on, true), go(turn.off, false)]);
+  turn.running = false;
+  draw();
 }

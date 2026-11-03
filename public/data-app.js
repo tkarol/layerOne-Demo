@@ -2,6 +2,8 @@
 //   You edit the table directly:      Web app → Database (LayerOne not involved)
 //   The AI assistant uses the table:  Web app → LayerOne → AI model → Database, and the
 //                                     answer comes back through LayerOne
+import { cmpCols } from './fmt-common.js';
+
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const HIDDEN = /\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,40}\b(instructions?|rules?)\b|\b(AI|assistant|model)\b.{0,60}\b(email|send|forward|upload|export|delete|transfer)\b/i;
 const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
@@ -166,13 +168,21 @@ function drawLog(e) {
 // An earlier question, shown as one line until it is expanded.
 const VERDICT = { allowed: ['Allowed', 'ok'], filtered: ['Allowed, filtered', 'warn'], approval: ['Needs approval', 'warn'], blocked: ['Blocked', 'bad'] };
 function drawTurnSummary(t) {
-  const r = t.result;
-  const [label, cls] = !r ? ['…', ''] : !t.protected ? ['LayerOne off', 'bad'] : VERDICT[r.layerone?.decision] || ['', ''];
+  const r = t.both ? t.on.result : t.result;
+  const [label, cls] = !r ? ['…', ''] : t.both ? [`🛡️ ${VERDICT[r.layerone?.decision]?.[0] || ''} · ⚠️ unchecked`, ''] : !t.protected ? ['LayerOne off', 'bad'] : VERDICT[r.layerone?.decision] || ['', ''];
   return `<button class="turn-summary" data-expand="${esc(t.id)}"><span class="avatar small">${esc(ctx.person.initials)}</span><span class="tq">${esc(t.message)}</span><span class="pill ${cls}">${esc(label)}</span><span class="muted">▸</span></button>`;
 }
 
-// One question to the assistant, revealed step by step.
+// One question to the assistant, revealed step by step (in Compare: both runs side by side).
 function drawTurn(t, index = 0) {
+  return `<article class="turn ${open.reveal === t.id ? 'reveal' : ''}">
+    <div class="q"><span class="avatar small">${esc(ctx.person.initials)}</span><p>${esc(t.message)}</p>${index > 0 ? `<button class="link-btn collapse-turn" data-collapse="${esc(t.id)}">Collapse</button>` : ''}</div>
+    ${t.both ? cmpCols(turnBody({ ...t.on, id: t.id }), turnBody({ ...t.off, id: `${t.id}-off` }), true) : turnBody(t)}
+  </article>`;
+}
+
+// The steps, LayerOne's note and the answer, for one run.
+function turnBody(t) {
   const r = t.result;
   const step = t.step ?? 0;
   const prot = t.protected;
@@ -192,9 +202,7 @@ function drawTurn(t, index = 0) {
   const acted = l1?.checks.find((c) => c.result !== 'pass');
   const noteAt = stopped ? 1 : 4;
   const note = !r || step < noteAt ? '' : !prot ? `<p class="l1-note bad">⚠️ LayerOne is off, so nothing was checked.</p>` : acted ? `<p class="l1-note ${decision === 'blocked' ? 'bad' : 'warn'}">🛡️ ${esc(acted.detail)}</p>` : '';
-  return `<article class="turn ${open.reveal === t.id ? 'reveal' : ''}">
-    <div class="q"><span class="avatar small">${esc(ctx.person.initials)}</span><p>${esc(t.message)}</p>${index > 0 ? `<button class="link-btn collapse-turn" data-collapse="${esc(t.id)}">Collapse</button>` : ''}</div>
-    ${t.error ? `<div class="notice bad">${esc(t.error)}</div>` : ''}
+  return `${t.error ? `<div class="notice bad">${esc(t.error)}</div>` : ''}
     <ol class="steps">
       ${st(0, inStep[0], prot ? '🛡️' : '⚠️', 'LayerOne', inStep[1])}
       ${st(1, aiStep[0], '✦', 'AI model', aiStep[1])}
@@ -204,8 +212,7 @@ function drawTurn(t, index = 0) {
     ${note}
     ${r && step >= 4 ? `<div class="a reveal ${prot ? '' : 'off'}"><p>${esc(r.answer).replace(/\n/g, '<br>')}</p>${resultTable(r.results)}</div>` : ''}
     ${r?.pendingId && step >= 4 && !t.decided ? `<div class="approve"><span>🛡️ LayerOne is holding this change for a person to approve.</span><button class="save" data-approve="${esc(t.id)}">Approve</button><button class="secondary" data-deny="${esc(t.id)}">Deny</button></div>` : ''}
-    ${t.decided ? `<div class="a"><p>${esc(t.decided)}</p></div>` : ''}
-  </article>`;
+    ${t.decided ? `<div class="a"><p>${esc(t.decided)}</p></div>` : ''}`;
 }
 
 function resultTable(rows) {
@@ -216,7 +223,36 @@ function resultTable(rows) {
     .join('')}</tbody></table></div>`;
 }
 
+// Compare: the same question with LayerOne first, then without it (the table is shared, so one after the other).
+async function askBoth(message) {
+  const turn = { id: `t${Date.now()}`, message, both: true, on: { protected: true, step: 0 }, off: { protected: false, step: 0 } };
+  s.turns.unshift(turn);
+  open.reveal = turn.id;
+  draw();
+  try {
+    const [rOn] = await Promise.all([call('/ask', 'POST', { message, protected: true }), new Promise((ok) => setTimeout(ok, ctx.paceMs()))]);
+    const rOff = await call('/ask', 'POST', { message, protected: false });
+    turn.on.result = rOn;
+    turn.off.result = rOff;
+    turn.id = rOn.id;
+    for (const st of [1, 2, 3, 4]) {
+      turn.on.step = turn.off.step = st;
+      if (st === 3) {
+        applyRows(rOff.rows, true);
+        s.log = rOff.log;
+      }
+      draw();
+      if (st < 4) await new Promise((ok) => setTimeout(ok, ctx.paceMs()));
+    }
+  } catch (err) {
+    turn.on.error = err.message;
+    turn.on.step = turn.off.step = 4;
+    draw();
+  }
+}
+
 async function ask(message) {
+  if (ctx.isCompare?.()) return askBoth(message);
   const turn = { id: `t${Date.now()}`, message, protected: ctx.isProtected(), step: 0 };
   s.turns.unshift(turn);
   open.reveal = turn.id;
@@ -243,13 +279,14 @@ async function ask(message) {
 
 async function decide(id, approve) {
   const turn = s.turns.find((t) => t.id === id);
+  const target = turn.both ? turn.on : turn;
   try {
     const r = await call('/approve', 'POST', { id, approve });
-    turn.decided = r.answer;
+    target.decided = r.answer;
     applyRows(r.rows, false);
     s.log = r.log;
   } catch (err) {
-    turn.decided = err.message;
+    target.decided = err.message;
   }
   draw();
 }

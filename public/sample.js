@@ -112,7 +112,7 @@ function render() {
   const isChat = app.type === 'chat';
   const fmt = ['call', 'batch', 'agent', 'scrape', 'ground'].includes(app.type) ? app.type : null; // the other apps with their own screen
   const custom = isData || isChat || Boolean(fmt); // apps with their own screen, not a day of steps
-  const compare = state.compare && !custom; // these run one way at a time (Ask AI has its own retry button)
+  const compare = state.compare; // every app can run each AI action both ways
   const color = app.brand?.color || '#0f766e';
   const logo = app.brand?.logo ? `<img class="brand-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`;
   const pickerShown = pickerOpen() || closePickerAfterRender;
@@ -150,7 +150,7 @@ function render() {
             <span class="track"><span class="knob"></span></span>
             <span class="l1-label">🛡️ LayerOne <b>${compare ? 'ON & OFF' : state.protected ? 'ON' : 'OFF'}</b></span>
           </label>
-          ${custom ? '' : `<button class="compare-btn ${compare ? 'active' : ''}" id="compareBtn" aria-pressed="${compare}">⇆ Compare</button>`}
+          <button class="compare-btn ${compare ? 'active' : ''}" id="compareBtn" aria-pressed="${compare}" title="Run each AI action with and without LayerOne, side by side">⇆ Compare</button>
           <div class="who"><span class="avatar">${esc(app.person.initials)}</span><span><b>${esc(app.person.name)}</b><small>${esc(app.person.role)}</small></span></div>
         </div>
       </header>
@@ -165,9 +165,10 @@ function render() {
     closePickerAfterRender = false;
     requestAnimationFrame(() => requestAnimationFrame(() => setPicker(false)));
   }
-  if (isChat) mountChatApp({ el: $('#chatRoot'), app, isProtected: () => state.protected });
-  if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, paceMs: () => pacePick(350, 800, 1200), person: app.person });
-  const fmtOpts = { el: $('#fmtRoot'), app, isProtected: () => state.protected, paceMs: () => pacePick(350, 700, 1100) };
+  const isCompare = () => state.compare;
+  if (isChat) mountChatApp({ el: $('#chatRoot'), app, isProtected: () => state.protected, isCompare });
+  if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, isCompare, paceMs: () => pacePick(350, 800, 1200), person: app.person });
+  const fmtOpts = { el: $('#fmtRoot'), app, isProtected: () => state.protected, isCompare, paceMs: () => pacePick(350, 700, 1100) };
   if (fmt === 'call') mountCallApp(fmtOpts);
   if (fmt === 'batch') mountBatchApp(fmtOpts);
   if (fmt === 'agent') mountAgentApp(fmtOpts);

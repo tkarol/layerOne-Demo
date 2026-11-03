@@ -1,7 +1,7 @@
 // "Batch document queue": an AI reviews a whole FOIA release at once. Each record
 // is its own AI request through LayerOne, run a few at a time; the board fills
 // in as they finish. Run it again with LayerOne off to compare the two batches.
-import { esc, mark, runStep, outcome, showTrace } from './fmt-common.js';
+import { esc, mark, runStep, outcome, showTrace, cmpCols } from './fmt-common.js';
 
 const PARALLEL = 4;
 const s = { runs: { on: null, off: null }, running: false, selected: null, showHidden: false };
@@ -37,7 +37,8 @@ function tally(run) {
 
 function draw() {
   if (!ctx?.el?.isConnected) return;
-  const m = mode();
+  const cmp = ctx.isCompare?.();
+  const m = cmp ? 'on' : mode();
   const run = s.runs[m];
   const t = tally(run);
   const n = docs().length;
@@ -46,9 +47,9 @@ function draw() {
   const off = tally(s.runs.off);
   const both = s.runs.on?.finished && s.runs.off?.finished;
   ctx.el.innerHTML = `
-    <div class="fmt-flow ${m === 'on' ? '' : 'off'}">
+    <div class="fmt-flow ${m === 'on' || cmp ? '' : 'off'}">
       <span class="hop">🗂️ ${n} records</span><span class="arr">→</span>
-      <span class="hop l1">${m === 'on' ? '🛡️ LayerOne checks each one' : '⚠️ LayerOne off'}</span><span class="arr">→</span>
+      <span class="hop l1">${cmp ? '⇆ With and without LayerOne' : m === 'on' ? '🛡️ LayerOne checks each one' : '⚠️ LayerOne off'}</span><span class="arr">→</span>
       <span class="hop">✨ AI model, ${PARALLEL} at a time</span><span class="arr">→</span><span class="hop">📋 Release recommendations</span>
     </div>
     <div class="batch-head">
@@ -56,42 +57,49 @@ function draw() {
       <button class="batch-go" id="batchGo" ${s.running ? 'disabled' : ''}>${s.running ? '<span class="spinner small"></span> Reviewing…' : run ? `↻ Review all ${n} again` : `▶ Review all ${n} with AI`}</button>
     </div>
     <div class="batch-progress"><i style="width:${run ? (t.done / n) * 100 : 0}%"></i></div>
-    <div class="batch-tally">
+    ${cmp ? `<div class="batch-tally"><span class="cmp-tag on">🛡️ With LayerOne</span><span class="bt ok"><b>${on.allowed}</b> passed</span><span class="bt clean"><b>${on.clean}</b> cleaned</span><span class="bt stop"><b>${on.stop}</b> blocked</span><span class="bt held"><b>${on.held}</b> held</span></div>
+      <div class="batch-tally"><span class="cmp-tag off">⚠️ Without LayerOne</span><span class="bt bad"><b>${off.bad}</b> problems got through</span><span class="bt ok"><b>${off.done - off.bad}</b> fine</span></div>` : `<div class="batch-tally">
       ${
         m === 'on'
           ? `<span class="bt ok"><b>${t.allowed}</b> passed</span><span class="bt clean"><b>${t.clean}</b> cleaned</span><span class="bt stop"><b>${t.stop}</b> blocked</span><span class="bt held"><b>${t.held}</b> held</span>`
           : `<span class="bt bad"><b>${t.bad}</b> problems got through</span><span class="bt ok"><b>${t.done - t.bad}</b> fine</span>`
       }
       <span class="muted small">${run ? `${t.done} of ${n} reviewed` : `LayerOne is ${m === 'on' ? 'on' : 'off'}`}</span>
-    </div>
+    </div>`}
     ${
       both
         ? `<div class="batch-compare"><div class="bc on"><b>With LayerOne</b><span>${on.stop} blocked · ${on.clean} cleaned · ${on.held} held · <b>0 problems got through</b></span></div><div class="bc off"><b>Without LayerOne</b><span><b>${off.bad} problems got through</b>: personal data sent out, CUI spilled, instructions obeyed, wrong advice used</span></div></div>`
-        : s.runs.on?.finished || s.runs.off?.finished
+        : !cmp && (s.runs.on?.finished || s.runs.off?.finished)
           ? `<p class="batch-hint">Now switch LayerOne <b>${m === 'on' ? 'off' : 'on'}</b> and run the same batch to compare.</p>`
           : ''
     }
-    <div class="batch-grid">${docs().map((d) => drawTile(d, run)).join('')}</div>
-    ${s.selected ? drawDetail(docs().find((d) => d.id === s.selected), run) : '<p class="muted batch-pick">Click any record to see what the AI was sent and what came back.</p>'}`;
+    <div class="batch-grid">${docs().map((d) => drawTile(d, run, cmp)).join('')}</div>
+    ${s.selected ? drawDetail(docs().find((d) => d.id === s.selected), run, cmp) : '<p class="muted batch-pick">Click any record to see what the AI was sent and what came back.</p>'}`;
   wire();
 }
 
-function drawTile(d, run) {
-  const r = run?.results[d.id];
-  const v = r ? (r.error ? { cls: 'bad', badge: 'Error' } : r.trace ? outcome(r.trace, d) : { cls: 'queued', badge: 'Queued' }) : { cls: 'idle', badge: '' };
-  const label = { ok: '✓ Passed', clean: '🛡️ Cleaned', stop: '⛔ Blocked', held: '✋ Held', bad: '⚠️ Problem', wait: '…', queued: 'Queued', idle: '' }[v.cls] || v.badge;
+// Chip color follows the outcome, not the side.
+const tone = (cls) => (cls === 'bad' ? 'bad' : ['stop', 'held', 'clean'].includes(cls) ? 'caught' : cls === 'ok' ? 'good' : '');
+const LABEL = { ok: '✓ Passed', clean: '🛡️ Cleaned', stop: '⛔ Blocked', held: '✋ Held', bad: '⚠️ Problem', wait: '…', queued: 'Queued', idle: '' };
+const tileVerdict = (d, r) => (r ? (r.error ? { cls: 'bad', badge: 'Error' } : r.trace ? outcome(r.trace, d) : { cls: 'queued', badge: 'Queued' }) : { cls: 'idle', badge: '' });
+
+function drawTile(d, run, cmp) {
+  const v = tileVerdict(d, run?.results[d.id]);
+  const label = LABEL[v.cls] ?? v.badge;
+  // Compare: the tile's color follows what LayerOne did; underneath, both outcomes in a few words.
+  const vOff = cmp ? tileVerdict(d, s.runs.off?.results[d.id]) : null;
+  const st = cmp
+    ? `<span class="chip2"><span class="${tone(v.cls)}">🛡️ ${v.cls === 'wait' ? '…' : esc(label || '·')}</span><span class="${tone(vOff.cls)}">⚠️ ${vOff.cls === 'wait' ? '…' : esc(LABEL[vOff.cls] ?? vOff.badge) || '·'}</span></span>`
+    : `<span class="bt-st">${v.cls === 'wait' ? '<span class="spinner small"></span>' : esc(label)}</span>`;
   return `<button class="btile t-${v.cls} ${s.selected === d.id ? 'sel' : ''}" data-doc="${esc(d.id)}">
     <span class="bt-ic">${KIND_ICON(d.screen.meta)}</span>
     <span class="bt-name">${esc(d.screen.title)}</span>
     <span class="bt-kind">${esc(d.screen.meta)}</span>
-    <span class="bt-st">${v.cls === 'wait' ? '<span class="spinner small"></span>' : esc(label)}</span>
+    ${st}
   </button>`;
 }
 
-function drawDetail(d, run) {
-  const r = run?.results[d.id];
-  const tr = r?.trace;
-  const v = r?.error ? { cls: 'bad', badge: 'Error', text: r.error } : tr ? outcome(tr, d) : null;
+function drawDetail(d, run, cmp) {
   const sc = d.screen;
   return `<div class="batch-detail">
     <div class="bd-doc">
@@ -100,7 +108,16 @@ function drawDetail(d, run) {
       ${sc.hidden ? `<button class="reveal" id="bdReveal">${s.showHidden ? '🙈 Hide' : '👁 Reveal'} hidden text</button>` : ''}
     </div>
     <div class="bd-result">
-      ${
+      ${cmp ? cmpCols(resultHtml(d, run?.results[d.id]), resultHtml(d, s.runs.off?.results[d.id])) : resultHtml(d, run?.results[d.id])}
+    </div>
+  </div>`;
+}
+
+// What happened to one record in one run.
+function resultHtml(d, r) {
+  const tr = r?.trace;
+  const v = r?.error ? { cls: 'bad', badge: 'Error', text: r.error } : tr ? outcome(tr, d) : null;
+  return `${
         !v
           ? '<p class="muted">Not reviewed yet in this mode.</p>'
           : `<div class="bd-verdict v-${v.cls}"><span class="ac-badge">${v.badge}</span><span>${esc(v.text)}</span></div>
@@ -110,9 +127,7 @@ function drawDetail(d, run) {
              ${v.cls === 'held' ? '<p class="ac-none">Held for a person to review; not added to the release package.</p>' : ''}
              ${v.cls === 'stop' ? '<p class="ac-none">Not sent to the AI. Flagged for a person to review.</p>' : ''}
              ${tr?.id ? `<a href="#" class="muted small" data-trace="${esc(tr.id)}">See what LayerOne did →</a>` : ''}`
-      }
-    </div>
-  </div>`;
+      }`;
 }
 
 function wire() {
@@ -135,33 +150,37 @@ function wire() {
 
 async function runBatch() {
   if (s.running) return;
-  const m = mode();
-  const prot = m === 'on';
-  const run = { results: {}, finished: false };
-  s.runs[m] = run;
   s.running = true;
   draw();
-  const queue = [...docs()];
   let redraw = 0;
   const later = () => {
     if (!redraw) redraw = requestAnimationFrame(() => ((redraw = 0), draw()));
   };
-  for (const d of queue) run.results[d.id] = {};
-  const worker = async () => {
-    for (let d = queue.shift(); d; d = queue.shift()) {
-      const r = run.results[d.id];
-      r.trace = { status: 'running' };
-      later();
-      try {
-        await runStep(ctx.app.id, d.id, prot, (tr) => ((r.trace = tr), later()));
-      } catch (err) {
-        r.error = err.message;
-      }
-      later();
-    }
-  };
-  await Promise.all(Array.from({ length: PARALLEL }, worker));
-  run.finished = true;
+  // Compare runs both batches at once; each has its own queue.
+  const modes = ctx.isCompare?.() ? ['on', 'off'] : [mode()];
+  await Promise.all(
+    modes.map(async (m) => {
+      const run = { results: {}, finished: false };
+      s.runs[m] = run;
+      const queue = [...docs()];
+      for (const d of queue) run.results[d.id] = {};
+      const worker = async () => {
+        for (let d = queue.shift(); d; d = queue.shift()) {
+          const r = run.results[d.id];
+          r.trace = { status: 'running' };
+          later();
+          try {
+            await runStep(ctx.app.id, d.id, m === 'on', (tr) => ((r.trace = tr), later()));
+          } catch (err) {
+            r.error = err.message;
+          }
+          later();
+        }
+      };
+      await Promise.all(Array.from({ length: PARALLEL }, worker));
+      run.finished = true;
+    }),
+  );
   s.running = false;
   draw();
 }

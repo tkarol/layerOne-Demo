@@ -1,7 +1,7 @@
 // "Tool-using agent": an AI agent works the IT help-desk queue on its own. For each
 // ticket it asks the AI model for a plan (through LayerOne), then calls admin
 // tools one by one. When LayerOne blocks or holds the plan, no tool is called.
-import { esc, mark, sleep, runStep, outcome, showTrace } from './fmt-common.js';
+import { esc, mark, sleep, runStep, outcome, showTrace, cmpCols } from './fmt-common.js';
 
 const s = { selected: null, results: { on: {}, off: {} }, busy: false, showHidden: false, run: 0 };
 let ctx; // { el, app, isProtected, paceMs }
@@ -27,6 +27,9 @@ function toolsFor(r, wf) {
   return wf.tools || [];
 }
 
+// Chip color follows the outcome, not the side.
+const chipTone = (cls) => (cls === 'bad' ? 'bad' : ['stop', 'held'].includes(cls) ? 'caught' : cls === 'ok' ? 'good' : '');
+
 function status(r, wf) {
   if (!r) return { cls: 'idle', text: 'Waiting' };
   if (r.error) return { cls: 'bad', text: 'Error' };
@@ -41,14 +44,16 @@ function status(r, wf) {
 
 function draw() {
   if (!ctx?.el?.isConnected) return;
-  const m = mode();
+  const cmp = ctx.isCompare?.();
+  const m = cmp ? 'on' : mode();
   const wf = tickets().find((w) => w.id === s.selected) || tickets()[0];
   const r = s.results[m][wf.id];
+  const rOff = s.results.off[wf.id];
   const sc = wf.screen;
   ctx.el.innerHTML = `
-    <div class="fmt-flow ${m === 'on' ? '' : 'off'}">
+    <div class="fmt-flow ${m === 'on' || cmp ? '' : 'off'}">
       <span class="hop">🎫 Ticket</span><span class="arr">→</span><span class="hop">🤖 Agent</span><span class="arr">→</span>
-      <span class="hop l1">${m === 'on' ? '🛡️ LayerOne checks the plan' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">✨ AI model</span><span class="arr">→</span><span class="hop">🔧 Admin tools</span>
+      <span class="hop l1">${cmp ? '⇆ With and without LayerOne' : m === 'on' ? '🛡️ LayerOne checks the plan' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">✨ AI model</span><span class="arr">→</span><span class="hop">🔧 Admin tools</span>
     </div>
     <div class="agent-app">
       <aside class="agent-queue">
@@ -56,8 +61,12 @@ function draw() {
         <ol>${tickets()
           .map((w) => {
             const st = status(s.results[m][w.id], w);
+            const stOff = status(s.results.off[w.id], w);
+            const line = cmp
+              ? `<span class="chip2"><span class="${chipTone(st.cls)}">🛡️ ${esc(st.text)}</span><span class="${chipTone(stOff.cls)}">⚠️ ${esc(stOff.text)}</span></span>`
+              : `<span class="aq-st s-${st.cls}">${esc(st.text)}</span>`;
             return `<li><button class="aq-item ${w.id === wf.id ? 'active' : ''}" data-ticket="${esc(w.id)}" ${s.busy ? 'disabled' : ''}>
-              <span class="aq-num">${esc(w.screen.number)}</span><b>${esc(w.title)}</b><span class="aq-st s-${st.cls}">${esc(st.text)}</span></button></li>`;
+              <span class="aq-num">${esc(w.screen.number)}</span><b>${esc(w.title)}</b>${line}</button></li>`;
           })
           .join('')}</ol>
         <button class="secondary small" id="agentAll" ${s.busy ? 'disabled' : ''}>▶ Work the whole queue</button>
@@ -72,9 +81,9 @@ function draw() {
         </article>
         <div class="agent-go-row">
           <button class="ai-btn" id="agentGo" ${s.busy ? 'disabled' : ''}>🤖 ${r ? 'Run the agent again' : 'Let the agent work this ticket'}</button>
-          <span class="muted small">LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b></span>
+          <span class="muted small">${cmp ? 'Compare: the same ticket, with and without LayerOne' : `LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b>`}</span>
         </div>
-        ${r ? drawRun(r, wf) : '<p class="muted">The agent reads the ticket, asks the AI model for a plan, then calls tools on its own.</p>'}
+        ${cmp ? (r || rOff ? cmpCols(r ? drawRun(r, wf) : '<p class="muted">…</p>', rOff ? drawRun(rOff, wf) : '<p class="muted">…</p>') : '<p class="muted">Run the agent, and the same ticket is worked twice: with LayerOne and without it.</p>') : r ? drawRun(r, wf) : '<p class="muted">The agent reads the ticket, asks the AI model for a plan, then calls tools on its own.</p>'}
       </section>
     </div>`;
   wire();
@@ -131,34 +140,38 @@ async function work(ids) {
   if (s.busy) return;
   s.busy = true;
   const run = ++s.run;
-  const m = mode();
-  const prot = m === 'on';
+  const modes = ctx.isCompare?.() ? ['on', 'off'] : [mode()];
   for (const id of ids) {
     const wf = tickets().find((w) => w.id === id);
     s.selected = id;
     s.showHidden = Boolean(wf.screen.hidden);
-    const r = { trace: { status: 'running' }, calledCount: 0 };
-    s.results[m][id] = r;
-    draw();
-    try {
-      await runStep(ctx.app.id, id, prot, (tr) => ((r.trace = tr), draw()));
-    } catch (err) {
-      r.error = err.message;
-    }
-    // Then the tools, one at a time.
-    const tools = toolsFor(r, wf);
-    r.calling = tools.length > 0;
-    draw();
-    for (let i = 0; i < tools.length; i++) {
-      await sleep(ctx.paceMs());
-      if (run !== s.run) return;
-      r.calledCount = i + 1;
-      draw();
-    }
-    r.calling = false;
-    draw();
+    await Promise.all(modes.map((m) => workOne(wf, m, run)));
+    if (run !== s.run) return;
     if (ids.length > 1) await sleep(ctx.paceMs() * 1.5);
   }
   s.busy = false;
+  draw();
+}
+
+// Plan through LayerOne (or not), then call the tools one at a time.
+async function workOne(wf, m, run) {
+  const r = { trace: { status: 'running' }, calledCount: 0 };
+  s.results[m][wf.id] = r;
+  draw();
+  try {
+    await runStep(ctx.app.id, wf.id, m === 'on', (tr) => ((r.trace = tr), draw()));
+  } catch (err) {
+    r.error = err.message;
+  }
+  const tools = toolsFor(r, wf);
+  r.calling = tools.length > 0;
+  draw();
+  for (let i = 0; i < tools.length; i++) {
+    await sleep(ctx.paceMs());
+    if (run !== s.run) return;
+    r.calledCount = i + 1;
+    draw();
+  }
+  r.calling = false;
   draw();
 }
