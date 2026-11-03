@@ -484,7 +484,8 @@ details[open] > summary::before { transform: rotate(90deg); }
 .d-title { margin: auto 0; display: grid; gap: 1.8cqw; max-width: 62%; }
 .d-kicker { display: flex; align-items: center; gap: 0.9cqw; text-transform: uppercase; letter-spacing: 0.24em; font-size: 0.82em; color: var(--d-muted); font-weight: 650; }
 .d-dot { width: 0.7cqw; height: 0.7cqw; border-radius: 50%; background: var(--d-acc); box-shadow: 0 0 1.2cqw var(--d-acc); }
-.d-title h1 { margin: -0.1em -0.15em -0.3em -0.06em; padding: 0.1em 0.15em 0.3em 0.06em; width: max-content; font-size: 7.4em; line-height: 0.95; letter-spacing: -0.05em; font-weight: 800; background: linear-gradient(180deg, #fff 30%, #b9b9b9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Solid text, not a background-clipped gradient: clipped gradients cut off descenders and the last letter in some browsers. */
+.d-title h1 { width: max-content; max-width: 100%; font-size: 7.4em; line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; color: #fff; text-shadow: 0 0.04em 0.3em rgb(0 0 0 / 35%); overflow-wrap: normal; }
 .d-lead { margin: 0; font-size: 2em; line-height: 1.22; letter-spacing: -0.015em; color: var(--d-muted); }
 .d-lead span { color: var(--d-text); }
 .d-for { margin-top: 1cqw; font-size: 0.95em; color: var(--d-muted); border-left: 2px solid var(--d-acc); padding-left: 1.2cqw; }

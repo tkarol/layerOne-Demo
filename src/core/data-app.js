@@ -172,10 +172,25 @@ function checkBefore(op) {
   return { decision: 'allowed', check: { name: 'Read-only request', result: 'pass', detail: 'Reading data is allowed.' } };
 }
 
-function filterResults(result) {
+function filterResults(result, op) {
+  // Asking the AI to read the notes ("summarize the notes") feeds them to the AI as
+  // text to act on, so a note that commands the AI is a prompt injection: block it all.
+  const notesOnly = op?.columns && !op.columns.includes('*') && op.columns.includes('notes');
+  const isTainted = (r) => typeof r.notes === 'string' && HIDDEN_INSTRUCTION.test(r.notes);
+  const tainted = notesOnly ? result.filter(isTainted) : [];
+  if (tainted.length) {
+    const who = tainted.map((r) => r.name).filter(Boolean).join(', ');
+    const aim = /\b(email|send|forward)\b/i.test(tainted[0].notes) ? ' telling the AI to send customer data to an outside address' : /\b(delete|drop|wipe|purge)\b/i.test(tainted[0].notes) ? ' telling the AI to delete records' : '';
+    return {
+      blocked: true,
+      rows: [],
+      checks: [{ name: 'Prompt injection', result: 'block', detail: `Prompt injection blocked: ${who ? `${who}'s` : 'a'} customer note contains hidden instructions${aim}. LayerOne stopped the AI from acting on it.` }],
+    };
+  }
   const checks = [];
   let rows = result;
-  if (rows.length > ROW_LIMIT) {
+  // The row cap stops bulk record dumps; a notes summary isn't one.
+  if (rows.length > ROW_LIMIT && !notesOnly) {
     checks.push({ name: 'Row limit', result: 'redact', detail: `The answer listed ${rows.length} records; LayerOne limits AI answers to ${ROW_LIMIT}.` });
     rows = rows.slice(0, ROW_LIMIT);
   }
@@ -184,17 +199,19 @@ function filterResults(result) {
     rows = rows.map((r) => ({ ...r, ...Object.fromEntries(SENSITIVE.filter((c) => r[c]).map((c) => [c, `***-**-${String(r[c]).slice(-4)}`])) }));
     checks.push({ name: 'Column masking', result: 'redact', detail: 'Social Security numbers were masked before the answer reached you.' });
   }
-  const tainted = rows.filter((r) => typeof r.notes === 'string' && HIDDEN_INSTRUCTION.test(r.notes));
-  if (tainted.length) {
-    rows = rows.map((r) => (tainted.includes(r) ? { ...r, notes: '[Removed by LayerOne: hidden instructions to the AI]' } : r));
-    checks.push({ name: 'Hidden instructions in data', result: 'redact', detail: `${tainted.length} record${tainted.length > 1 ? 's contain' : ' contains'} hidden instructions aimed at the AI; LayerOne removed them from the answer.` });
+  // Other reads (an export, say) just have the offending note removed from the answer.
+  const stripped = rows.filter(isTainted);
+  if (stripped.length) {
+    rows = rows.map((r) => (stripped.includes(r) ? { ...r, notes: '[Removed by LayerOne: hidden instructions to the AI]' } : r));
+    checks.push({ name: 'Hidden instructions in data', result: 'redact', detail: `${stripped.length} record${stripped.length > 1 ? 's contain' : ' contains'} hidden instructions aimed at the AI; LayerOne removed them from the answer.` });
   }
   if (!checks.length) checks.push({ name: 'Sensitive data', result: 'pass', detail: 'No sensitive data in the answer.' });
   return { rows, checks };
 }
 
 // ----- the stand-in AI agent's reply -----
-function answerFor(op, { result, affected, protectedRun, decision }) {
+function answerFor(op, { result, affected, protectedRun, decision, stage }) {
+  if (decision === 'blocked' && stage === 'answer') return 'LayerOne blocked this. One of the customer notes is a prompt injection: hidden instructions written to the AI instead of to people. The AI did not act on them, nothing was sent, and no notes were returned.';
   if (decision === 'blocked') return 'LayerOne blocked this request before it reached the AI, so nothing in the database changed.';
   if (decision === 'approval') return 'LayerOne is holding this request until a person approves it. Nothing has changed yet.';
   if (op.type === 'count') {
@@ -293,14 +310,15 @@ export async function handleDataApi(request, { storage, pathname, method, readJs
         await addLog(storage, { source, action: op.sql, outcome: 'waiting for approval' });
       } else {
         const ran = execute(op, rows);
-        const filtered = filterResults(ran.result);
+        const filtered = filterResults(ran.result, op);
         out.layerone.checks.push(...filtered.checks);
-        if (filtered.checks.some((c) => c.result === 'redact')) out.layerone.decision = 'filtered';
+        if (filtered.blocked) Object.assign(out.layerone, { decision: 'blocked', stage: 'answer' });
+        else if (filtered.checks.some((c) => c.result === 'redact')) out.layerone.decision = 'filtered';
         out.db = { executed: true, rowsReturned: ran.result.length };
         out.results = filtered.rows;
-        await addLog(storage, { source, action: op.sql, outcome: out.layerone.decision === 'filtered' ? 'allowed, results filtered' : 'allowed' });
+        await addLog(storage, { source, action: op.sql, outcome: filtered.blocked ? 'blocked by LayerOne (prompt injection)' : out.layerone.decision === 'filtered' ? 'allowed, results filtered' : 'allowed' });
       }
-      out.answer = answerFor(op, { result: out.results || [], decision: out.layerone.decision, protectedRun: true });
+      out.answer = answerFor(op, { result: out.results || [], decision: out.layerone.decision, stage: out.layerone.stage, protectedRun: true });
     } else {
       const ran = execute(op, rows);
       rows = ran.rows;

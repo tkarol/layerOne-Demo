@@ -192,12 +192,13 @@ function turnBody(t) {
     `<li class="st ${step > i ? cls : step === i ? 'active' : ''}"><span class="st-icon">${icon}</span><span><b>${title}</b><small>${step >= i ? caption : '…'}</small></span></li>`;
   // LayerOne checks the request on the way in (block or hold it) and the answer on the way out (filter it).
   const decision = l1?.decision;
-  const stopped = prot && (decision === 'blocked' || decision === 'approval');
-  const inStep = !prot ? ['skipped', 'Off'] : !l1 ? ['', '…'] : decision === 'blocked' ? ['blocked', 'Blocked'] : decision === 'approval' ? ['warn', 'Needs approval'] : ['done', 'Request OK'];
+  const outBlocked = prot && decision === 'blocked' && l1?.stage === 'answer'; // stopped on the way back (prompt injection in the data)
+  const stopped = prot && !outBlocked && (decision === 'blocked' || decision === 'approval');
+  const inStep = !prot ? ['skipped', 'Off'] : !l1 ? ['', '…'] : outBlocked ? ['done', 'Request OK'] : decision === 'blocked' ? ['blocked', 'Blocked'] : decision === 'approval' ? ['warn', 'Needs approval'] : ['done', 'Request OK'];
   const aiStep = !r ? ['', 'Thinking'] : stopped ? ['skipped', 'Not reached'] : ['done', 'Wrote a query'];
   const write = r?.toolCall.kind !== 'read';
   const dbStep = !db ? ['', '…'] : db.executed ? [write && !prot ? 'blocked' : 'done', write ? `${db.affected ?? 0} changed` : `${db.rowsReturned} row${db.rowsReturned === 1 ? '' : 's'}`] : ['skipped', 'Not touched'];
-  const outStep = !prot ? ['skipped', 'Off'] : stopped ? ['skipped', '—'] : decision === 'filtered' ? ['warn', 'Filtered'] : ['done', 'Answer OK'];
+  const outStep = !prot ? ['skipped', 'Off'] : stopped ? ['skipped', '—'] : outBlocked ? ['blocked', 'Blocked'] : decision === 'filtered' ? ['warn', 'Filtered'] : ['done', 'Answer OK'];
   // One plain sentence on what LayerOne did, once that step is shown.
   const acted = l1?.checks.find((c) => c.result !== 'pass');
   const noteAt = stopped ? 1 : 4;
