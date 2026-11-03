@@ -59,7 +59,14 @@ function draw() {
       <span class="hop l1">${cmp ? '⇆ With and without LayerOne' : m === 'on' ? '🛡️ LayerOne' : '⚠️ LayerOne off'}</span><span class="arr">→</span><span class="hop">✨ AI extracts a record</span><span class="arr">→</span><span class="hop">🗄️ Vendor database</span>
     </div>
     <div class="sc-top">
-      <button class="batch-go" id="crawlGo" ${s.running ? 'disabled' : ''}>${s.running ? `<span class="spinner small"></span> Crawling… ${done}/${pages().length}` : run ? '↻ Crawl again' : `▶ Crawl ${pages().length} pages`}</button>
+      ${(() => {
+        // Mid-crawl: continue page by page, or read the rest. Done (or not started): start over.
+        const midway = run && !run.finished && done > 0;
+        const n = pages().length;
+        if (s.running) return `<button class="batch-go" disabled><span class="spinner small"></span> Reading page ${Math.min(done + 1, n)} of ${n}…</button>`;
+        return `<button class="batch-go" id="crawlNext">▶ ${midway ? `Next page (${done + 1} of ${n})` : 'Crawl one page'}</button>
+          <button class="secondary" id="crawlGo">${midway ? `Crawl the other ${n - done}` : run?.finished ? `↻ Crawl all ${n} again` : `Crawl all ${n}`}</button>`;
+      })()}
       <span class="muted small">Every page on the web is untrusted. ${cmp ? 'Compare: each page is read with and without LayerOne.' : `LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b>.${run?.finished && !s.runs[m === 'on' ? 'off' : 'on'] ? ` Switch it ${m === 'on' ? 'off' : 'on'} and crawl again to compare.` : ''}`}</span>
     </div>
     <div class="sc-app">
@@ -160,6 +167,7 @@ function drawSearch(rows, m) {
 function wire() {
   const el = ctx.el;
   el.querySelector('#crawlGo')?.addEventListener('click', crawl);
+  el.querySelector('#crawlNext')?.addEventListener('click', crawlNext);
   el.querySelectorAll('[data-page]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -175,30 +183,57 @@ function wire() {
   el.querySelectorAll('[data-trace]').forEach((a) => (a.onclick = (e) => (e.preventDefault(), showTrace(a.dataset.trace))));
 }
 
-// One page at a time, so the browser view follows the crawler (both ways at once in Compare).
+// The crawler reads one page at a time, so the browser view follows it (both ways at once in Compare).
+// "Next page" reads just the next one; "Crawl all" reads the rest.
+const crawlModes = () => (ctx.isCompare?.() ? ['on', 'off'] : [mode()]);
+const runFor = (m) => s.runs[m];
+const nextIndex = () => {
+  const run = runFor(crawlModes()[0]);
+  return run && !run.finished ? pages().findIndex((w) => !run.results[w.id]) : 0;
+};
+
+function startIfNeeded() {
+  const modes = crawlModes();
+  const run = runFor(modes[0]);
+  if (!run || run.finished || modes.some((m) => !runFor(m))) for (const m of modes) s.runs[m] = { results: {}, finished: false };
+}
+
+async function crawlPage(wf) {
+  const modes = crawlModes();
+  s.current = wf.id;
+  s.showHidden = Boolean(wf.screen.hidden);
+  await Promise.all(
+    modes.map(async (m) => {
+      const r = (s.runs[m].results[wf.id] = { trace: { status: 'running' } });
+      draw();
+      try {
+        await runStep(ctx.app.id, wf.id, m === 'on', (tr) => ((r.trace = tr), draw()));
+      } catch (err) {
+        r.error = err.message;
+      }
+    }),
+  );
+  if (pages().every((w) => s.runs[modes[0]].results[w.id])) for (const m of modes) s.runs[m].finished = true;
+  draw();
+}
+
+async function crawlNext() {
+  if (s.running) return;
+  startIfNeeded();
+  s.running = true;
+  await crawlPage(pages()[nextIndex()]);
+  s.running = false;
+  draw();
+}
+
 async function crawl() {
   if (s.running) return;
-  const modes = ctx.isCompare?.() ? ['on', 'off'] : [mode()];
-  for (const m of modes) s.runs[m] = { results: {}, finished: false };
+  startIfNeeded();
   s.running = true;
-  for (const wf of pages()) {
-    s.current = wf.id;
-    s.showHidden = Boolean(wf.screen.hidden);
-    await Promise.all(
-      modes.map(async (m) => {
-        const r = (s.runs[m].results[wf.id] = { trace: { status: 'running' } });
-        draw();
-        try {
-          await runStep(ctx.app.id, wf.id, m === 'on', (tr) => ((r.trace = tr), draw()));
-        } catch (err) {
-          r.error = err.message;
-        }
-      }),
-    );
-    draw();
-    await sleep(ctx.paceMs());
+  for (let i = nextIndex(); i >= 0 && i < pages().length && !runFor(crawlModes()[0]).finished; i = nextIndex()) {
+    await crawlPage(pages()[i]);
+    if (!runFor(crawlModes()[0]).finished) await sleep(ctx.paceMs());
   }
-  for (const m of modes) s.runs[m].finished = true;
   s.running = false;
   draw();
 }

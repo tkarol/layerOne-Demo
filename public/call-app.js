@@ -141,7 +141,7 @@ async function play() {
   if (!s.started) s.started = Date.now();
   const tick = setInterval(() => (s.playing && run === s.run ? ctx.el.querySelector('.call-state') && (ctx.el.querySelector('.call-state').innerHTML = `<i></i>Live · ${clock()}`) : clearInterval(tick)), 1000);
   const script = ctx.app.script || [];
-  const wordMs = Math.max(35, ctx.paceMs() / 12);
+  const wordMs = Math.max(70, ctx.paceMs() / 6); // close to speaking pace
   while (s.playing && run === s.run && s.shown.length < script.length) {
     const line = { ...script[s.shown.length], words: 0, typing: true };
     s.shown.push(line);

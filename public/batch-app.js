@@ -3,7 +3,7 @@
 // in as they finish. Run it again with LayerOne off to compare the two batches.
 import { esc, mark, runStep, outcome, showTrace, cmpCols } from './fmt-common.js';
 
-const PARALLEL = 4;
+const PARALLEL = 2;
 const s = { runs: { on: null, off: null }, running: false, selected: null, showHidden: false };
 let ctx; // { el, app, isProtected }
 
@@ -175,6 +175,7 @@ async function runBatch() {
             r.error = err.message;
           }
           later();
+          await new Promise((ok) => setTimeout(ok, ctx.paceMs() / 2)); // a beat between records, so the board fills in visibly
         }
       };
       await Promise.all(Array.from({ length: PARALLEL }, worker));

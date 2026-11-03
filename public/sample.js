@@ -167,8 +167,8 @@ function render() {
   }
   const isCompare = () => state.compare;
   if (isChat) mountChatApp({ el: $('#chatRoot'), app, isProtected: () => state.protected, isCompare });
-  if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, isCompare, paceMs: () => pacePick(350, 800, 1200), person: app.person });
-  const fmtOpts = { el: $('#fmtRoot'), app, isProtected: () => state.protected, isCompare, paceMs: () => pacePick(350, 700, 1100) };
+  if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, isCompare, paceMs: () => pacePick(700, 1500, 2300), person: app.person });
+  const fmtOpts = { el: $('#fmtRoot'), app, isProtected: () => state.protected, isCompare, paceMs: () => pacePick(800, 1600, 2400) };
   if (fmt === 'call') mountCallApp(fmtOpts);
   if (fmt === 'batch') mountBatchApp(fmtOpts);
   if (fmt === 'agent') mountAgentApp(fmtOpts);
