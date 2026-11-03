@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Standalone page, reachable only at /oracle-erp. Nothing links here; keep it out of search. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Oracle Cloud ERP · State &amp; Local Government</title>
+    <meta name="description" content="Oracle Cloud ERP for state and local government: a short pitch deck and an architecture view." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000000'/%3E%3Ctext x='16' y='21' font-family='Arial' font-weight='700' font-size='11' fill='%23f0796a' text-anchor='middle'%3EERP%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/oracle-erp.css" />
+  </head>
+  <body class="rv-page erp-page">
+    <header class="topbar rv-topbar">
+      <div class="brand">
+        <h1>Oracle Cloud ERP<small>State &amp; local government</small></h1>
+      </div>
+      <nav class="view-tabs" role="tablist" aria-label="View">
+        <button role="tab" data-view="overview">Overview</button>
+        <button role="tab" data-view="architecture">Architecture</button>
+      </nav>
+      <div class="top-right">
+        <button id="themeToggle" class="icon-btn" title="Toggle light/dark" aria-label="Toggle light/dark theme">◐</button>
+      </div>
+    </header>
+
+    <main class="deck-page rv erp" id="erpOverview"><div id="erpDeck"></div></main>
+    <main class="page rv erp rv-arch" id="erpArch" hidden><div id="erpArchRoot"></div></main>
+
+    <script src="/oracle-erp.js" type="module"></script>
+  </body>
+</html>

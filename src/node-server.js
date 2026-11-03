@@ -32,7 +32,9 @@ function loadEnvFile(file) {
 }
 
 function serveStatic(pathname, res) {
-  const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
+  let rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+|\/+$/g, '');
+  // Like Cloudflare's asset handling: /oracle-erp serves oracle-erp.html.
+  if (!path.extname(rel) && fs.existsSync(path.resolve(PUBLIC_DIR, `${rel}.html`))) rel = `${rel}.html`;
   const file = path.resolve(PUBLIC_DIR, rel);
   if (!file.startsWith(PUBLIC_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
