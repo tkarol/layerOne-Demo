@@ -40,6 +40,8 @@ The demo shell (header, tabs, buttons, Settings) uses a monochrome Booz Allen lo
 
 Every push to that branch redeploys automatically. Cloudflare creates the storage (a Durable Object) on the first deploy; there's nothing to set up.
 
+**A push didn't deploy?** In the Worker's **Deployments** (or **Builds**) list, look for a build of the newest commit. **Retry build** re-runs the build of the commit Cloudflare last saw, so it won't pick up a push Cloudflare missed. Push another commit to the branch (or run `npx wrangler deploy` from the repo), and check **Settings → Build** that the branch is the one you push to.
+
 If you already have a **Pages** project for this repo, you can delete it once the Worker is up. The Worker URL replaces it.
 
 ### Connect to LayerOne
