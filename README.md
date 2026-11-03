@@ -410,7 +410,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `public/ranger.html`, `public/ranger.js` | The separate Vellox Ranger page: deck and architecture explainer |
 | `public/navigator.html`, `public/navigator.js` | The separate Vellox Navigator page: deck and architecture explainer |
 | `public/tailor.js` | The optional **Tailor** form for the Reverser, Ranger and Navigator pages |
-| `public/oracle-erp.html`, `public/oracle-erp.js`, `public/oracle-erp.css` | A standalone, unlinked proof-of-concept page at **/oracle-erp** (Oracle Fusion Cloud ERP for state and local government: a 6-slide deck and an architecture view). Unrelated to the Vellox pages: no product switch, no Booz Allen branding, `noindex` |
+| `public/oracle-erp.html`, `public/oracle-erp.js`, `public/oracle-erp.css` | A standalone, unlinked proof-of-concept page at **/oracle-erp** (Oracle Fusion Cloud ERP for state and local government: a 6-slide deck, and an architecture view with click-to-explain parts and three step-by-step walkthroughs: a purchase, a federal grant and a tax payment). Unrelated to the Vellox pages: no product switch, no Booz Allen branding, `noindex` |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |

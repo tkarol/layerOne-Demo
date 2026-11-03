@@ -226,72 +226,267 @@ const SLIDES = [
 ];
 
 // ---------- architecture ----------
+// Who uses it → the ERP (the budget-to-report cycle on one foundation, on Oracle's
+// cloud) ↔ Oracle Integration ↔ the systems agencies keep, with reporting below.
+// "Follow a transaction" lights up one real-world path through it, step by step.
+const PEOPLE = [
+  ['finance', 'users', 'Finance & budget office', 'Accounting, budgets, the close'],
+  ['dept', 'building', 'Department staff', 'Requests, approvals, budget checks'],
+  ['supplier', 'cart', 'Suppliers', 'Supplier portal: bids, invoices, payments'],
+  ['audit', 'search', 'Auditors & the public', 'Read-only reports, open data'],
+];
+const CYCLE = [
+  ['plan', 'chart', 'Plan & budget', 'Budget development · position budgeting'],
+  ['proc', 'cart', 'Procure', 'Requisitions · sourcing · contracts'],
+  ['pay', 'file', 'Pay', 'Invoices · matching · payments'],
+  ['gl', 'ledger', 'Account', 'General ledger by fund · the close'],
+  ['rep', 'search', 'Report', 'Budget vs. actual · ACFR data'],
+];
+const ALONGSIDE = [
+  ['grants', 'landmark', 'Grants & projects'],
+  ['assets', 'building', 'Assets'],
+  ['bc', 'shield', 'Budgetary control'],
+];
+const EXT = [
+  ['tax', 'landmark', 'Tax & revenue'],
+  ['util', 'zap', 'Utility billing'],
+  ['permit', 'file', 'Permits & licensing'],
+  ['payroll', 'users', 'HR & payroll'],
+  ['bank', 'db', 'Banks & treasury'],
+  ['portal', 'globe', 'State & federal portals'],
+];
+const OUTPUTS = ['Budget vs. actual dashboards', 'Data for the ACFR', 'Grant & single-audit reports', 'Open data portal'];
+
 const PARTS = {
-  users: ['Who uses it', 'Finance and budget staff do the accounting; department staff request purchases and check their budgets; suppliers use the supplier portal; auditors get read access.'],
-  fin: ['Financials', 'The general ledger, payables, receivables and cash management, with funds, departments and programs built into the chart of accounts.'],
-  epm: ['Planning & budgeting', 'Budget development, position (workforce) budgeting and forecasts. The adopted budget becomes the control budget the ledger checks against.'],
-  proc: ['Procurement', 'Requisitions, purchase orders, sourcing events, contracts and a supplier portal, all checked against the budget.'],
-  grants: ['Grants & projects', 'Federal and state awards, capital projects and the costs charged to them, for grant reporting and single audits.'],
-  assets: ['Assets', 'Capital assets and depreciation, for infrastructure, vehicles and buildings.'],
-  core: ['Shared foundation', 'One set of data, role-based security, approval workflows and an audit trail shared by every module. Budgetary control checks requisitions, purchase orders and invoices against available funds.'],
-  oci: ['Oracle Cloud', 'Oracle runs the software as a service on its own cloud infrastructure and ships updates every quarter. Confirm current compliance authorizations with Oracle.'],
-  int: ['Oracle Integration', 'Connects the ERP to the systems that stay: tax and revenue, utility billing, permitting, payroll, banks and state or federal portals, with prebuilt adapters and APIs.'],
-  ext: ['Systems that stay', 'Most governments keep specialized systems for revenue, utilities or permits. They post to the ERP through integrations instead of re-keying.'],
-  rep: ['Reporting & analytics', 'Built-in reports and dashboards, and an analytics layer for deeper analysis: budget vs. actual, data for the annual financial report (ACFR), and open data for transparency portals.'],
+  finance: ['Finance & budget office', 'Accountants, budget analysts and the controller: they run the ledger, manage budgets and close the books.'],
+  dept: ['Department staff', 'Public Works, Parks, Police and every other department: they request purchases, approve them and check their own budgets.'],
+  supplier: ['Suppliers', 'Vendors use a supplier portal to respond to bids, submit invoices and check payment status, instead of calling the finance office.'],
+  audit: ['Auditors & the public', 'External auditors get read-only access to reports and the audit trail; residents see published spending data.'],
+  plan: ['Plan & budget', 'Budget development, position (workforce) budgeting and forecasts. The adopted budget becomes the control budget everything else is checked against.'],
+  proc: ['Procure', 'Requisitions, sourcing events, contracts and purchase orders, each checked against the budget before it is approved.'],
+  pay: ['Pay', 'Supplier invoices are matched to the purchase order and the receipt, then scheduled for payment.'],
+  gl: ['Account', 'The general ledger, with funds, departments and programs built into the chart of accounts, so every transaction lands in the right fund.'],
+  rep: ['Report', 'Budget vs. actual, financial statements and the data behind the annual financial report (ACFR).'],
+  grants: ['Grants & projects', 'Federal and state awards and capital projects, with their own budgets and rules, and the costs charged to them.'],
+  assets: ['Assets', 'Capital assets and depreciation: roads, vehicles, buildings and equipment.'],
+  bc: ['Budgetary control', 'Checks requisitions, purchase orders and invoices against available funds before they go through, and encumbers the money when a PO is issued.'],
+  found: ['Shared foundation', 'One set of data, role-based security, approval workflows and an audit trail shared by every module, plus AI assistance built into the applications.'],
+  oci: ['Oracle Cloud Infrastructure', 'Oracle runs the software as a service on its own cloud and ships updates every quarter. Confirm current compliance authorizations with Oracle.'],
+  oic: ['Oracle Integration', 'The connection point for systems that stay: prebuilt adapters and APIs move data in and out on a schedule or in real time, instead of re-keying.'],
+  tax: ['Tax & revenue', 'Property, sales and other tax systems usually stay; collections post to the ledger through integration.'],
+  util: ['Utility billing', 'Water and utility billing systems post billed and collected amounts to the right enterprise funds.'],
+  permit: ['Permits & licensing', 'Fees collected for permits and licenses flow to the ledger with the right fund and department.'],
+  payroll: ['HR & payroll', 'Payroll can be Oracle’s own HR and payroll, or an existing system that posts payroll costs by fund and position.'],
+  bank: ['Banks & treasury', 'Payment files go to the bank, and bank statements come back for automatic reconciliation.'],
+  portal: ['State & federal portals', 'Grant award information comes in; draw-down requests and required reports go out to the funding agency’s systems.'],
+  an: ['Reporting & analytics', 'Built-in reports and dashboards, and an analytics layer for deeper analysis across modules.'],
 };
+
+// Real-world paths through the system, told one step at a time.
+const SCENARIOS = {
+  purchase: {
+    label: 'A purchase',
+    icon: 'cart',
+    steps: [
+      ['dept', 'Public Works requests a $48,000 pothole repair contract.'],
+      ['proc', 'The request becomes a requisition in Procurement.'],
+      ['bc', 'Budgetary control checks Fund 220 (Streets & Roads): funds available. The $48,000 is encumbered when the PO is issued.'],
+      ['supplier', 'The contractor does the work and submits the invoice through the supplier portal.'],
+      ['pay', 'The invoice is matched to the PO and the receipt, then paid.'],
+      ['bank', 'The payment goes to the bank through Oracle Integration.'],
+      ['gl', 'The expense posts to the ledger in Fund 220, and the encumbrance is released.'],
+      ['rep', 'Budget vs. actual for Streets & Roads is current the same day.'],
+    ],
+  },
+  grant: {
+    label: 'A federal grant',
+    icon: 'landmark',
+    steps: [
+      ['portal', 'A federal award for a bridge project arrives from the funding agency.'],
+      ['grants', 'The award is set up with its own budget, dates and allowable costs.'],
+      ['dept', 'Engineering staff charge contractor costs and their time to the project.'],
+      ['bc', 'Each charge is checked against the grant’s budget, not just the department’s.'],
+      ['gl', 'Costs post to the ledger with the grant and fund attached.'],
+      ['grants', 'Draw-down requests and progress reports are prepared from the same records.'],
+      ['portal', 'They’re sent to the funding agency’s system.'],
+      ['audit', 'At the single audit, every dollar traces from award to expense.'],
+    ],
+  },
+  revenue: {
+    label: 'A tax payment',
+    icon: 'landmark',
+    steps: [
+      ['tax', 'Residents pay property taxes; the county’s tax system stays as it is.'],
+      ['oic', 'Each day’s collections are sent to the ERP through Oracle Integration.'],
+      ['gl', 'Revenue posts to the right funds: general fund, schools, debt service.'],
+      ['bank', 'The bank statement comes back and is reconciled automatically.'],
+      ['rep', 'Revenue vs. forecast is visible to the finance office the next morning.'],
+      ['plan', 'And it feeds next year’s revenue forecast in budgeting.'],
+    ],
+  },
+};
+const STEP_MS = 4200;
+
 const SOURCES = [
   ['Oracle: Fusion Cloud ERP', 'https://www.oracle.com/erp/'],
   ['Oracle documentation: Budgetary Control inquiry and reporting', 'https://docs.oracle.com/en/cloud/saas/financials/25c/faups/overview-of-budgetary-control-inquiry-and-reporting.html'],
   ['Oracle: Government and state & local', 'https://www.oracle.com/government/'],
   ['ExecutiveBiz: Oracle Cloud Applications gain FedRAMP Moderate authorization (2020)', 'https://executivebiz.com/2020/02/oracle-cloud-applications-gains-fedramp-moderate-authorization-extending-agency-access-to-erp-hcm-cx-tamara-greenspan-quoted'],
 ];
-const st = { part: 'core' };
+
+const st = { part: 'bc', scen: null, i: 0, playing: false, timer: null };
+let archEl;
+
+const partBtn = (k, ic, t, sub, cls = '') => `<button type="button" class="ea-part ${cls}" data-part="${k}">${icon(ic)}<span><b>${t}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
 
 function drawArch(el) {
-  const on = (k) => (st.part === k ? 'on' : '');
-  const mod = (k, ic, t) => `<button type="button" class="ea-mod ${on(k)}" data-part="${k}">${icon(ic)}<b>${t}</b></button>`;
+  archEl = el;
   el.innerHTML = `
-    <div class="rva-head"><h2>How it fits together</h2><span class="muted">Click any part</span></div>
-    <div class="ea">
-      <button type="button" class="ea-side ea-users ${on('users')}" data-part="users">
-        <span class="ea-side-h">${icon('users')}<b>People</b></span>
-        <span class="ea-chip">Finance &amp; budget office</span><span class="ea-chip">Department staff</span><span class="ea-chip">Suppliers</span><span class="ea-chip">Auditors</span>
-      </button>
-      <div class="ea-flow" aria-hidden="true"><i></i></div>
-
-      <div class="ea-box">
-        <div class="ea-box-h">${icon('layers')}<b>Oracle Fusion Cloud ERP</b></div>
-        <div class="ea-mods">
-          ${mod('fin', 'ledger', 'Financials')}
-          ${mod('epm', 'chart', 'Planning &amp; budgeting')}
-          ${mod('proc', 'cart', 'Procurement')}
-          ${mod('grants', 'landmark', 'Grants &amp; projects')}
-          ${mod('assets', 'building', 'Assets')}
-        </div>
-        <button type="button" class="ea-core ${on('core')}" data-part="core">
-          <b>Shared foundation</b>
-          <span>One set of data · role-based security · approval workflow · audit trail · budgetary control</span>
-        </button>
-        <button type="button" class="ea-oci ${on('oci')}" data-part="oci"><b>Oracle Cloud Infrastructure</b> · software as a service · quarterly updates</button>
-      </div>
-
-      <div class="ea-flow both" aria-hidden="true"><i></i></div>
-      <div class="ea-right">
-        <button type="button" class="ea-int ${on('int')}" data-part="int">${icon('route')}<b>Oracle Integration</b><small>Adapters &amp; APIs</small></button>
-        <button type="button" class="ea-side ea-ext ${on('ext')}" data-part="ext">
-          <span class="ea-side-h">${icon('db')}<b>Systems that stay</b></span>
-          <span class="ea-chip">Tax &amp; revenue</span><span class="ea-chip">Utility billing</span><span class="ea-chip">Permits &amp; licensing</span><span class="ea-chip">Payroll</span><span class="ea-chip">Banks &amp; treasury</span><span class="ea-chip">State &amp; federal portals</span>
-        </button>
+    <div class="ea2-head">
+      <div><h2>How it fits together</h2><p class="muted">Click any part, or follow a transaction through the system.</p></div>
+      <div class="ea2-modes" role="group" aria-label="Mode">
+        <button type="button" data-scen="">${icon('search')}Explore</button>
+        ${Object.entries(SCENARIOS).map(([k, s]) => `<button type="button" data-scen="${k}">${icon(s.icon)}Follow ${s.label.toLowerCase()}</button>`).join('')}
       </div>
     </div>
-    <button type="button" class="ea-rep ${on('rep')}" data-part="rep">
-      <span class="ea-rep-h">${icon('search')}<b>Reporting &amp; analytics</b></span>
-      <span class="ea-chip">Budget vs. actual</span><span class="ea-chip">Dashboards</span><span class="ea-chip">Data for the ACFR</span><span class="ea-chip">Grant reports</span><span class="ea-chip">Open data portal</span>
-    </button>
-    <p class="rva-tip"><b>${esc(PARTS[st.part][0])}:</b> ${esc(PARTS[st.part][1])}</p>
+    <div class="ea2-panel" id="ea2Panel" aria-live="polite"></div>
+
+    <div class="ea2">
+      <section class="ea2-col ea2-people">
+        <h3>People</h3>
+        ${PEOPLE.map(([k, ic, t, sub]) => partBtn(k, ic, t, sub, 'ea2-person')).join('')}
+      </section>
+      <div class="ea2-link" aria-hidden="true"><i></i></div>
+
+      <section class="ea2-core">
+        <div class="ea2-box">
+          <div class="ea2-box-h">${icon('layers')}<b>Oracle Fusion Cloud ERP</b></div>
+          <div class="ea2-cycle-h">The financial cycle</div>
+          <div class="ea2-cycle">
+            ${CYCLE.map(([k, ic, t, sub], i) => `${i ? '<span class="ea2-arr" aria-hidden="true"></span>' : ''}${partBtn(k, ic, t, sub, 'ea2-step')}`).join('')}
+            <i class="ea2-coin" aria-hidden="true">$</i>
+          </div>
+          <div class="ea2-along">${ALONGSIDE.map(([k, ic, t]) => partBtn(k, ic, t, '', `ea2-chip ${k === 'bc' ? 'key' : ''}`)).join('')}</div>
+          <button type="button" class="ea-part ea2-found" data-part="found">
+            <b>Shared foundation</b>
+            <span>One set of data</span><span>Role-based security</span><span>Approval workflow</span><span>Audit trail</span><span>Built-in AI</span>
+          </button>
+        </div>
+        <button type="button" class="ea-part ea2-oci" data-part="oci"><b>Oracle Cloud Infrastructure</b> · run by Oracle as a service · updated quarterly</button>
+        <div class="ea2-down" aria-hidden="true"><i></i></div>
+        <div class="ea2-out">
+          ${partBtn('an', 'chart', 'Reporting & analytics', '', 'ea2-an')}
+          <div class="ea2-outs">${OUTPUTS.map((o) => `<span>${o}</span>`).join('')}</div>
+        </div>
+      </section>
+
+      <div class="ea2-link both" aria-hidden="true"><i></i></div>
+      <section class="ea2-col ea2-ext">
+        ${partBtn('oic', 'route', 'Oracle Integration', 'Adapters & APIs', 'ea2-oic')}
+        <h3>Systems that stay</h3>
+        <div class="ea2-bus">${EXT.map(([k, ic, t]) => partBtn(k, ic, t, '', 'ea2-sys')).join('')}</div>
+      </section>
+    </div>
+
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">A simplified view. Module names follow Oracle’s public material; which modules, integrations and compliance authorizations apply depends on the agency and the contract. Confirm scope, licensing and current authorizations (FedRAMP, GovRAMP/StateRAMP, CJIS) with Oracle.</p></details>`;
-  el.querySelectorAll('[data-part]').forEach((b) => (b.onclick = () => ((st.part = b.dataset.part), drawArch(el))));
+      <p class="muted small">A simplified view. Module names follow Oracle’s public material; which modules, integrations and compliance authorizations apply depends on the agency and the contract. The transactions are made-up examples. Confirm scope, licensing and current authorizations (FedRAMP, GovRAMP/StateRAMP, CJIS) with Oracle.</p></details>`;
+
+  el.querySelectorAll('[data-part]').forEach((b) =>
+    (b.onclick = () => {
+      stopScenario();
+      st.part = b.dataset.part;
+      paint();
+    }),
+  );
+  el.querySelectorAll('[data-scen]').forEach((b) => (b.onclick = () => (b.dataset.scen ? startScenario(b.dataset.scen) : (stopScenario(), paint()))));
+  paint();
+}
+
+// Update highlights and the caption without redrawing (keeps the motion smooth).
+function paint() {
+  const el = archEl;
+  if (!el) return;
+  const scen = st.scen && SCENARIOS[st.scen];
+  el.querySelector('.ea2').classList.toggle('playing', !!scen);
+  el.querySelectorAll('[data-scen]').forEach((b) => b.classList.toggle('on', (b.dataset.scen || null) === st.scen));
+  const done = new Set(scen ? scen.steps.slice(0, st.i).map(([k]) => k) : []);
+  const lit = scen ? scen.steps[st.i][0] : st.part;
+  el.querySelectorAll('.ea-part').forEach((b) => {
+    const k = b.dataset.part;
+    b.classList.toggle('lit', k === lit);
+    b.classList.toggle('done', done.has(k) && k !== lit);
+  });
+  const panel = el.querySelector('#ea2Panel');
+  if (!scen) {
+    const [t, d] = PARTS[st.part];
+    panel.innerHTML = `<p class="ea2-tip"><b>${esc(t)}:</b> ${esc(d)}</p>`;
+    return;
+  }
+  const [k, text] = scen.steps[st.i];
+  panel.innerHTML = `
+    <div class="ea2-story">
+      <div class="ea2-story-top">
+        <span class="ea2-step-n">Step ${st.i + 1} of ${scen.steps.length}</span>
+        <span class="ea2-where">${esc(PARTS[k][0])}</span>
+        <span class="ea2-ctrl">
+          <button type="button" data-go="-1" aria-label="Previous step" ${st.i === 0 ? 'disabled' : ''}>‹</button>
+          <button type="button" data-go="play" aria-label="${st.playing ? 'Pause' : 'Play'}">${st.playing ? '❚❚' : '▶'}</button>
+          <button type="button" data-go="1" aria-label="Next step" ${st.i === scen.steps.length - 1 ? 'disabled' : ''}>›</button>
+        </span>
+      </div>
+      <p>${esc(text)}</p>
+      <div class="ea2-dots">${scen.steps.map((_, i) => `<i class="${i < st.i ? 'done' : i === st.i ? 'on' : ''}" ${i === st.i && st.playing ? `style="--ms:${STEP_MS}ms"` : ''}></i>`).join('')}</div>
+    </div>`;
+  panel.querySelectorAll('[data-go]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (b.dataset.go === 'play') {
+          if (st.playing) pause();
+          else {
+            if (st.i === scen.steps.length - 1) st.i = 0;
+            play();
+          }
+          return;
+        }
+        pause();
+        st.i = Math.max(0, Math.min(scen.steps.length - 1, st.i + Number(b.dataset.go)));
+        paint();
+      }),
+  );
+}
+
+function startScenario(key) {
+  stopScenario();
+  st.scen = key;
+  st.i = 0;
+  play();
+}
+function play() {
+  clearTimeout(st.timer);
+  st.playing = true;
+  paint();
+  const tick = () => {
+    const scen = SCENARIOS[st.scen];
+    if (!scen || !st.playing) return;
+    if (st.i >= scen.steps.length - 1) {
+      st.playing = false;
+      paint();
+      return;
+    }
+    st.i++;
+    paint();
+    st.timer = setTimeout(tick, STEP_MS);
+  };
+  st.timer = setTimeout(tick, STEP_MS);
+}
+function pause() {
+  clearTimeout(st.timer);
+  st.playing = false;
+  paint();
+}
+function stopScenario() {
+  clearTimeout(st.timer);
+  Object.assign(st, { scen: null, i: 0, playing: false });
 }
 
 // ---------- page ----------
@@ -299,6 +494,7 @@ function setView(v) {
   const view = v === 'architecture' ? 'architecture' : 'overview';
   $('#erpOverview').hidden = view !== 'overview';
   $('#erpArch').hidden = view !== 'architecture';
+  if (view !== 'architecture' && st.playing) pause();
   document.querySelectorAll('.view-tabs button').forEach((b) => {
     b.classList.toggle('active', b.dataset.view === view);
     b.setAttribute('aria-selected', String(b.dataset.view === view));
