@@ -210,7 +210,7 @@ Each one shows LayerOne from a different angle. Every AI request still goes thro
   * *Do teleworkers get an internet stipend?* invents a $50 benefit and a citation instead of saying the documents don't cover it, so it's **held**.
   * *Can I work from another state for two months?* says a supervisor can approve it (the policy requires the Deputy Director and a duty-station change), so it's **held**.
 
-  For each held answer the screen shows a claim-by-claim check (✓ supported, ✗ contradicted, ✗ no such source) and *what the documents actually say*. With LayerOne off, the same wrong answers reach the employee, with real-looking citations. The claim-by-claim breakdown comes from the Dry-run judge; with a live LayerOne you see its verdict and rationale.
+  A held answer doesn't leave the employee with nothing: they get a reply **limited to what the sources say** (for example *"you can carry over up to 240 hours…"*), or a plain *"the policy doesn't mention an internet stipend; ask your HR office"*. The screen also shows a claim-by-claim check (✓ supported, ✗ contradicted, ✗ no such source). With LayerOne off, the same wrong answers reach the employee, with real-looking citations. The claim-by-claim breakdown comes from the Dry-run judge; with a live LayerOne you see its verdict and rationale.
 
 ### Customer Hub: an AI agent on a real database
 

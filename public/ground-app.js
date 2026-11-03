@@ -99,8 +99,8 @@ function drawResult(wf, r, checked) {
     : '';
   const answerBox = draft != null
     ? `<div class="cbubble b-ai gr-answer ${t.bypass && wf.claims?.some((c) => c.status !== 'supported') ? 'risky' : ''}">${cites(draft, wf, checked)}</div>${t.bypass && wf.right ? '<p class="gr-looks">Looks exactly as authoritative as a correct answer: same tone, real-looking citations.</p>' : ''}`
-    : `<div class="gr-held"><b>✋ Held. The employee doesn’t see this answer.</b>${heldDraft ? '<span>The AI’s draft cited sources that don’t say what it claimed (see the check below).</span>' : ''}</div>`;
-  const right = wf.right && (t.governance?.decision === 'held' || t.bypass) ? `<div class="gr-right"><span>What the documents actually say</span>${cites(wf.right, wf, false)}</div>` : '';
+    : `${safeReply(wf)}${heldDraft ? '<p class="gr-why">✋ The AI’s own answer was held: it cited sources that don’t say what it claimed (see the check below).</p>' : ''}`;
+  const right = wf.right && t.bypass ? `<div class="gr-right"><span>What the documents actually say</span>${cites(wf.right, wf, false)}</div>` : '';
   return `${found}${head}${answerBox}${claimTable}${right}${t.id ? `<a href="#" class="muted small" data-trace="${esc(t.id)}">See what LayerOne did →</a>` : ''}`;
 }
 
@@ -115,11 +115,18 @@ function drawCompare(wf, rOn, rOff, checked) {
     const held = t.governance?.decision === 'held';
     const supported = wf.claims ? wf.claims.filter((c) => c.status === 'supported').length : 0;
     return `<div class="bd-verdict v-${v.cls}"><span class="ac-badge">${v.cls === 'ok' ? '✅ Grounded' : v.badge}</span></div>
-      ${held ? `<div class="gr-held"><b>Held. The employee doesn’t see it.</b>${on && checked && wf.claims ? `<span>${supported} of ${wf.claims.length} claims supported by the sources</span>` : ''}</div>` : `<div class="cbubble b-ai gr-answer ${!on && v.cls === 'bad' ? 'risky' : ''}">${cites(t.output || '', wf, on && checked)}</div>`}
+      ${held ? `${safeReply(wf)}${on && checked && wf.claims ? `<p class="gr-why">✋ The AI’s answer was held: ${supported} of ${wf.claims.length} claims supported by the sources.</p>` : ''}` : `<div class="cbubble b-ai gr-answer ${!on && v.cls === 'bad' ? 'risky' : ''}">${cites(t.output || '', wf, on && checked)}</div>`}
       ${!on && v.list?.length ? `<ul class="ac-issues">${v.list.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}`;
   };
-  const right = wf.right && (rOn?.trace?.governance?.decision === 'held' || rOff?.trace?.bypass) ? `<div class="gr-right"><span>What the documents actually say</span>${cites(wf.right, wf, false)}</div>` : '';
+  const right = '';
   return `<div class="gr-found"><span>Found in the documents:</span>${wf.sources.map((x) => `<span class="cite">${esc(x)}</span>`).join('')}</div>${cmpCols(side(rOn, true), side(rOff, false))}${right}`;
+}
+
+// When LayerOne holds an answer, the employee still gets a reply: only what the
+// retrieved sources say, or a plain "the documents don't cover this". Nothing invented.
+function safeReply(wf) {
+  const text = wf.right || 'I couldn’t confirm an answer to that in the policy documents. Please check with your HR office.';
+  return `<div class="cbubble b-ai gr-answer gr-safe"><span class="gr-safe-h">🛡️ What the employee gets instead: an answer from the sources only</span>${cites(text, wf, false)}</div>`;
 }
 
 function wire() {
