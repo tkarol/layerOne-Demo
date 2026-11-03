@@ -89,15 +89,15 @@ const SLIDES = [
         <div class="rlane slow">
           <div class="rlane-h"><b>Manual reverse engineering</b><small>One expert · one step at a time</small></div>
           <div class="rlane-track">
-            ${STEPS.map((x, i) => `<div class="stn" style="--d:${(0.9 + i * 1.5).toFixed(1)}s"><span>${x}</span></div>`).join('')}
+            ${STEPS.map((x, i) => `<div class="stn" style="--d:${(2.2 + i * 3.27).toFixed(2)}s"><span>${x}</span></div>`).join('')}
             <div class="runner">${icon('bug')}</div>
           </div>
-          <div class="rclock bad">${CLOCK.map((t, i) => `<span style="--d:${(0.9 + i * 1.5).toFixed(1)}s;--e:${(2.15 + i * 1.5).toFixed(2)}s" class="${i === CLOCK.length - 1 ? 'last' : ''}">${t}</span>`).join('')}</div>
+          <div class="rclock bad">${CLOCK.map((t, i) => `<span style="--d:${(2.2 + i * 3.27).toFixed(2)}s;--e:${(4.95 + i * 3.27).toFixed(2)}s" class="${i === CLOCK.length - 1 ? 'last' : ''}">${t}</span>`).join('')}</div>
         </div>
         <div class="rlane fast">
           <div class="rlane-h"><b>Vellox Reverser</b><small>AI agents · all steps in parallel</small></div>
           <div class="rlane-track">
-            ${STEPS.map((x, i) => `<div class="stn" style="--d:${(1.5 + i * 0.06).toFixed(2)}s"><span>${x}</span></div>`).join('')}
+            ${STEPS.map((x, i) => `<div class="stn" style="--d:${(3.3 + i * 0.13).toFixed(2)}s"><span>${x}</span></div>`).join('')}
             ${STEPS.map((_, i) => `<i class="agent" style="--x:${i * 20 + 10}%"></i>`).join('')}
           </div>
           <div class="rclock good"><span>Minutes</span></div>
@@ -386,8 +386,8 @@ document.addEventListener('animationend', (e) => {
       void race.offsetWidth;
       race.classList.add('go');
       race.classList.remove('fade');
-    }, 450);
-  }, 2600);
+    }, 900);
+  }, 5500);
 });
 
 initTheme();
