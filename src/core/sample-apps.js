@@ -13,7 +13,7 @@
 
 import { DATA_APP } from './data-app.js';
 import { CHAT_APP } from './chat-app.js';
-import { CALL_APP, BATCH_APP, AGENT_APP } from './format-apps.js';
+import { CALL_APP, BATCH_APP, AGENT_APP, SCRAPE_APP } from './format-apps.js';
 
 // A long, realistic-looking document for the token-limit workflows.
 function longDocument({ title, pages, sections }) {
@@ -435,6 +435,6 @@ export const SAMPLE_APPS = [
 
 // The interactive database app has its own screen (public/data-app.js) and API (src/core/data-app.js).
 SAMPLE_APPS.unshift(CHAT_APP);
-SAMPLE_APPS.push(CALL_APP, BATCH_APP, AGENT_APP, DATA_APP);
+SAMPLE_APPS.push(CALL_APP, BATCH_APP, AGENT_APP, SCRAPE_APP, DATA_APP);
 
 export const APP_IDS = SAMPLE_APPS.map((a) => a.id);
