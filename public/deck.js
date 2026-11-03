@@ -105,19 +105,21 @@ const SLIDES = [
     id: 'demo',
     title: 'Let’s see it',
     html: () => `
-      <p class="d-sub">Real requests through Layer One. Switch it off to see the difference.</p>
+      <p class="d-sub">Real requests through Layer One. Switch it off to see the difference; every request is in Behind the scenes.</p>
       <div class="d-grid d-2 d-demo">
         ${go('apps:chat', 'chat', 'Ask AI', 'A company AI chat · 5 minutes')}
-        ${go('apps:benefits', 'landmark', 'Government missions', 'Claims, proposals, a public agent, intel')}
+        ${go('apps:benefits', 'landmark', 'A day in the life', 'Claims, proposals, a public agent, intel')}
+        ${go('apps:call', 'users', 'Live call assist', 'AI listening to a call, in real time')}
+        ${go('apps:batch', 'layers', 'Batch document review', '20 FOIA records at once')}
+        ${go('apps:agent', 'zap', 'An AI agent with admin tools', 'It plans, then acts on its own')}
         ${go('apps:data', 'db', 'AI agents and your data', 'An agent that queries a database')}
-        ${go('console', 'search', 'Behind the scenes', 'The request, the checks, the audit record')}
       </div>`,
     talk: {
       key: 'Let them see it catch real problems, then flip it off and see what gets through.',
       points: [
         '<b>Set it up:</b> “Everything you’re about to see is a real request going through Layer One. I’ll also switch it off, so you can see exactly what it’s catching.”',
         '<b>Let them choose</b> the scenario closest to their mission; people lean in when it looks like their own job.',
-        '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program or mission staff, Government missions (pick the one closest to them). Data or agent teams, AI agents and your data. Security or engineering, Behind the scenes, then Connect.',
+        '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program or mission staff, A day in the life (pick the mission closest to them). Contact centers, Live call assist. Records or claims shops, Batch document review. Anyone building agents, the AI agent with admin tools or AI agents and your data. Security or engineering, finish in Behind the scenes, then Connect.',
       ],
       ask: 'Which of these looks most like your day-to-day?',
       next: 'Click a card to start.',

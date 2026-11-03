@@ -13,6 +13,7 @@
 
 import { DATA_APP } from './data-app.js';
 import { CHAT_APP } from './chat-app.js';
+import { CALL_APP, BATCH_APP, AGENT_APP } from './format-apps.js';
 
 // A long, realistic-looking document for the token-limit workflows.
 function longDocument({ title, pages, sections }) {
@@ -100,6 +101,8 @@ export const SAMPLE_APPS = [
   // ---------------------------------------------------------------- benefits claims processing
   {
     id: 'benefits',
+    group: 'day', // shown as one "Day in the life" app with a mission switch
+    mission: 'Claims',
     sector: 'Benefits claims processing',
     org: 'Lakeshore Benefits Office',
     product: 'ClaimsAssist',
@@ -181,6 +184,8 @@ export const SAMPLE_APPS = [
   // ---------------------------------------------------------------- proposal evaluation (acquisition)
   {
     id: 'acquisition',
+    group: 'day', // shown as one "Day in the life" app with a mission switch
+    mission: 'Proposals',
     sector: 'Proposal evaluation',
     org: 'Eastgate Contracting Office',
     product: 'EvalAssist',
@@ -264,6 +269,8 @@ export const SAMPLE_APPS = [
   // ---------------------------------------------------------------- public-facing virtual agent
   {
     id: 'contact',
+    group: 'day', // shown as one "Day in the life" app with a mission switch
+    mission: 'Public agent',
     sector: 'Public virtual agent',
     org: 'Clearwater Taxpayer Services',
     product: 'Ask Clearwater',
@@ -342,6 +349,8 @@ export const SAMPLE_APPS = [
   // ---------------------------------------------------------------- intelligence analysis
   {
     id: 'intel',
+    group: 'day', // shown as one "Day in the life" app with a mission switch
+    mission: 'Intel',
     sector: 'Intelligence analysis',
     org: 'Ridgeline Joint Intelligence Center',
     product: 'Analyst Workbench',
@@ -426,6 +435,6 @@ export const SAMPLE_APPS = [
 
 // The interactive database app has its own screen (public/data-app.js) and API (src/core/data-app.js).
 SAMPLE_APPS.unshift(CHAT_APP);
-SAMPLE_APPS.push(DATA_APP);
+SAMPLE_APPS.push(CALL_APP, BATCH_APP, AGENT_APP, DATA_APP);
 
 export const APP_IDS = SAMPLE_APPS.map((a) => a.id);

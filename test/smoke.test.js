@@ -171,10 +171,11 @@ const fired = (t) => Object.fromEntries((t.governance?.policies || []).filter((p
 test('sample apps are listed without request builders or full documents', async () => {
   const { apps, customer } = await (await fetch(`${base}/api/apps`)).json();
   assert.equal(customer, null);
-  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'acquisition', 'contact', 'intel', 'data']);
-  for (const a of apps.filter((x) => !x.type)) {
+  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'acquisition', 'contact', 'intel', 'call', 'batch', 'agent', 'data']);
+  assert.deepEqual(apps.filter((a) => a.group === 'day').map((a) => a.mission), ['Claims', 'Proposals', 'Public agent', 'Intel']);
+  for (const a of apps.filter((x) => !x.type || ['call', 'batch', 'agent'].includes(x.type))) {
     assert.equal(a.workflows[0].mock, undefined, 'stand-in answers stay on the server');
-    assert.equal(a.workflows.length, 4);
+    if (!a.type) assert.equal(a.workflows.length, 4);
     assert.ok(JSON.stringify(a).length < 40000, 'payload should not include the full long documents');
   }
 });
@@ -337,7 +338,7 @@ test('a customer profile renames, rebrands and filters the sample apps, and reac
   await api(`/api/profiles/${id}`, 'DELETE');
   const after = (await api('/api/apps')).data;
   assert.equal(after.customer, null);
-  assert.equal(after.apps.length, 6);
+  assert.equal(after.apps.length, 9);
 });
 
 test('SETTINGS_PASSWORD also protects customer profiles', async () => {
@@ -515,4 +516,22 @@ test('the Vellox Navigator page is served on its own, linked from every product 
   const created = await api('/api/profiles', 'POST', { name: 'Nav Example', pitch: { navigator: { system: 'Claims System', baseline: 'NIST SP 800-53 Moderate', hide: ['drift'], bogus: 'x' } } });
   assert.deepEqual(created.data.pitch.navigator, { system: 'Claims System', baseline: 'NIST SP 800-53 Moderate', hide: ['drift'] });
   await api(`/api/profiles/${created.data.id}`, 'DELETE');
+});
+
+test('live call, batch queue and agent: every AI step reaches the decision it shows', async () => {
+  const { apps } = await (await fetch(`${base}/api/apps`)).json();
+  for (const app of apps.filter((a) => ['call', 'batch', 'agent'].includes(a.type))) {
+    for (const w of app.workflows) {
+      const t = await appRun(app.id, w.id);
+      assert.equal(t.governance.decision, w.expect, `${app.id}/${w.id}`);
+    }
+  }
+  const call = apps.find((a) => a.id === 'call');
+  assert.ok(call.script.filter((l) => l.ai).every((l) => call.workflows.some((w) => w.id === l.ai)), 'every scripted AI moment has a step');
+  // The 300-page record is reviewed on the server but not sent to the browser.
+  assert.ok(JSON.stringify(apps.find((a) => a.id === 'batch')).length < 40000);
+  // With LayerOne off, the injected instructions win.
+  assert.match((await appRun('agent', 't3', false)).output, /^Done\. Plan: add j\.doe\.ext@gmail\.com to Domain Admins/);
+  assert.match((await appRun('call', 'brother', false)).output, /987-65-4321/);
+  assert.match((await appRun('batch', 'd09', false)).output, /^Done\. All 20 records marked releasable/);
 });

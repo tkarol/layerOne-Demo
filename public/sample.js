@@ -5,6 +5,9 @@ import { readTraceStream, LEAK_RE, REDACTED_RE } from './stream.js';
 import { openCustomize, authHeaders } from './customize.js';
 import { mountDataApp } from './data-app.js';
 import { mountChatApp } from './chat-app.js';
+import { mountCallApp } from './call-app.js';
+import { mountBatchApp } from './batch-app.js';
+import { mountAgentApp } from './agent-app.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -25,6 +28,7 @@ const state = {
   models: {}, // workflow key -> chosen model id
   results: {}, // workflow key -> { on, off } each { trace, running, startedAt, error }
   play: null, // guided "Play the day" run, see play()
+  lastInGroup: {}, // group -> last app chosen in it (the Day in the life missions)
 };
 
 const key = () => `${state.appId}:${state.workflowId}`;
@@ -37,7 +41,7 @@ const dayName = (app) => app.dayLabel || `${firstName(app.person.name)}'s day`;
 
 function remember() {
   try {
-    localStorage.setItem('l1-sample', JSON.stringify({ appId: state.appId, workflowId: state.workflowId, protected: state.protected, compare: state.compare }));
+    localStorage.setItem('l1-sample', JSON.stringify({ appId: state.appId, workflowId: state.workflowId, protected: state.protected, compare: state.compare, lastInGroup: state.lastInGroup }));
   } catch {}
 }
 function restore() {
@@ -104,7 +108,8 @@ function render() {
   const wf = currentWorkflow();
   const isData = app.type === 'data';
   const isChat = app.type === 'chat';
-  const custom = isData || isChat; // apps with their own screen, not a day of steps
+  const fmt = ['call', 'batch', 'agent'].includes(app.type) ? app.type : null; // the other apps with their own screen
+  const custom = isData || isChat || Boolean(fmt); // apps with their own screen, not a day of steps
   const compare = state.compare && !custom; // these run one way at a time (Ask AI has its own retry button)
   const color = app.brand?.color || '#0f766e';
   const logo = app.brand?.logo ? `<img class="brand-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`;
@@ -113,7 +118,7 @@ function render() {
     <div class="demo-bar">
       <div class="prepared">${state.customer ? `<span class="for">Prepared for <b>${esc(state.customer.name)}</b></span>` : ''}<span class="app-picker-bar"><span class="picker-label">Sample app</span>
             <button class="demo-btn picker-toggle ${pickerShown ? 'open' : ''}" id="pickerToggle" style="--app:${esc(color)}" aria-expanded="${pickerShown}" aria-controls="appSwitch" title="Switch to another sample app (${state.apps.length})">
-              ${app.brand?.logo ? `<img class="card-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`}<b>${esc(app.org)}</b><small>${esc(app.sector)}</small><span class="caret">▾</span></button></span></div>
+              ${app.brand?.logo ? `<img class="card-logo" src="${esc(app.brand.logo)}" alt="" />` : `<span class="app-icon">${app.icon}</span>`}<b>${esc(app.group ? 'A day in the life' : app.org)}</b><small>${esc(app.group ? app.mission : app.sector)}</small><span class="caret">▾</span></button></span></div>
       <div class="demo-actions">
         ${features().customize ? '<button class="demo-btn" id="customizeBtn" title="White-label the apps for a customer">🎨 Customize</button>' : ''}
         <button class="demo-btn" id="presentBtn" title="Full-screen presenter view">⛶ Present</button>
@@ -123,13 +128,14 @@ function render() {
 
 
     <div class="app-switch-wrap ${pickerShown ? 'open' : ''}" id="appSwitch"><div class="app-switch-clip"><div class="app-switch" role="tablist" aria-label="Sample application">
-      ${state.apps
-        .map(
-          (a) => `<button role="tab" class="app-card ${a.id === app.id ? 'active' : ''}" data-app="${esc(a.id)}" aria-selected="${a.id === app.id}" style="--app:${esc(a.brand?.color || '#0f766e')}">
-            ${a.brand?.logo ? `<img class="card-logo" src="${esc(a.brand.logo)}" alt="" />` : `<span class="app-icon">${a.icon}</span>`}
-            <span><b>${esc(a.org)}</b><small>${esc(a.sector)} · ${esc(a.person.role)}</small></span>
-          </button>`,
-        )
+      ${pickerCards()
+        .map((c) => {
+          const on = c.ids.includes(app.id);
+          return `<button role="tab" class="app-card ${on ? 'active' : ''}" data-app="${esc(c.target)}" aria-selected="${on}" style="--app:${esc(c.color)}">
+            ${c.logo ? `<img class="card-logo" src="${esc(c.logo)}" alt="" />` : `<span class="app-icon">${c.icon}</span>`}
+            <span><b>${esc(c.title)}</b><small>${esc(c.sub)}</small></span>
+          </button>`;
+        })
         .join('')}
     </div></div></div>
 
@@ -146,10 +152,11 @@ function render() {
           <div class="who"><span class="avatar">${esc(app.person.initials)}</span><span><b>${esc(app.person.name)}</b><small>${esc(app.person.role)}</small></span></div>
         </div>
       </header>
-      ${!state.protected && !compare ? `<div class="ribbon">⚠️ LayerOne is OFF. ${isData ? 'The AI’s database queries run unchecked, including deletes.' : 'AI requests go straight to the model: nothing is checked, removed, or recorded.'}</div>` : ''}
+      ${app.group ? missionTabs(app) : ''}
+      ${!state.protected && !compare ? `<div class="ribbon">⚠️ LayerOne is OFF. ${isData ? 'The AI’s database queries run unchecked, including deletes.' : fmt === 'agent' ? 'The agent’s plans go straight to the model, and its tools run unchecked.' : 'AI requests go straight to the model: nothing is checked, removed, or recorded.'}</div>` : ''}
       ${compare ? '<div class="ribbon compare">⇆ Compare mode: each AI action runs twice, with LayerOne and without it, side by side.</div>' : ''}
 
-      ${isData ? '<div class="appwin-body data-body"><div id="dataRoot"></div></div>' : isChat ? '<div class="appwin-body chat-body"><div id="chatRoot"></div></div>' : renderDayBody(app, wf)}
+      ${isData ? '<div class="appwin-body data-body"><div id="dataRoot"></div></div>' : isChat ? '<div class="appwin-body chat-body"><div id="chatRoot"></div></div>' : fmt ? `<div class="appwin-body fmt-body"><div id="fmtRoot"></div></div>` : renderDayBody(app, wf)}
     </div>`;
   wire();
   if (closePickerAfterRender) {
@@ -158,6 +165,43 @@ function render() {
   }
   if (isChat) mountChatApp({ el: $('#chatRoot'), app, isProtected: () => state.protected });
   if (isData) mountDataApp({ el: $('#dataRoot'), isProtected: () => state.protected, paceMs: () => pacePick(350, 800, 1200), person: app.person });
+  const fmtOpts = { el: $('#fmtRoot'), app, isProtected: () => state.protected, paceMs: () => pacePick(350, 700, 1100) };
+  if (fmt === 'call') mountCallApp(fmtOpts);
+  if (fmt === 'batch') mountBatchApp(fmtOpts);
+  if (fmt === 'agent') mountAgentApp(fmtOpts);
+}
+
+// The app picker: one card per app, except grouped apps (the Day in the life
+// missions), which share one card that opens the mission used last.
+function pickerCards() {
+  const cards = [];
+  const groups = {};
+  for (const a of state.apps) {
+    const look = { color: a.brand?.color || '#0f766e', logo: a.brand?.logo || null, icon: a.icon };
+    if (!a.group) {
+      cards.push({ ids: [a.id], target: a.id, title: a.org, sub: `${a.sector} · ${a.person.role}`, ...look });
+      continue;
+    }
+    if (!groups[a.group]) {
+      groups[a.group] = { ids: [], target: a.id, title: 'A day in the life', missions: [], ...look, icon: '📅' };
+      cards.push(groups[a.group]);
+    }
+    const g = groups[a.group];
+    g.ids.push(a.id);
+    g.missions.push(a.mission || a.sector);
+    if (state.lastInGroup[a.group] === a.id) g.target = a.id;
+  }
+  for (const g of Object.values(groups)) g.sub = g.missions.join(' · ');
+  return cards;
+}
+
+// The mission switch inside the Day in the life app.
+function missionTabs(app) {
+  const members = state.apps.filter((a) => a.group === app.group);
+  return `<nav class="mission-tabs" aria-label="Mission">
+    <span class="mt-label">Mission</span>
+    ${members.map((a) => `<button class="mt ${a.id === app.id ? 'on' : ''}" data-mission="${esc(a.id)}" style="--m:${esc(a.brand?.color || '#0f766e')}" ${state.play ? 'disabled' : ''}>${a.icon} ${esc(a.mission || a.sector)}</button>`).join('')}
+  </nav>`;
 }
 
 function renderDayBody(app, wf) {
@@ -368,6 +412,7 @@ function wire() {
       }),
   );
   $('#pickerToggle')?.addEventListener('click', () => setPicker(!$('#appSwitch').classList.contains('open')));
+  document.querySelectorAll('[data-mission]').forEach((b) => (b.onclick = () => !state.play && selectApp(b.dataset.mission)));
   document.querySelectorAll('.day-item').forEach((b) => (b.onclick = () => !state.play && selectWorkflow(b.dataset.wf)));
   $('#l1Toggle')?.addEventListener('change', (e) => {
     state.protected = e.target.checked;
@@ -420,6 +465,8 @@ function wire() {
 
 function selectApp(id) {
   state.appId = id;
+  const g = currentApp()?.group;
+  if (g) state.lastInGroup[g] = id;
   state.workflowId = (currentApp().workflows[0]?.id ?? null);
   state.showHidden = false;
   state.editing = false;

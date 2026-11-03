@@ -71,7 +71,7 @@ export function publicApps(profile) {
     customer: profile ? { id: profile.id, name: profile.name } : null,
     apps: resolveApps(profile).map(({ workflows, system, ...app }) => ({
       ...app,
-      workflows: workflows.map(({ build, mock, ...w }) => w),
+      workflows: workflows.map(({ build, mock, fullText, ...w }) => w),
     })),
   };
 }
