@@ -1,4 +1,4 @@
-/* Oracle Cloud ERP (state & local) — standalone page at /oracle-erp.
+/* Oracle Fusion Cloud ERP (state & local) — standalone page at /oracle-erp.
    Builds on styles.css (page chrome, deck engine, .rv-* helpers); everything
    specific to this page is prefixed erp- (slides) or ea- (architecture). */
 
@@ -10,7 +10,9 @@
 .erp .deck-stage { --d-acc-rgb: 240 121 106; --erp-spent: #94a3b8; }
 
 /* Title: two lines, so it may wrap */
-.erp .d-title h1 { width: auto; font-size: 6.6em; line-height: 1.02; }
+.erp .d-title { max-width: 80%; }
+.erp .d-lead { max-width: 74%; }
+.erp .d-title h1 { width: auto; font-size: 5.8em; line-height: 1.02; }
 
 /* ---------- slide 2: the patchwork ---------- */
 .erp-legacy { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 2.4cqw; align-items: center; margin: auto 0; }

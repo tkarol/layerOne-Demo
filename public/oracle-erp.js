@@ -1,4 +1,4 @@
-// Oracle Cloud ERP for state and local government: a standalone proof-of-concept
+// Oracle Fusion Cloud ERP for state and local government: a standalone proof-of-concept
 // page at /oracle-erp. It has nothing to do with the Booz Allen / Vellox pages:
 // nothing links here and it doesn't appear in their product switch. It reuses
 // the shared deck engine (deck-core.js) and the page chrome from styles.css.
@@ -67,15 +67,15 @@ const SLIDES = [
     html: () => `
       <div class="d-title">
         <div class="d-kicker"><span class="d-dot"></span>State &amp; Local Government</div>
-        <h1>Oracle<br />Cloud ERP</h1>
+        <h1>Oracle Fusion<br />Cloud ERP</h1>
         <p class="d-lead">Run the public’s money on one modern system, <span>from budget to audit.</span></p>
       </div>
       <div class="d-orbit" aria-hidden="true"><div><i class="orb-dot"></i></div><div><i class="orb-dot"></i><i class="orb-dot b"></i></div><div></div></div>`,
     talk: {
-      key: 'Every dollar a government spends was appropriated, approved, tracked and reported. Oracle Cloud ERP keeps that whole trail in one system.',
+      key: 'Every dollar a government spends was appropriated, approved, tracked and reported. Oracle Fusion Cloud ERP keeps that whole trail in one system.',
       points: [
         'Open with their world: “Walk me through what happens between the council adopting the budget and the auditor signing off. How many systems does that touch?”',
-        'Oracle Cloud ERP in one sentence: financials, budgeting, procurement, grants, projects and assets on one cloud platform, with one set of data and one audit trail.',
+        'Oracle Fusion Cloud ERP in one sentence: financials, budgeting, procurement, grants, projects and assets on one cloud platform, with one set of data and one audit trail.',
         'Keep the focus on outcomes they’re accountable for: a faster close, clean audits, budget control and transparency to the public.',
       ],
       ask: 'What’s driving the conversation now: an aging system, an audit finding, staff retiring, or new reporting requirements?',
@@ -322,7 +322,7 @@ function initTheme() {
   };
 }
 
-const deck = createDeck({ slides: SLIDES, label: 'Oracle Cloud ERP · State & Local', storageKey: 'erp', onGoto: () => setView('architecture') });
+const deck = createDeck({ slides: SLIDES, label: 'Oracle Fusion Cloud ERP · State & Local', storageKey: 'erp', onGoto: () => setView('architecture') });
 
 initTheme();
 document.querySelectorAll('.view-tabs button').forEach((b) => (b.onclick = () => setView(b.dataset.view)));
