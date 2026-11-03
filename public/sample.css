@@ -201,7 +201,7 @@ body:has(.play-bar) .apps-page { padding-bottom: 180px; }
 
 /* Presenter view */
 body.present .apps-page { max-width: none; }
-body.present .apps-page > .intro, body.present .app-switch-wrap { display: none; }
+body.present .apps-page > .intro { display: none; }
 body.present .work-title { font-size: 26px; }
 body.present .story, body.present .email-body, body.present .ai-output, body.present .bubble p, body.present .cbubble { font-size: 18px; }
 

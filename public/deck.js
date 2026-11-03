@@ -1,11 +1,11 @@
-// "Overview" tab: Layer One's short pitch deck to open a customer demo. The last
+// "Overview" tab: LayerOne's short pitch deck to open a customer demo. The last
 // slide jumps straight into the demos. The slide engine is in deck-core.js.
 //
-// Claims stay within what Layer One's docs and this demo show.
+// Claims stay within what LayerOne's docs and this demo show.
 import { createDeck, icon, outcome, goCard as go, esc } from './deck-core.js';
 
 // One request moving through the architecture picture (slides 2 and 3). `kind` sets its path:
-// go / back (straight through, no checkpoint), pass, redact, block, hold (through Layer One).
+// go / back (straight through, no checkpoint), pass, redact, block, hold (through LayerOne).
 const packet = (n, kind, label, after) =>
   `<span class="pk pk-${kind}" style="--n:${n}"><span class="a">${label}</span>${after ? `<span class="b">${after}</span>` : ''}</span>`;
 
@@ -16,7 +16,7 @@ const SLIDES = [
     html: (ctx) => `
       <div class="d-title">
         <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
-        <h1>Layer One</h1>
+        <h1>LayerOne</h1>
         <p class="d-lead">Govern every AI request your organization makes, <span>in one place.</span></p>
         ${ctx.customer ? `<div class="d-for">Prepared for <b>${esc(ctx.customer)}</b></div>` : ''}
       </div>
@@ -25,8 +25,8 @@ const SLIDES = [
       key: 'This is about using AI safely, not stopping it.',
       points: [
         'Open with their world, not the product: “Your teams are already using AI, officially or not. The real question is whether you can see it and steer it.”',
-        'Layer One in one sentence: a checkpoint every AI request passes through, so the rules live in one place instead of being rebuilt in every app.',
-        'Set expectations: a couple of minutes of context, then real requests, live, with Layer One switched on and off.',
+        'LayerOne in one sentence: a checkpoint every AI request passes through, so the rules live in one place instead of being rebuilt in every app.',
+        'Set expectations: a couple of minutes of context, then real requests, live, with LayerOne switched on and off.',
       ],
       ask: 'Where is AI showing up in your work today: chat tools, copilots built into software, or agents that take actions?',
       next: 'Let’s start with why this matters.',
@@ -80,7 +80,7 @@ const SLIDES = [
         <div class="d-end">${icon('monitor')}<b>Your apps<br />&amp; agents</b></div>
         <div class="d-wire"><span>request →</span><i></i><i class="back"></i><span>← answer</span></div>
         <div class="d-core">
-          <div class="d-core-h">${icon('shield')}<b>Layer One</b></div>
+          <div class="d-core-h">${icon('shield')}<b>LayerOne</b></div>
           <ol>
             <li><span>1</span>Check the request</li>
             <li><span>2</span>Route to an approved model</li>
@@ -114,8 +114,8 @@ const SLIDES = [
       key: 'Invisible when everything is fine, decisive when it isn’t.',
       points: [
         '<b>Use an analogy:</b> one security checkpoint at the front door instead of a different lock on every office. Set the rules once, and every app and agent inherits them.',
-        '<b>Let the traffic play once:</b> a normal request passes, the SSN goes in and comes out redacted, the hidden instruction stops at Layer One, and the made-up answer coming back is held. The four steps inside Layer One light up as it works.',
-        '<b>Two moments matter:</b> before a model sees the request, and before a person sees the answer. That’s where Layer One acts.',
+        '<b>Let the traffic play once:</b> a normal request passes, the SSN goes in and comes out redacted, the hidden instruction stops at LayerOne, and the made-up answer coming back is held. The four steps inside LayerOne light up as it works.',
+        '<b>Two moments matter:</b> before a model sees the request, and before a person sees the answer. That’s where LayerOne acts.',
         '<b>Most traffic just passes,</b> and that’s the point. If governance slows people down, they route around it.',
         '<b>The record is the quiet win:</b> every decision is tied to an agent, project and run, so an audit question takes minutes, not weeks of digging.',
         '<b>Adoption is a configuration change:</b> teams keep their tools and point them at a new URL with a few headers. Hosted or in their own environment.',
@@ -129,7 +129,7 @@ const SLIDES = [
     id: 'demo',
     title: 'Let’s see it',
     html: () => `
-      <p class="d-sub">Real requests through Layer One. Switch it off to see the difference; every request is in Behind the scenes.</p>
+      <p class="d-sub">Real requests through LayerOne. Switch it off to see the difference; every request is in Behind the scenes.</p>
       <div class="d-grid d-4 d-demo">
         ${go('apps:chat', 'chat', 'Ask AI', 'A company AI chat')}
         ${go('apps:benefits', 'landmark', 'A day in the life', 'Claims · proposals · public agent · intel')}
@@ -143,7 +143,7 @@ const SLIDES = [
     talk: {
       key: 'Let them see it catch real problems, then flip it off and see what gets through.',
       points: [
-        '<b>Set it up:</b> “Everything you’re about to see is a real request going through Layer One. I’ll also switch it off, so you can see exactly what it’s catching.”',
+        '<b>Set it up:</b> “Everything you’re about to see is a real request going through LayerOne. I’ll also switch it off, so you can see exactly what it’s catching.”',
         '<b>Let them choose</b> the scenario closest to their mission; people lean in when it looks like their own job.',
         '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program or mission staff, A day in the life (pick the mission closest to them). Contact centers, Live call assist. Records or claims shops, Batch review. Anyone building agents, the agent with admin tools or AI and your data. Teams building on web or open-source data, the web scraper. Anyone worried about hallucination, Grounded answers. Security or engineering, finish in Behind the scenes, then Connect.',
       ],
@@ -155,7 +155,7 @@ const SLIDES = [
 
 const deck = createDeck({
   slides: SLIDES,
-  label: 'Layer One',
+  label: 'LayerOne',
   storageKey: 'l1',
   context: async () => ({ customer: (await fetch('/api/apps').then((r) => r.json())).customer?.name || null }),
   onGoto(to) {

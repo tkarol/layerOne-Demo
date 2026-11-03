@@ -1,4 +1,4 @@
-// Vellox Reverser: a separate product page from Layer One. A short pitch deck
+// Vellox Reverser: a separate product page from LayerOne. A short pitch deck
 // (slides + talking points) and an interactive architecture explainer.
 //
 // Product facts come from Booz Allen's announcements (July 2025 launch,
@@ -32,7 +32,7 @@ const SLIDES = [
       points: [
         'Open with their world: “When a new piece of malware lands, how long until your team knows what it does and can detect it everywhere?”',
         'Reverser in one sentence: AI agents take a malware sample apart, work out what it does, and hand back detections your tools can use.',
-        'It’s part of Booz Allen’s Vellox line of cyber products that pair human operators with AI agents. It is a separate product from Layer One.',
+        'It’s part of Booz Allen’s Vellox line of cyber products that pair human operators with AI agents. It is a separate product from LayerOne.',
       ],
       ask: 'Who on your team reverse engineers malware today, and how big is their queue?',
       next: 'First, the bigger picture: why defenders are falling behind.',

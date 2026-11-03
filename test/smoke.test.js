@@ -429,7 +429,7 @@ test('connect: checks pass against the dry-run stand-in, and the request builder
   assert.equal((await send({ method: 'GET', path: '//evil.example/x' })).status, 400);
   assert.equal((await send({ method: 'DELETE', path: '/v1/models' })).status, 400);
 
-  // Layer One's identity headers go on every request; the stand-in requires the agent id, like Layer One.
+  // LayerOne's identity headers go on every request; the stand-in requires the agent id, like LayerOne.
   assert.equal(ok.data.request.headers['x-layerone-agent-id'], 'layerone-demo');
   assert.match(ok.data.request.headers['x-layerone-run-id'], /^demo-\d{4}-\d{2}-\d{2}$/);
   const noAgent = await fetch(`${base}/mock/layerone/v1/chat/completions`, { method: 'POST', headers: { Authorization: 'Bearer x', 'Content-Type': 'application/json' }, body: '{}' });

@@ -449,7 +449,7 @@ details[open] > summary::before { transform: rotate(90deg); }
 .deck-stage {
   --d-bg: #070707; --d-text: #f6f6f6; --d-muted: #9a9a9a; --d-dim: #6b6b6b; --d-line: rgb(255 255 255 / 10%); --d-panel: rgb(255 255 255 / 4%);
   --d-ok: #4ade80; --d-warn: #fbbf24; --d-bad: #f87171;
-  --d-acc-rgb: 74 222 128; --d-acc: rgb(var(--d-acc-rgb)); /* the product's accent: green for Layer One */
+  --d-acc-rgb: 74 222 128; --d-acc: rgb(var(--d-acc-rgb)); /* the product's accent: green for LayerOne */
   position: relative; width: min(100%, calc((100vh - 230px) * 16 / 9)); min-width: min(100%, 560px); aspect-ratio: 16 / 9;
   container-type: inline-size; background: var(--d-bg); color: var(--d-text); border-radius: 16px; overflow: hidden;
   box-shadow: 0 20px 50px -20px rgb(0 0 0 / 45%), 0 0 0 1px rgb(0 0 0 / 8%); outline: none;
@@ -484,7 +484,7 @@ details[open] > summary::before { transform: rotate(90deg); }
 .d-title { margin: auto 0; display: grid; gap: 1.8cqw; max-width: 62%; }
 .d-kicker { display: flex; align-items: center; gap: 0.9cqw; text-transform: uppercase; letter-spacing: 0.24em; font-size: 0.82em; color: var(--d-muted); font-weight: 650; }
 .d-dot { width: 0.7cqw; height: 0.7cqw; border-radius: 50%; background: var(--d-acc); box-shadow: 0 0 1.2cqw var(--d-acc); }
-.d-title h1 { margin: 0; font-size: 7.4em; line-height: 0.95; letter-spacing: -0.05em; font-weight: 800; background: linear-gradient(180deg, #fff 30%, #b9b9b9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.d-title h1 { margin: 0 0 -0.16em; padding: 0 0.08em 0.16em 0; font-size: 7.4em; line-height: 0.95; letter-spacing: -0.05em; font-weight: 800; background: linear-gradient(180deg, #fff 30%, #b9b9b9); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .d-lead { margin: 0; font-size: 2em; line-height: 1.22; letter-spacing: -0.015em; color: var(--d-muted); }
 .d-lead span { color: var(--d-text); }
 .d-for { margin-top: 1cqw; font-size: 0.95em; color: var(--d-muted); border-left: 2px solid var(--d-acc); padding-left: 1.2cqw; }
@@ -574,7 +574,7 @@ details[open] > summary::before { transform: rotate(90deg); }
 .tp-ask span { color: var(--ok); }
 .tp-obj span { color: var(--warn); }
 
-/* 2 · without Layer One: same grid as slide 3, an empty middle and red wires */
+/* 2 · without LayerOne: same grid as slide 3, an empty middle and red wires */
 .d-arch2.off .d-wire i { background-image: linear-gradient(90deg, transparent, var(--d-bad) 30%, var(--d-bad) 70%, transparent); }
 .d-arch2.off .d-wire i.back { background-image: linear-gradient(90deg, transparent, rgb(248 113 113 / 55%) 30%, rgb(248 113 113 / 55%) 70%, transparent); }
 .d-void { display: grid; justify-items: center; align-content: center; gap: 0.8cqw; text-align: center; min-height: 19.6cqw; border-radius: 1.6cqw; border: 2px dashed rgb(248 113 113 / 45%); background: rgb(248 113 113 / 5%); padding: 2cqw; }
@@ -1154,7 +1154,7 @@ details[open] > summary::before { transform: rotate(90deg); }
   .nv-gap em, .nv-act { opacity: 1; }
 }
 
-/* ============ Layer One deck: live traffic on slides 2 and 3 ============ */
+/* ============ LayerOne deck: live traffic on slides 2 and 3 ============ */
 /* One 28-second loop, four requests 7 seconds apart (--n). */
 .d-arch2 { position: relative; }
 .d-lane { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
@@ -1180,7 +1180,7 @@ details[open] > summary::before { transform: rotate(90deg); }
 .d-arch2.off .d-void { grid-template-rows: auto auto 1fr; align-content: stretch; padding: 1.6cqw 1cqw; }
 .d-arch2.off .d-void small { align-self: end; }
 
-/* Slide 3: what Layer One is doing right now, and which step is working. */
+/* Slide 3: what LayerOne is doing right now, and which step is working. */
 .d-now { position: relative; height: 2.4cqw; margin-top: 1.1cqw; border-top: 1px solid rgb(var(--d-acc-rgb) / 25%); padding-top: 0.8cqw; }
 .d-now span { position: absolute; left: 0; right: 0; font-size: 0.85em; font-weight: 700; opacity: 0; animation: d-now 28s linear infinite both; }
 .d-now span:nth-child(1) { animation-delay: 0s; } .d-now span:nth-child(2) { animation-delay: 7s; } .d-now span:nth-child(3) { animation-delay: 14s; } .d-now span:nth-child(4) { animation-delay: 21s; }

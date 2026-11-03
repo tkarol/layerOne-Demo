@@ -1,4 +1,4 @@
-// The slide engine shared by product decks (Layer One, Vellox Reverser, Vellox Ranger): 16:9
+// The slide engine shared by product decks (LayerOne, Vellox Reverser, Vellox Ranger): 16:9
 // slides, arrow keys, full-screen Present, and talking points under each slide.
 //
 //   createDeck({ slides, label, storageKey, context, onGoto }) → { mount(el) }

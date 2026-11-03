@@ -32,12 +32,12 @@ export function envConfig(env = {}) {
     authScheme: env.LAYERONE_AUTH_SCHEME ?? 'Bearer',
     model: env.LAYERONE_MODEL || 'demo-model',
     extraHeaders: parseJson(env.LAYERONE_EXTRA_HEADERS, {}),
-    // Layer One identifies each caller: x-layerone-agent-id (required), x-layerone-project-id
+    // LayerOne identifies each caller: x-layerone-agent-id (required), x-layerone-project-id
     // (recommended) and x-layerone-run-id (optional, groups calls into a session).
     agentId: env.LAYERONE_AGENT_ID || 'layerone-demo',
     projectId: env.LAYERONE_PROJECT_ID || '',
     runId: env.LAYERONE_RUN_ID || '',
-    // Where Layer One's traces can be viewed (for example MLflow when self-hosted). A link only.
+    // Where LayerOne's traces can be viewed (for example MLflow when self-hosted). A link only.
     tracesUrl: env.LAYERONE_TRACES_URL || '',
     timeoutMs: Number(env.LAYERONE_TIMEOUT_MS || 60000),
     systemPrompt: env.DEMO_SYSTEM_PROMPT || 'You are a benefits claims assistant helping caseworkers process claims.',
@@ -85,7 +85,7 @@ export function endpointUrl(cfg, origin) {
 // The run id: the one in Settings, or one per day so a demo's calls group together.
 export const effectiveRunId = (cfg) => cfg.runId || `demo-${new Date().toISOString().slice(0, 10)}`;
 
-// Headers Layer One uses to identify the caller.
+// Headers LayerOne uses to identify the caller.
 export function layeroneHeaders(cfg) {
   const h = { 'x-layerone-agent-id': cfg.agentId || 'layerone-demo', 'x-layerone-run-id': effectiveRunId(cfg) };
   if (cfg.projectId) h['x-layerone-project-id'] = cfg.projectId;

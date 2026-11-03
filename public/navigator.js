@@ -1,4 +1,4 @@
-// Vellox Navigator: a separate product page from Layer One (like Reverser and
+// Vellox Navigator: a separate product page from LayerOne (like Reverser and
 // Ranger). A short pitch deck (slides + talking points) and an "under the hood"
 // architecture explainer, with optional tailoring for one customer (tailor.js).
 //
@@ -52,7 +52,7 @@ const SLIDES = [
       points: [
         'Open with their world: “How long does it take your team to put together an authorization package, and how accurate is it a month later?”',
         'Navigator in one sentence: it keeps compliance running alongside the system: evidence collected automatically, mapped to controls, gaps flagged, and the package kept current.',
-        'It’s part of Booz Allen’s Vellox line of cyber products, alongside Reverser and Ranger. It is a separate product from Layer One.',
+        'It’s part of Booz Allen’s Vellox line of cyber products, alongside Reverser and Ranger. It is a separate product from LayerOne.',
         '<b>Availability:</b> Booz Allen has listed Navigator as coming soon. Position this as a preview and an early-access conversation, and check current status with the Vellox team before the meeting.',
       ],
       ask: 'How many systems are you keeping authorized today, and how many people does that take?',

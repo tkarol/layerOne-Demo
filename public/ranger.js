@@ -1,4 +1,4 @@
-// Vellox Ranger: a separate product page from Layer One (like Vellox Reverser).
+// Vellox Ranger: a separate product page from LayerOne (like Vellox Reverser).
 // A short pitch deck (slides + talking points) and an "under the hood"
 // architecture explainer.
 //
@@ -82,7 +82,7 @@ const SLIDES = [
       points: [
         'Open with their world: “How many of your detection rules were written with your network in mind, and how many came in a vendor content pack?”',
         'Ranger in one sentence: AI agents learn their environment, work out how an attacker would actually move through it, and write the detections to catch that.',
-        'It’s part of Booz Allen’s Vellox line of cyber products, alongside Reverser. It is a separate product from Layer One.',
+        'It’s part of Booz Allen’s Vellox line of cyber products, alongside Reverser. It is a separate product from LayerOne.',
       ],
       ask: 'Who owns detection engineering on your team today, and how many rules are they looking after?',
       next: 'Let’s start with what goes wrong with detections today.',

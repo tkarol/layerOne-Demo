@@ -30,7 +30,7 @@ const portNote = (url) => {
   }
 };
 const baseOf = (cfg, origin) => (cfg.mode === 'mock' ? `${origin}/mock/layerone` : cfg.baseUrl);
-// Layer One's proxy health endpoint sits at the root of its host.
+// LayerOne's proxy health endpoint sits at the root of its host.
 const healthOf = (cfg, origin) => {
   if (cfg.mode === 'mock') return `${origin}/mock/layerone/health`;
   try {
@@ -109,7 +109,7 @@ export async function runChecks(cfg, { origin, fetchFn }) {
     return skipRest('reach', 'Needs a LayerOne URL first');
   } else add({ id: 'settings', name: STEP_NAME.settings, status: cfg.apiKey ? 'pass' : 'warn', detail: `${cfg.apiKey ? `Calling ${endpoint} with a saved key in the ${cfg.authHeader} header.` : `Calling ${endpoint}. No API key is saved, so requests go without one.`} Agent ID: ${cfg.agentId || 'layerone-demo'}${cfg.projectId ? `, project ID: ${cfg.projectId}` : ', no project ID (recommended)'}.` });
 
-  // 2. Reach the host: Layer One's /health endpoint, else any HTTP answer from the base URL
+  // 2. Reach the host: LayerOne's /health endpoint, else any HTTP answer from the base URL
   //    (that alone shows DNS, network and TLS work).
   const healthUrl = healthOf(cfg, origin);
   const health = await call(fetchFn, healthUrl, { method: 'GET', headers: { Accept: 'application/json' } });
