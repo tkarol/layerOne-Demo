@@ -5,14 +5,27 @@
 .erp-page { --rv: #c74634; --rv-soft: #fbeae7; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .erp-page { --rv: #f0796a; --rv-soft: #3a1915; } }
 :root[data-theme='dark'] .erp-page { --rv: #f0796a; --rv-soft: #3a1915; }
-.erp-page .rv-topbar { border-bottom-color: #f0796a; }
+/* Oracle branding: the official logo (public/brand/oracle-logo.svg) when it's there,
+   otherwise a text wordmark in Oracle red. Warm neutrals in the style of Oracle's Redwood look. */
+.erp-page { --chrome: #312d2a; --chrome-line: rgb(255 255 255 / 14%); }
+.erp-page .rv-topbar { border-bottom-color: #c74634; }
 .erp-page .rv-topbar h1 small { color: #f6a89e; }
-.erp .deck-stage { --d-acc-rgb: 240 121 106; --erp-spent: #94a3b8; }
+.orcl-mark { display: inline-flex; align-items: center; }
+.orcl-logo { height: 18px; width: auto; display: block; }
+.orcl-logo + .orcl-word { display: none; }
+.orcl-word { font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: 21px; letter-spacing: 0.1em; line-height: 1; color: #e2583e; }
+.orcl-mark.lg .orcl-logo { height: 2.4cqw; }
+.orcl-mark.lg .orcl-word { font-size: 2.1em; color: #e2583e; }
+.erp-brandline { display: flex; align-items: center; gap: 1.6cqw; }
+.erp-kick { padding-left: 1.6cqw; border-left: 1px solid var(--d-line); text-transform: uppercase; letter-spacing: 0.24em; font-size: 0.82em; font-weight: 650; color: var(--d-muted); }
+@media (prefers-color-scheme: light) { :root:not([data-theme='dark']) .erp-page { --bg: #f1efed; --border: #e2ddd8; --panel-2: #f8f6f4; } }
+:root[data-theme='light'] .erp-page { --bg: #f1efed; --border: #e2ddd8; --panel-2: #f8f6f4; }
+.erp .deck-stage { --d-acc-rgb: 240 121 106; --erp-spent: #a8a29e; --d-bg: #1c1917; }
 
 /* Title: two lines, so it may wrap */
 .erp .d-title { max-width: 80%; }
 .erp .d-lead { max-width: 74%; }
-.erp .d-title h1 { width: auto; font-size: 5.8em; line-height: 1.02; }
+.erp .d-title h1 { width: auto; font-size: 6.6em; line-height: 1.02; }
 
 /* ---------- slide 2: the patchwork ---------- */
 .erp-legacy { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 2.4cqw; align-items: center; margin: auto 0; }

@@ -66,8 +66,8 @@ const SLIDES = [
     id: 'title',
     html: () => `
       <div class="d-title">
-        <div class="d-kicker"><span class="d-dot"></span>State &amp; Local Government</div>
-        <h1>Oracle Fusion<br />Cloud ERP</h1>
+        <div class="erp-brandline"><span class="orcl-mark lg"><img class="orcl-logo" src="/brand/oracle-logo.svg" alt="Oracle" onerror="this.remove()" /><span class="orcl-word">ORACLE</span></span><span class="erp-kick">State &amp; Local Government</span></div>
+        <h1>Fusion<br />Cloud ERP</h1>
         <p class="d-lead">Run the public’s money on one modern system, <span>from budget to audit.</span></p>
       </div>
       <div class="d-orbit" aria-hidden="true"><div><i class="orb-dot"></i></div><div><i class="orb-dot"></i><i class="orb-dot b"></i></div><div></div></div>`,
