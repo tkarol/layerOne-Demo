@@ -1792,3 +1792,44 @@ details[open] > summary::before { transform: rotate(90deg); }
   .product-switch a.on::after { content: ' ▾'; font-size: 10px; }
 }
 a.ws-item { text-decoration: none; }
+
+/* ---------- personal deck layouts ---------- */
+.ws-lay b { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.ws-dot.lay { border-radius: 3px; background: var(--muted); }
+.ws-acts { display: grid; gap: 8px; }
+.tp-layout { margin-left: 6px; padding: 1px 8px; border-radius: 99px; font-style: normal; font-size: 10.5px; letter-spacing: 0.04em; text-transform: none; color: var(--text); background: var(--accent-soft); }
+.tp-mine { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--ok) 10%, var(--panel)); font-size: 14.5px; line-height: 1.5; }
+.tp-mine span { display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ok); margin-bottom: 2px; }
+
+dialog.layout-ed { width: min(920px, calc(100vw - 32px)); }
+.le-name { display: grid; gap: 4px; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.le-name input, .le-title, .le-body textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; width: 100%; }
+.le-name input { max-width: 420px; }
+.le-list { display: grid; gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+.le-row { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); transition: opacity 0.2s, border-color 0.2s; }
+.le-row.off .le-title, .le-row.off .le-n { opacity: 0.45; }
+.le-row.dragging { opacity: 0.4; }
+.le-row.over { border-color: var(--accent); }
+.le-top { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+.le-grip { cursor: grab; color: var(--muted); font-size: 16px; user-select: none; }
+.le-move { display: inline-flex; flex-direction: column; }
+.le-move button, .le-pbtn button { border: 0; background: none; color: var(--muted); font-size: 10px; line-height: 1.1; padding: 1px 4px; cursor: pointer; }
+.le-move button:disabled, .le-pbtn button:disabled { opacity: 0.3; cursor: default; }
+.le-show { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; white-space: nowrap; }
+.le-n { display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800; background: var(--panel-2); border: 1px solid var(--border); }
+.le-title { flex: 1; min-width: 0; padding: 6px 9px !important; }
+.le-edited { flex: none; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 800; color: var(--ok); background: var(--ok-soft); }
+.le-open { flex: none; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.le-body { display: grid; gap: 10px; padding: 4px 14px 14px 46px; }
+.le-body > label, .le-points { display: grid; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.le-body textarea { resize: vertical; line-height: 1.45; font-weight: 400; }
+.le-lbl { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.le-point { display: flex; gap: 6px; align-items: flex-start; }
+.le-pbtn { display: inline-flex; flex-direction: column; gap: 1px; padding-top: 2px; }
+.le-pbtn button[data-pdel] { color: var(--bad); font-size: 12px; }
+.le-points .link-btn { justify-self: start; font-weight: 700; }
+@media (max-width: 640px) {
+  .le-top { flex-wrap: wrap; }
+  .le-title { flex-basis: 100%; order: 9; }
+  .le-body { padding-left: 14px; }
+}

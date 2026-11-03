@@ -51,7 +51,8 @@
     return data;
   };
 
-  const state = { presenters: [], setupPasswordRequired: false, customers: [] };
+  const state = { presenters: [], setupPasswordRequired: false, customers: [], deck: null };
+  const layoutKey = (deckId) => `ws-layout:${me?.id}:${deckId}`;
   const nameOf = (id) => state.presenters.find((p) => p.id === id)?.name || id;
 
   // Shared with the page scripts (tailor.js, customize.js).
@@ -66,6 +67,17 @@
       return customer;
     },
     presenterName: nameOf,
+    // The layout this presenter uses for a deck (per browser), and changing it.
+    layoutId: (deckId) => (me ? read(layoutKey(deckId)) || '' : ''),
+    setLayout(deckId, id, { silent = false } = {}) {
+      write(layoutKey(deckId), id || '');
+      if (!silent && state.deck?.id === deckId) state.deck.reload().then(() => me && drawBar());
+    },
+    // A deck on this page (deck-core.js) offers its layouts in the top bar.
+    registerDeck(deck) {
+      state.deck = deck;
+      if (me && document.querySelector('.ws-bar')) drawBar();
+    },
     setCustomer(id) {
       customer = id || '';
       write(custKey(), customer);
@@ -89,7 +101,7 @@
           !p
             ? `<h2>Who’s presenting?</h2>
                <div class="ws-people">${state.presenters
-                 .map((x) => `<button type="button" data-who="${esc(x.id)}"><span class="ws-av big">${esc(x.name[0])}</span><b>${esc(x.name)}</b>${x.admin ? '<small>Admin</small>' : ''}${x.hasPin ? '' : '<em>New: choose a PIN</em>'}</button>`)
+                 .map((x) => `<button type="button" data-who="${esc(x.id)}"><span class="ws-av big">${esc(x.name[0])}</span><b>${esc(x.name)}</b>${x.hasPin ? '' : '<em>New: choose a PIN</em>'}</button>`)
                  .join('')}</div>
                <p class="ws-gate-note">Your customers, slides and settings stay yours. Other SEs can use your customers, but only you can change them.</p>`
             : `<form class="ws-pin">
@@ -178,11 +190,66 @@
     );
   }
 
+  async function layoutMenu(anchor) {
+    const d = state.deck;
+    const cur = d.layout;
+    let list = [];
+    try {
+      list = (await api(`/api/layouts?deck=${encodeURIComponent(d.id)}`)).layouts;
+    } catch {}
+    const row = (l) => `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-lay="${esc(l.id)}"><i class="ws-dot lay"></i><span>${esc(l.name)}</span><small>${l.mine ? 'Yours' : `${esc(nameOf(l.owner))}’s`}</small></button>`;
+    const mine = list.filter((l) => l.mine);
+    const others = list.filter((l) => !l.mine);
+    openMenu(
+      anchor,
+      `<div class="ws-menu-h">Layout · ${esc(d.label)}</div>
+       <button type="button" class="ws-item ${cur ? '' : 'on'}" data-lay=""><i class="ws-dot std"></i><span>Official deck</span></button>
+       ${mine.length ? `<div class="ws-menu-sub">Your layouts</div>${mine.map(row).join('')}` : ''}
+       ${others.length ? `<div class="ws-menu-sub">Other SEs’ layouts <span>use as-is, or copy to edit</span></div>${others.map(row).join('')}` : ''}
+       <div class="ws-menu-f ws-acts">
+         ${cur?.mine ? '<button type="button" class="ws-link" data-edit>✎ Edit this layout</button>' : ''}
+         ${cur && !cur.mine ? '<button type="button" class="ws-link" data-copy>Copy to mine and edit</button>' : ''}
+         <button type="button" class="ws-link" data-new>＋ New layout${cur ? ' from this one' : ''}</button>
+       </div>`,
+      (m) => {
+        m.querySelectorAll('[data-lay]').forEach(
+          (b) =>
+            (b.onclick = () => {
+              closeMenu();
+              window.ws.setLayout(d.id, b.dataset.lay);
+            }),
+        );
+        const editor = async (layout) => {
+          closeMenu();
+          const { openLayoutEditor } = await import('./layouts.js');
+          openLayoutEditor({
+            deck: d,
+            layout,
+            onSaved: (saved) => window.ws.setLayout(d.id, saved.id),
+            onDeleted: () => window.ws.setLayout(d.id, ''),
+          });
+        };
+        m.querySelector('[data-edit]')?.addEventListener('click', () => editor(cur));
+        m.querySelector('[data-copy]')?.addEventListener('click', async () => {
+          try {
+            const copy = await api(`/api/layouts/${cur.id}/copy`, 'POST', {});
+            window.ws.setLayout(d.id, copy.id, { silent: true });
+            editor(copy);
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        // A new layout starts from what's on screen: the official deck, or a copy of the current layout.
+        m.querySelector('[data-new]').onclick = () => editor(cur ? { ...cur, id: undefined, name: `${cur.name} (copy)` } : null);
+      },
+    );
+  }
+
   function meMenu(anchor, note = '') {
     const others = state.presenters.filter((p) => p.id !== me.id);
     openMenu(
       anchor,
-      `<div class="ws-menu-h">${esc(me.name)}${me.admin ? ' · Admin' : ''}</div>
+      `<div class="ws-menu-h">${esc(me.name)}</div>
        <form class="ws-chpin"><div class="ws-menu-sub">Change your PIN</div>
          <input type="password" inputmode="numeric" maxlength="8" placeholder="Current PIN" data-old />
          <input type="password" inputmode="numeric" maxlength="8" placeholder="New PIN (4–8 digits)" data-new />
@@ -243,10 +310,12 @@
     bar.className = 'ws-bar';
     bar.innerHTML = `
       <button type="button" class="ws-cust" title="Who you’re presenting to (only in this browser)"><i class="ws-dot ${cur ? '' : 'std'}" style="${cur?.color ? `background:${esc(cur.color)}` : ''}"></i><span class="ws-lbl">Presenting to</span><b>${esc(cur?.name || 'Standard')}</b><span class="ws-caret">▾</span></button>
+      ${state.deck ? `<button type="button" class="ws-lay" title="Your slide layout for this deck (only in this browser)"><span class="ws-lbl">Layout</span><b>${esc(state.deck.layout?.name || 'Official')}</b><span class="ws-caret">▾</span></button>` : ''}
       <button type="button" class="ws-me" title="Signed in as ${esc(me.name)}"><span class="ws-av">${esc(me.name[0])}</span><span class="ws-me-n">${esc(me.name)}</span><span class="ws-caret">▾</span></button>`;
     host.prepend(bar);
     bar.querySelector('.ws-cust').onclick = (e) => (menu ? closeMenu() : customerMenu(e.currentTarget));
     bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : meMenu(e.currentTarget));
+    bar.querySelector('.ws-lay')?.addEventListener('click', (e) => (menu ? closeMenu() : layoutMenu(e.currentTarget)));
   }
 
   // On narrower screens the product switch collapses to the current product + a menu.

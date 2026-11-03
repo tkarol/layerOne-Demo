@@ -552,7 +552,7 @@ test('SE workspaces: PIN sign-in, per-presenter settings and data, owner-only cu
 
   const list = (await api('/api/presenters')).data.presenters;
   assert.deepEqual(list.map((p) => p.id), ['tyler', 'emilio', 'ethan', 'chris']);
-  assert.ok(list.find((p) => p.id === 'emilio').admin && !list.find((p) => p.id === 'ethan').admin);
+  assert.ok(list.every((p) => !('admin' in p)), 'the presenter list never says who is an admin');
 
   // First sign-in chooses the PIN; after that it must match.
   assert.equal((await login('ethan', '12')).status, 400);
@@ -599,4 +599,39 @@ test('SE workspaces: PIN sign-in, per-presenter settings and data, owner-only cu
   assert.equal((await api('/api/presenters/me', 'GET', null, as(ethan))).data.me, null);
 
   for (const pid of [id, copy.data.id]) await api(`/api/profiles/${pid}`, 'DELETE', null, as(emilio));
+});
+
+test('deck layouts: owner-only edits, shared to view and copy, plain text only', async () => {
+  const login = async (id, pin) => (await api('/api/presenters/login', 'POST', { id, pin })).data.token;
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const tyler = await login('tyler', '2468');
+  const chris = await login('chris', '1357');
+  assert.equal((await api('/api/layouts?deck=reverser')).status, 401);
+
+  const bad = await api('/api/layouts', 'POST', { deck: 'nope', name: '' }, as(tyler));
+  assert.equal(bad.status, 400);
+  const made = await api('/api/layouts', 'POST', {
+    deck: 'reverser',
+    name: 'Exec 20 min',
+    order: ['title', 'speed', 'team', '../x'],
+    hidden: ['gap'],
+    titles: { speed: 'Minutes, not weeks' },
+    talk: { speed: { key: 'Speed is **everything**', points: ['One', ' ', 'Two'], objection: '' } },
+  }, as(tyler));
+  assert.equal(made.status, 200);
+  const l = made.data;
+  assert.deepEqual(l.order, ['title', 'speed', 'team']);
+  assert.deepEqual(l.talk.speed.points, ['One', 'Two']);
+  assert.equal(l.talk.speed.objection, '', 'an emptied objection is kept as "leave it out"');
+
+  const seen = (await api('/api/layouts?deck=reverser', 'GET', null, as(chris))).data.layouts.find((x) => x.id === l.id);
+  assert.equal(seen.mine, false);
+  assert.equal((await api(`/api/layouts/${l.id}`, 'PUT', { name: 'Mine now' }, as(chris))).status, 403);
+  assert.equal((await api(`/api/layouts/${l.id}`, 'DELETE', null, as(chris))).status, 403);
+  const copy = await api(`/api/layouts/${l.id}/copy`, 'POST', {}, as(chris));
+  assert.equal(copy.data.owner, 'chris');
+  assert.equal(copy.data.talk.speed.key, 'Speed is **everything**');
+  assert.equal((await api(`/api/layouts/${copy.data.id}`, 'PUT', { name: 'Chris version', order: ['team', 'title'] }, as(chris))).status, 200);
+
+  for (const [id, who] of [[l.id, tyler], [copy.data.id, chris]]) assert.equal((await api(`/api/layouts/${id}`, 'DELETE', null, as(who))).status, 200);
 });

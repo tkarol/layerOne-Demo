@@ -57,15 +57,60 @@ export const icon = (name) => `<svg class="d-svg" viewBox="0 0 24 24" fill="none
 export const outcome = (tone, t, d) => `<div class="d-out ${tone}"><span class="d-led"></span><b>${t}</b><small>${d}</small></div>`;
 export const goCard = (to, ic, t, d) => `<button type="button" class="d-go" data-goto="${to}"><span class="d-ic">${icon(ic)}</span><span class="d-go-t"><b>${t}</b><small>${d}</small></span><span class="d-go-arrow">${icon('arrow')}</span></button>`;
 
+// Personal layouts (layouts.js): text an SE writes is plain text with **bold**; escape it.
+export const fmtText = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br />');
+const DECK_IDS = { vx: 'vellox', l1: 'layerone', rv: 'reverser', rg: 'ranger', nv: 'navigator' };
+
+// The slide order for a layout: its own order, with any official slide it doesn't
+// know yet (added after it was saved) placed right after its official neighbor.
+export function layoutOrder(allSlides, layout) {
+  if (!layout?.order?.length) return allSlides;
+  const byId = Object.fromEntries(allSlides.map((x) => [x.id, x]));
+  const out = layout.order.map((id) => byId[id]).filter(Boolean);
+  allSlides.forEach((x, i) => {
+    if (out.includes(x)) return;
+    const prev = allSlides.slice(0, i).reverse().find((p) => out.includes(p));
+    out.splice(prev ? out.indexOf(prev) + 1 : 0, 0, x);
+  });
+  return out;
+}
+
 export function createDeck({ slides: allSlides, label, storageKey = 'deck', context = async () => ({}), onGoto = () => {} }) {
-  const st = { i: 0, notes: true, ctx: {} };
+  const st = { i: 0, notes: true, ctx: {}, layout: null };
+  const deckId = DECK_IDS[storageKey] || storageKey;
   let slides = allSlides;
-  // Slides a customer doesn't need can be hidden; never all of them.
+  // A layout reorders and hides slides, and a customer can hide more; never all of them.
   const pick = () => {
-    const shown = allSlides.filter((x) => !st.ctx.hide?.includes(x.id));
-    slides = shown.length ? shown : allSlides;
+    const hide = new Set([...(st.ctx.hide || []), ...(st.layout?.hidden || [])]);
+    const ordered = layoutOrder(allSlides, st.layout);
+    const shown = ordered.filter((x) => !hide.has(x.id));
+    slides = shown.length ? shown : ordered;
     st.i = Math.min(st.i, slides.length - 1);
   };
+  // The active layout for this deck (chosen per presenter, in this browser).
+  async function loadLayout() {
+    const id = window.ws?.layoutId?.(deckId);
+    st.layout = null;
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/layouts/${encodeURIComponent(id)}`);
+      if (res.ok) st.layout = await res.json();
+      else window.ws?.setLayout?.(deckId, '', { silent: true });
+    } catch {}
+  }
+  // The talk track for a slide: official, with this layout's rewrites on top.
+  const talkFor = (s) => {
+    const o = st.layout?.talk?.[s.id];
+    if (!o) return s.talk;
+    return {
+      key: o.key ? fmtText(o.key) : s.talk.key,
+      points: o.points ? o.points.map(fmtText) : s.talk.points,
+      ask: 'ask' in o ? fmtText(o.ask) : s.talk.ask,
+      objection: 'objection' in o ? fmtText(o.objection) : s.talk.objection,
+      next: 'next' in o ? fmtText(o.next) : s.talk.next,
+    };
+  };
+  const titleFor = (s) => (st.ctx.titles?.[s.id] ? esc(st.ctx.titles[s.id]) : st.layout?.titles?.[s.id] ? esc(st.layout.titles[s.id]) : s.title);
   try {
     st.i = Math.min(Number(sessionStorage.getItem(`${storageKey}-slide`)) || 0, allSlides.length - 1);
     st.notes = sessionStorage.getItem(`${storageKey}-notes`) !== '0';
@@ -92,7 +137,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     const s = slides[st.i];
     const slide = $('.slide', root);
     slide.dataset.slide = s.id;
-    const title = st.ctx.titles?.[s.id] ? esc(st.ctx.titles[s.id]) : s.title;
+    const title = titleFor(s);
     slide.innerHTML = `${title ? `<h2 class="d-h">${title}</h2>` : ''}${s.html(st.ctx)}<div class="d-foot"><span>${esc(label)}</span><span>${st.i + 1} / ${slides.length}</span></div>`;
     slide.classList.remove('in');
     void slide.offsetWidth; // restart the entrance animation
@@ -101,7 +146,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     $('.deck-hit.next', root).hidden = st.i === slides.length - 1;
     $('.deck-bar', root).innerHTML = `
       <button type="button" class="secondary" data-move="-1" ${st.i === 0 ? 'disabled' : ''}>← Back</button>
-      <div class="deck-dots">${slides.map((x, n) => `<button type="button" class="${n === st.i ? 'on' : ''}" data-to="${n}" aria-label="Slide ${n + 1}" title="${esc(String(st.ctx.titles?.[x.id] || x.title || 'Title').replace(/<[^>]+>/g, ' '))}"></button>`).join('')}</div>
+      <div class="deck-dots">${slides.map((x, n) => `<button type="button" class="${n === st.i ? 'on' : ''}" data-to="${n}" aria-label="Slide ${n + 1}" title="${esc(String(titleFor(x) || 'Title').replace(/<[^>]+>/g, ' '))}"></button>`).join('')}</div>
       <button type="button" class="secondary" data-move="1" ${st.i === slides.length - 1 ? 'disabled' : ''}>Next →</button>
       <span class="deck-tools">
         <button type="button" class="secondary" data-notes aria-pressed="${st.notes}">${st.notes ? 'Hide talking points' : 'Talking points'}</button>
@@ -109,15 +154,17 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
       </span>`;
     const notes = $('.deck-notes', root);
     notes.hidden = !st.notes;
-    const t = s.talk;
+    const t = talkFor(s);
+    const mine = st.layout?.talk?.[s.id]?.notes;
     notes.innerHTML = `
-      <div class="tp-head"><span class="tp-label">Talking points</span><span class="muted small">Slide ${st.i + 1} of ${slides.length} · not shown when presenting</span></div>
+      <div class="tp-head"><span class="tp-label">Talking points${st.layout ? ` <em class="tp-layout">${esc(st.layout.name)}</em>` : ''}</span><span class="muted small">Slide ${st.i + 1} of ${slides.length} · not shown when presenting</span></div>
       <p class="tp-key">${t.key}</p>
+      ${mine ? `<p class="tp-mine"><span>Your notes</span>${fmtText(mine)}</p>` : ''}
       ${st.ctx.notes?.[s.id] ? `<p class="tp-cust"><span>For ${esc(st.ctx.customer || 'this customer')}</span>${esc(st.ctx.notes[s.id]).replace(/\n/g, '<br />')}</p>` : ''}
       <ul class="tp-list">${t.points.map((p) => `<li>${p}</li>`).join('')}</ul>
       ${t.ask ? `<p class="tp-ask"><span>Ask the room</span>${t.ask}</p>` : ''}
       ${t.objection ? `<p class="tp-obj"><span>If they say…</span>${t.objection}</p>` : ''}
-      <p class="tp-next"><span>Lead-in to the next slide</span>${t.next}</p>`;
+      ${t.next ? `<p class="tp-next"><span>Lead-in to the next slide</span>${t.next}</p>` : ''}`;
     root.querySelectorAll('.deck-bar [data-move]').forEach((b) => (b.onclick = () => move(Number(b.dataset.move))));
     root.querySelectorAll('[data-to]').forEach((b) => (b.onclick = () => go(Number(b.dataset.to))));
     root.querySelectorAll('[data-goto]').forEach((b) => (b.onclick = () => {
@@ -164,23 +211,36 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     e.preventDefault();
   }
 
-  return {
+  const api = {
     async mount(el) {
       root = el;
       try {
         st.ctx = (await context()) || {};
       } catch {}
+      await loadLayout();
       pick();
       draw();
       document.addEventListener('keydown', onKey);
+      // Let the top bar offer this deck's layouts.
+      window.ws?.registerDeck?.({
+        id: deckId,
+        label,
+        get layout() {
+          return st.layout;
+        },
+        slides: allSlides,
+        reload: () => api.refresh(),
+      });
     },
-    // Reload the context (e.g. after tailoring changes) and redraw in place.
+    // Reload the context and layout (e.g. after tailoring or a layout change) and redraw in place.
     async refresh() {
       try {
         st.ctx = (await context()) || {};
       } catch {}
+      await loadLayout();
       pick();
       if (root) draw();
     },
   };
+  return api;
 }

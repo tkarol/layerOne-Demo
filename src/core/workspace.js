@@ -29,7 +29,9 @@ async function hashPin(pin, salt) {
   return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-const publicPresenter = (p, rec) => ({ id: p.id, name: p.name, admin: Boolean(p.admin), hasPin: Boolean(rec?.pinHash) });
+const publicPresenter = (p, rec) => ({ id: p.id, name: p.name, hasPin: Boolean(rec?.pinHash) });
+// Only you see whether you're an admin.
+const selfPresenter = (p, rec) => ({ ...publicPresenter(p, rec), admin: Boolean(p.admin) });
 const byId = (id) => PRESENTERS.find((p) => p.id === id);
 
 // The signed-in presenter for this request, or null.
@@ -97,7 +99,7 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
     const list = await Promise.all(PRESENTERS.map(async (p) => publicPresenter(p, await rec(p.id))));
     return json(200, { presenters: list, setupPasswordRequired: Boolean(cfg.settingsPassword) });
   }
-  if (method === 'GET' && rest === 'me') return json(200, { me: me ? publicPresenter(me, await rec(me.id)) : null });
+  if (method === 'GET' && rest === 'me') return json(200, { me: me ? selfPresenter(me, await rec(me.id)) : null });
 
   if (method === 'POST' && rest === 'login') {
     const { id, pin, setupPassword } = await readJson(request);
@@ -121,7 +123,7 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
     const token = randomHex(24);
     const epoch = (await storage.getKV(`presenter-epoch:${p.id}`)) || 0;
     await storage.putKV(`session:${token}`, { presenter: p.id, epoch, expires: Date.now() + SESSION_DAYS * 864e5 });
-    return json(200, { token, me: publicPresenter(p, await rec(p.id)) });
+    return json(200, { token, me: selfPresenter(p, await rec(p.id)) });
   }
 
   if (!me) return json(401, { error: 'Sign in first' });
@@ -141,7 +143,7 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
   }
   const reset = rest.match(/^([a-z]+)\/reset$/);
   if (method === 'POST' && reset) {
-    if (!me.admin) return json(403, { error: 'Only an admin can reset a PIN' });
+    if (!me.admin) return json(403, { error: 'You can’t reset someone else’s PIN' });
     if (!byId(reset[1])) return json(404, { error: 'Unknown presenter' });
     await storage.deleteKV(`presenter:${reset[1]}`);
     await storage.putKV(`presenter-epoch:${reset[1]}`, ((await storage.getKV(`presenter-epoch:${reset[1]}`)) || 0) + 1);

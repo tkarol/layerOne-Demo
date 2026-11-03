@@ -13,6 +13,7 @@ import { FREE_WORKFLOW, MAX_MESSAGE } from './chat-app.js';
 import { json, safeEqual } from './util.js';
 import { connectInfo, runChecks, sendCustom } from './connect.js';
 import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi } from './workspace.js';
+import { handleLayoutApi } from './layouts.js';
 
 const summarize = (t) => ({
   id: t.id,
@@ -138,6 +139,7 @@ export function createApp({ env, storage }) {
         return /^p_[0-9a-f]+$/.test(h) ? storage.getKV(`profile:${h}`) : null;
       };
 
+      if (pathname === '/api/layouts' || pathname.startsWith('/api/layouts/')) return handleLayoutApi(request, { storage, pathname, method, readJson, me, url });
       if (pathname === '/api/presenters' || pathname.startsWith('/api/presenters/')) {
         return handlePresenterApi(request, { storage, pathname, method, readJson, me, cfg: await configNow() });
       }
@@ -216,7 +218,7 @@ export function createApp({ env, storage }) {
         if (denied) return denied;
         const existing = id && id !== 'active' ? await storage.getKV(`profile:${id}`) : null;
         if (existing && !canEditCustomer(existing, me) && !(method === 'POST' && pathname.endsWith('/copy'))) {
-          return json(403, { error: 'Only the person who created this customer (or an admin) can change it. Make a copy to edit your own.' });
+          return json(403, { error: 'Only the person who created this customer can change it. Make a copy to edit your own.' });
         }
         // Make a copy: any signed-in SE can copy any customer and own the copy.
         if (method === 'POST' && pathname.endsWith('/copy')) {
