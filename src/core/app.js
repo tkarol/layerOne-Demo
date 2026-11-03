@@ -12,6 +12,7 @@ import { handleDataApi } from './data-app.js';
 import { FREE_WORKFLOW, MAX_MESSAGE } from './chat-app.js';
 import { json, safeEqual } from './util.js';
 import { connectInfo, runChecks, sendCustom } from './connect.js';
+import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi } from './workspace.js';
 
 const summarize = (t) => ({
   id: t.id,
@@ -56,7 +57,7 @@ export function createApp({ env, storage }) {
   };
 
   // Run one request and stream a trace snapshot after every step (server-sent events).
-  function streamRun(input, cfg, origin, waitUntil) {
+  function streamRun(input, cfg, origin, waitUntil, store = storage) {
     const trace = createTrace(input, cfg, origin);
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
@@ -82,7 +83,7 @@ export function createApp({ env, storage }) {
         final = { ...structuredClone(trace), status: 'error', error: `Internal error: ${err.message}` };
         send(final);
       }
-      if (final) await storage.putTrace(final);
+      if (final) await store.putTrace(final);
       await queue;
       await writer.close().catch(() => {});
     })();
@@ -94,9 +95,9 @@ export function createApp({ env, storage }) {
   }
 
   // Changing settings or customer profiles honors ALLOW_UI_SETTINGS and SETTINGS_PASSWORD.
-  function checkChangeAllowed(request, cfg) {
+  function checkChangeAllowed(request, cfg, me) {
     if (cfg.settingsLocked) return json(403, { error: 'Settings are locked on this server (ALLOW_UI_SETTINGS=false)' });
-    if (cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
+    if (!me && cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
       return json(401, { error: 'Enter the settings password to make changes', passwordRequired: true });
     }
     return null;
@@ -125,16 +126,32 @@ export function createApp({ env, storage }) {
 
       if (!pathname.startsWith('/api/')) return null;
 
+      // Who's presenting: a signed-in SE gets their own settings, data and history
+      // (falling back to the site-wide settings until they save their own).
+      const me = await presenterFromRequest(request, storage);
+      const mine = me ? scopeStorage(storage, me.id) : storage;
+      const configNow = async () => mergeSaved(baseConfig(), (me && (await mine.getSettings())) || (await storage.getSettings()));
+      // The customer this browser is presenting to (X-Customer), or the legacy site-wide one.
+      const customerFor = async () => {
+        const h = request.headers.get('x-customer');
+        if (h === null) return getActiveProfile(storage);
+        return /^p_[0-9a-f]+$/.test(h) ? storage.getKV(`profile:${h}`) : null;
+      };
+
+      if (pathname === '/api/presenters' || pathname.startsWith('/api/presenters/')) {
+        return handlePresenterApi(request, { storage, pathname, method, readJson, me, cfg: await configNow() });
+      }
+
       if (pathname === '/api/health') return json(200, { ok: true });
       if (pathname === '/api/scenarios') return json(200, SCENARIOS);
-      if (pathname === '/api/config') return json(200, publicConfig(await currentConfig(), origin));
+      if (pathname === '/api/config') return json(200, publicConfig(await configNow(), origin));
 
       // ----- Settings -----
       if (pathname === '/api/settings' || pathname === '/api/settings/test') {
-        const cfg = await currentConfig();
-        const saved = await storage.getSettings();
-        if (method === 'GET' && pathname === '/api/settings') return json(200, publicSettings(cfg, origin, { savedInUi: Boolean(saved) }));
-        const denied = checkChangeAllowed(request, cfg);
+        const cfg = await configNow();
+        const saved = await mine.getSettings();
+        if (method === 'GET' && pathname === '/api/settings') return json(200, { ...publicSettings(cfg, origin, { savedInUi: Boolean(saved) }), ...(me ? { passwordRequired: false } : {}) });
+        const denied = checkChangeAllowed(request, cfg, me);
         if (denied) return denied;
         if (method === 'POST' && pathname === '/api/settings/test') {
           return json(200, await testConnection(await readJson(request), cfg, { origin, fetchFn: makeFetch(origin) }));
@@ -142,21 +159,21 @@ export function createApp({ env, storage }) {
         if (method === 'PUT' && pathname === '/api/settings') {
           const result = validate(await readJson(request), cfg);
           if (!result.ok) return json(400, { error: 'Some settings are invalid', errors: result.errors });
-          await storage.saveSettings(toSaved(result.next));
+          await mine.saveSettings(toSaved(result.next));
           const updated = mergeSaved(baseConfig(), result.next);
-          return json(200, { settings: publicSettings(updated, origin, { savedInUi: true }), notice: result.notice });
+          return json(200, { settings: { ...publicSettings(updated, origin, { savedInUi: true }), ...(me ? { passwordRequired: false } : {}) }, notice: result.notice });
         }
         if (method === 'DELETE' && pathname === '/api/settings') {
-          await storage.clearSettings();
-          return json(200, { settings: publicSettings(baseConfig(), origin, { savedInUi: false }) });
+          await mine.clearSettings();
+          return json(200, { settings: { ...publicSettings(await configNow(), origin, { savedInUi: false }), ...(me ? { passwordRequired: false } : {}) } });
         }
       }
 
       // ----- Connect tab: connection checks and a request builder (they use the saved key) -----
-      if (pathname === '/api/connect' && method === 'GET') return json(200, connectInfo(await currentConfig(), origin));
+      if (pathname === '/api/connect' && method === 'GET') return json(200, connectInfo(await configNow(), origin));
       if ((pathname === '/api/connect/check' || pathname === '/api/connect/send') && method === 'POST') {
-        const cfg = await currentConfig();
-        if (cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
+        const cfg = await configNow();
+        if (!me && cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
           return json(401, { error: 'Enter the settings password to send requests with the saved key', passwordRequired: true });
         }
         if (pathname === '/api/connect/check') return json(200, await runChecks(cfg, { origin, fetchFn: makeFetch(origin) }));
@@ -168,34 +185,50 @@ export function createApp({ env, storage }) {
       if (pathname === '/api/run' && method === 'POST') {
         const { prompt, scenario } = await readJson(request);
         if (!prompt || typeof prompt !== 'string') return json(400, { error: 'prompt is required' });
-        return streamRun({ prompt: prompt.slice(0, 20000), scenario }, await currentConfig(), origin, waitUntil);
+        return streamRun({ prompt: prompt.slice(0, 20000), scenario }, await configNow(), origin, waitUntil, mine);
       }
 
       // ----- Sample applications -----
       if (pathname === '/api/apps' && method === 'GET') {
         // ?default=1 returns the un-customized apps (used as defaults in the Customize dialog).
-        return json(200, publicApps(url.searchParams.get('default') ? null : await getActiveProfile(storage)));
+        return json(200, publicApps(url.searchParams.get('default') ? null : await customerFor()));
       }
 
       // ----- Customer Hub: the interactive database sample app -----
-      if (pathname === '/api/data' || pathname.startsWith('/api/data/')) return handleDataApi(request, { storage, pathname, method, readJson });
+      if (pathname === '/api/data' || pathname.startsWith('/api/data/')) return handleDataApi(request, { storage: mine, pathname, method, readJson });
 
       // ----- Tailoring for the Vellox Reverser and Ranger pages (from the active customer profile) -----
-      if (pathname === '/api/pitch' && method === 'GET') return json(200, publicPitch(await getActiveProfile(storage)));
+      if (pathname === '/api/pitch' && method === 'GET') return json(200, publicPitch(await customerFor()));
 
       // ----- Customer profiles (white-labeling) -----
       if (pathname === '/api/profiles' || pathname.startsWith('/api/profiles/')) {
-        const cfg = await currentConfig();
+        const cfg = await configNow();
         const id = pathname.split('/')[3];
         if (method === 'GET' && !id) {
-          return json(200, { active: (await storage.getKV('profile:active')) || null, profiles: await listProfiles(storage), locked: cfg.settingsLocked, passwordRequired: Boolean(cfg.settingsPassword) });
+          const profiles = (await listProfiles(storage)).map((p) => ({ ...p, canEdit: canEditCustomer(p, me) }));
+          return json(200, { active: (await storage.getKV('profile:active')) || null, profiles, me: me ? { id: me.id, admin: Boolean(me.admin) } : null, locked: cfg.settingsLocked, passwordRequired: !me && Boolean(cfg.settingsPassword) });
         }
         if (method === 'GET') {
           const profile = await storage.getKV(`profile:${id}`);
-          return profile ? json(200, profile) : json(404, { error: 'Profile not found' });
+          return profile ? json(200, { ...profile, canEdit: canEditCustomer(profile, me) }) : json(404, { error: 'Profile not found' });
         }
-        const denied = checkChangeAllowed(request, cfg);
+        const denied = checkChangeAllowed(request, cfg, me);
         if (denied) return denied;
+        const existing = id && id !== 'active' ? await storage.getKV(`profile:${id}`) : null;
+        if (existing && !canEditCustomer(existing, me) && !(method === 'POST' && pathname.endsWith('/copy'))) {
+          return json(403, { error: 'Only the person who created this customer (or an admin) can change it. Make a copy to edit your own.' });
+        }
+        // Make a copy: any signed-in SE can copy any customer and own the copy.
+        if (method === 'POST' && pathname.endsWith('/copy')) {
+          if (!me) return json(401, { error: 'Sign in to copy a customer' });
+          if (!existing) return json(404, { error: 'Profile not found' });
+          const { name } = await readJson(request);
+          const { profile, errors, ok } = validateProfile({ ...existing, name: String(name || `${existing.name} (copy)`) });
+          if (!ok) return json(400, { error: 'Some fields are invalid', errors });
+          profile.owner = me.id;
+          await storage.putKV(`profile:${profile.id}`, profile);
+          return json(200, { ...profile, canEdit: true });
+        }
         if (id === 'active' && method === 'PUT') {
           const { id: activeId } = await readJson(request);
           if (activeId && !(await storage.getKV(`profile:${activeId}`))) return json(404, { error: 'Profile not found' });
@@ -207,8 +240,10 @@ export function createApp({ env, storage }) {
           if (id && !(await storage.getKV(`profile:${id}`))) return json(404, { error: 'Profile not found' });
           const { profile, errors, ok } = validateProfile(await readJson(request), id);
           if (!ok) return json(400, { error: 'Some fields are invalid', errors });
+          const owner = existing ? existing.owner : me?.id;
+          if (owner) profile.owner = owner;
           await storage.putKV(`profile:${profile.id}`, profile);
-          return json(200, profile);
+          return json(200, { ...profile, canEdit: canEditCustomer(profile, me) });
         }
         if (method === 'DELETE' && id) {
           await storage.deleteKV(`profile:${id}`);
@@ -218,9 +253,9 @@ export function createApp({ env, storage }) {
       }
       if (pathname === '/api/app/run' && method === 'POST') {
         const body = await readJson(request);
-        const found = findWorkflow(body.app, body.workflow, await getActiveProfile(storage));
+        const found = findWorkflow(body.app, body.workflow, await customerFor());
         if (!found) return json(404, { error: 'Unknown sample app or workflow' });
-        const cfg = await currentConfig();
+        const cfg = await configNow();
         const { app, workflow } = found;
         // A workflow with a model picker may only use the models it offers.
         const offered = workflow.screen.models?.map((m) => (m.id === '$approved' ? cfg.model : m.id)) || [];
@@ -244,18 +279,19 @@ export function createApp({ env, storage }) {
           cfg,
           origin,
           waitUntil,
+          mine,
         );
       }
 
       // ----- History -----
-      if (pathname === '/api/traces' && method === 'GET') return json(200, (await storage.listTraces(100)).map(summarize));
+      if (pathname === '/api/traces' && method === 'GET') return json(200, (await mine.listTraces(100)).map(summarize));
       if (pathname === '/api/traces' && method === 'DELETE') {
-        await storage.clearTraces();
+        await mine.clearTraces();
         return json(200, { ok: true });
       }
       const m = pathname.match(/^\/api\/traces\/([\w-]+)(\/export)?$/);
       if (m && method === 'GET') {
-        const trace = await storage.getTrace(m[1]);
+        const trace = await mine.getTrace(m[1]);
         if (!trace) return json(404, { error: 'Trace not found' });
         return json(200, trace, m[2] ? { 'Content-Disposition': `attachment; filename="${trace.id}.json"` } : {});
       }

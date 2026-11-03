@@ -21,10 +21,14 @@ async function call(path, method = 'GET', body) {
 
 let dlg;
 
+// Signed in (workspace.js), the customer is chosen per browser; otherwise it's the site-wide one.
+const ws = () => (window.ws?.signedIn ? window.ws : null);
+const ownerLabel = (x) => (ws() && x.owner ? (x.owner === ws().me.id ? ' · yours' : ` · ${ws().presenterName(x.owner)}’s`) : '');
+
 export async function openCustomize({ appId, onChange, hint }) {
   // Defaults for the form come from the un-customized apps.
   const [list, defaults] = await Promise.all([call('/api/profiles'), fetch('/api/apps?default=1').then((r) => r.json())]);
-  const ui = { list, defaults: defaults.apps, selected: list.active || '', draft: null, appId, onChange, hint, error: '' };
+  const ui = { list, defaults: defaults.apps, selected: ws() ? ws().customer : list.active || '', draft: null, appId, onChange, hint, error: '' };
   if (ui.selected) ui.draft = await call(`/api/profiles/${ui.selected}`);
 
   dlg?.remove();
@@ -41,6 +45,7 @@ const blankProfile = (defaults) => ({ name: '', show: defaults.map((a) => a.id),
 function draw(ui) {
   const { list, defaults, draft } = ui;
   const locked = list.locked;
+  const readOnly = Boolean(draft && draft.canEdit === false);
   const appsFields = draft
     ? defaults
         .map((a) => {
@@ -73,30 +78,31 @@ function draw(ui) {
         <div class="profile-row">
           <label>Profile<select id="profilePick">
             <option value="">Default demo (no customization)</option>
-            ${list.profiles.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.selected ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+            ${list.profiles.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.selected ? 'selected' : ''}>${esc(p.name)}${esc(ownerLabel(p))}</option>`).join('')}
             ${ui.selected === 'new' ? '<option value="new" selected>New profile…</option>' : ''}
           </select></label>
           <div class="profile-actions">
             <button type="button" class="secondary small" id="newProfile" ${locked ? 'disabled' : ''}>＋ New</button>
             <button type="button" class="secondary small" id="importProfile" ${locked ? 'disabled' : ''}>Import…</button>
-            ${draft?.id ? `<button type="button" class="secondary small" id="exportProfile">Export</button><button type="button" class="link-btn danger" id="deleteProfile" ${locked ? 'disabled' : ''}>Delete</button>` : ''}
+            ${draft?.id ? `<button type="button" class="secondary small" id="exportProfile">Export</button>${readOnly ? '' : `<button type="button" class="link-btn danger" id="deleteProfile" ${locked ? 'disabled' : ''}>Delete</button>`}` : ''}
             <input type="file" id="importFile" accept="application/json" hidden />
           </div>
         </div>
+        ${readOnly ? `<p class="s-locked">Created by <b>${esc(ws()?.presenterName(draft.owner || 'tyler') || 'another SE')}</b>. You can present to this customer as-is, or <button type="button" class="link-btn" id="custCopy">make a copy</button> to change it.</p>` : ''}
         ${
           draft
-            ? `<div class="grid2"><label class="full">Customer name <span class="muted">(shown as "Prepared for …")</span><input id="custName" value="${esc(draft.name || '')}" placeholder="e.g. Acme Federal" /></label></div>
+            ? `<fieldset class="tl-fields" ${readOnly ? 'disabled' : ''}><div class="grid2"><label class="full">Customer name <span class="muted">(shown as "Prepared for …")</span><input id="custName" value="${esc(draft.name || '')}" placeholder="e.g. Acme Federal" /></label></div>
                ${list.passwordRequired ? '<div class="grid2"><label class="full">Settings password<input type="password" id="custPw" autocomplete="current-password" placeholder="Required to save on this deployment" /></label></div>' : ''}
                <div class="s-section-title">Sample apps <span class="dim-note">tick the ones to show; leave fields blank to keep the defaults</span></div>
                ${appsFields}
-               ${Object.keys(draft.steps || {}).length ? `<p class="muted">${Object.keys(draft.steps).length} step(s) edited for this customer.</p>` : ''}`
+               ${Object.keys(draft.steps || {}).length ? `<p class="muted">${Object.keys(draft.steps).length} step(s) edited for this customer.</p>` : ''}</fieldset>`
             : '<p class="muted">The default demo shows all four sample apps with their fictional names.</p>'
         }
         <p class="err">${esc(ui.error)}</p>
       </div>
       <div class="s-foot"><span class="spacer"></span>
         <button type="button" class="secondary" data-close>Cancel</button>
-        <button type="submit" class="save" ${locked ? 'disabled' : ''}>${draft ? 'Save and use this profile' : 'Use the default demo'}</button>
+        <button type="submit" class="save" ${locked && !readOnly ? 'disabled' : ''}>${readOnly ? 'Present to this customer' : draft ? 'Save and use this profile' : 'Use the default demo'}</button>
       </div>
     </form>`;
   wire(ui);
@@ -105,7 +111,7 @@ function draw(ui) {
 // Copy the form into the draft profile.
 function collect(ui) {
   const d = ui.draft;
-  if (!d) return;
+  if (!d || d.canEdit === false) return;
   d.name = dlg.querySelector('#custName')?.value || '';
   d.show = ui.defaults.map((a) => a.id).filter((id) => dlg.querySelector(`[data-show="${id}"]`)?.checked);
   d.apps ||= {};
@@ -203,15 +209,28 @@ function wire(ui) {
       draw(ui);
     }
   });
+  dlg.querySelector('#custCopy')?.addEventListener('click', async () => {
+    try {
+      const copy = await call(`/api/profiles/${ui.draft.id}/copy`, 'POST', {});
+      ui.list = await call('/api/profiles');
+      ui.selected = copy.id;
+      ui.draft = copy;
+      ui.error = '';
+    } catch (err) {
+      ui.error = err.message;
+    }
+    draw(ui);
+  });
   dlg.querySelector('#custForm').onsubmit = async (e) => {
     e.preventDefault();
     collect(ui);
     try {
       let id = null;
       if (ui.draft) {
-        const saved = ui.draft.id ? await call(`/api/profiles/${ui.draft.id}`, 'PUT', ui.draft) : await call('/api/profiles', 'POST', ui.draft);
+        const saved = ui.draft.canEdit === false ? ui.draft : ui.draft.id ? await call(`/api/profiles/${ui.draft.id}`, 'PUT', ui.draft) : await call('/api/profiles', 'POST', ui.draft);
         id = saved.id;
       }
+      if (ws()) return ws().setCustomer(id); // per browser; reloads the page
       await call('/api/profiles/active', 'PUT', { id });
       dlg.close();
       await ui.onChange();

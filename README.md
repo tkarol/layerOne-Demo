@@ -82,6 +82,18 @@ The **Overview** tab is a 4-slide deck to open a customer demo: the title; **tod
 * With a customer profile active, the title slide says *Prepared for* that customer.
 * Claims stay within the LayerOne docs and what this demo shows. Edit the slides in `public/deck.js`.
 
+## SE workspaces: who's presenting
+
+Four sales engineers share this site: **Tyler** and **Emilio** (admins), **Ethan** and **Chris**. On the Vellox pages (Vellox, LayerOne, Reverser, Ranger, Navigator) the first visit shows **Who's presenting?**; pick your name and enter your PIN.
+
+* **First sign-in chooses your PIN** (4–8 digits). If the server has a `SETTINGS_PASSWORD`, choosing a first PIN also asks for it (the *team setup password*), so nobody can claim someone else's name. Five wrong PINs lock that name for a minute. Admins can **reset** anyone's PIN from the name menu (top right); that signs the person out and they choose a new PIN next time. Anyone can change their own PIN there too.
+* **Yours alone:** your settings (Dry run or live, endpoint, model, API key; until you save your own you get the site-wide ones), your Customer Hub data, and your request history (*Behind the scenes*). Nothing another SE does changes them.
+* **Customers are a shared library.** The **Presenting to ▾** menu in the top bar lists your customers and other SEs' customers; picking one applies only in your browser, so nobody else's choice changes your screen. Only the SE who created a customer (or an admin) can edit it; anyone else sees it read-only with **make a copy**. Customers made before workspaces belong to Tyler.
+* **Brand color:** a customer can have a brand color (set in **✎ Tailor**). It's used as an accent only (the "Prepared for" line, the top-bar dot), so product colors and red/green meanings stay as they are.
+* On screens under 1400px wide, the product switch collapses to the current product with a ▾ menu, to make room.
+
+Coming next: personal deck layouts (show, hide and reorder slides, your own talk track per slide, several layouts per deck, and using or copying other SEs' layouts read-only), then "official version updated" badges and an admin screen. The Oracle page is outside workspaces.
+
 ## Vellox: the suite overview page
 
 `/vellox.html` is the first page in the product switch (**Vellox · LayerOne · Reverser · Ranger · Navigator**). It covers the suite as a whole, with the four products in this demo; each has its own page for the deep dive. Gold accent; each product keeps its own color throughout.

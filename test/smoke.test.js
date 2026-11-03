@@ -544,3 +544,59 @@ test('live call, batch queue, agent and scraper: every AI step reaches the decis
   assert.match(leave.governance.judge.rationale, /240/);
   assert.match((await appRun('ground', 'q3', false)).output, /\$50 monthly internet stipend/);
 });
+
+// ----- SE workspaces -----
+test('SE workspaces: PIN sign-in, per-presenter settings and data, owner-only customers', async () => {
+  const login = (id, pin) => api('/api/presenters/login', 'POST', { id, pin });
+  const as = (token) => ({ 'X-Presenter-Token': token });
+
+  const list = (await api('/api/presenters')).data.presenters;
+  assert.deepEqual(list.map((p) => p.id), ['tyler', 'emilio', 'ethan', 'chris']);
+  assert.ok(list.find((p) => p.id === 'emilio').admin && !list.find((p) => p.id === 'ethan').admin);
+
+  // First sign-in chooses the PIN; after that it must match.
+  assert.equal((await login('ethan', '12')).status, 400);
+  const ethan = (await login('ethan', '4321')).data.token;
+  assert.equal((await login('ethan', '9999')).status, 401);
+  assert.equal((await login('ethan', '4321')).status, 200);
+  const chris = (await login('chris', '1357')).data.token;
+  const emilio = (await login('emilio', '2468')).data.token;
+
+  // Settings are per presenter.
+  await api('/api/settings', 'PUT', { pace: 'slow' }, as(ethan));
+  assert.equal((await api('/api/settings', 'GET', null, as(ethan))).data.pace, 'slow');
+  // Chris hasn't saved any, so he sees the site-wide settings, not Ethan's.
+  const siteWide = (await api('/api/settings')).data.pace;
+  assert.notEqual(siteWide, 'slow');
+  assert.equal((await api('/api/settings', 'GET', null, as(chris))).data.pace, siteWide);
+
+  // Customer Hub data is per presenter: Ethan's unprotected delete doesn't touch Chris's table.
+  await api('/api/data/reset', 'POST', {}, as(ethan));
+  await api('/api/data/reset', 'POST', {}, as(chris));
+  await api('/api/data/ask', 'POST', { message: 'Delete all inactive customers', protected: false }, as(ethan));
+  const rows = async (t) => (await api('/api/data', 'GET', null, as(t))).data.rows.length;
+  assert.ok((await rows(ethan)) < (await rows(chris)));
+
+  // Customers: shared, but only the owner (or an admin) can change one; anyone can copy.
+  const created = await api('/api/profiles', 'POST', { name: 'Workspace Test City', color: '#0f766e' }, as(ethan));
+  assert.equal(created.data.owner, 'ethan');
+  const id = created.data.id;
+  assert.equal((await api(`/api/profiles/${id}`, 'PUT', { name: 'Changed' }, as(chris))).status, 403);
+  const copy = await api(`/api/profiles/${id}/copy`, 'POST', {}, as(chris));
+  assert.equal(copy.data.owner, 'chris');
+  assert.equal((await api(`/api/profiles/${id}`, 'PUT', { name: 'Workspace Test City', color: '#0f766e' }, as(emilio))).status, 200);
+  const seen = (await api('/api/profiles', 'GET', null, as(chris))).data.profiles;
+  assert.equal(seen.find((p) => p.id === id).canEdit, false);
+  assert.equal(seen.find((p) => p.id === copy.data.id).canEdit, true);
+
+  // The customer each browser presents to comes from X-Customer.
+  assert.equal((await api('/api/pitch', 'GET', null, { 'X-Customer': id })).data.customer.name, 'Workspace Test City');
+  assert.equal((await api('/api/pitch', 'GET', null, { 'X-Customer': 'none' })).data.customer, null);
+
+  // Only admins reset PINs, and a reset signs the person out.
+  assert.equal((await api('/api/presenters/ethan/reset', 'POST', {}, as(chris))).status, 403);
+  assert.equal((await api('/api/presenters/ethan/reset', 'POST', {}, as(emilio))).status, 200);
+  assert.equal((await api('/api/presenters/me', 'GET', null, as(ethan))).data.me, null);
+
+  for (const pid of [id, copy.data.id]) await api(`/api/profiles/${pid}`, 'DELETE', null, as(emilio));
+});

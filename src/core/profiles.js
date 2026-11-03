@@ -92,7 +92,7 @@ export async function getActiveProfile(storage) {
 
 export async function listProfiles(storage) {
   const all = (await storage.listKV('profile:p_')).filter(Boolean);
-  return all.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt })).sort((a, b) => a.name.localeCompare(b.name));
+  return all.map((p) => ({ id: p.id, name: p.name, owner: p.owner || null, color: p.color || null, updatedAt: p.updatedAt })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ----- tailoring the Vellox Reverser, Ranger and Navigator pages (all optional) -----
@@ -152,7 +152,7 @@ function validatePitch(input, errors) {
 
 // What the Reverser and Ranger pages need: the active customer and its tailoring.
 export function publicPitch(profile) {
-  return { customer: profile ? { id: profile.id, name: profile.name } : null, pitch: profile?.pitch || {} };
+  return { customer: profile ? { id: profile.id, name: profile.name, color: profile.color || null } : null, pitch: profile?.pitch || {} };
 }
 
 // ----- validation -----
@@ -206,6 +206,10 @@ export function validateProfile(input, existingId) {
 
   const pitch = validatePitch(input.pitch, errors);
 
-  const profile = { id: existingId || `p_${randomHex(6)}`, name, show, apps, steps, ...(pitch ? { pitch } : {}), updatedAt: new Date().toISOString() };
+  // The customer's brand color: an accent on the decks ("Prepared for", title slide).
+  const color = str(input.color);
+  if (color && !/^#[0-9a-f]{6}$/i.test(color)) errors.color = 'Use a color like #1d4ed8';
+
+  const profile = { id: existingId || `p_${randomHex(6)}`, name, show, apps, steps, ...(pitch ? { pitch } : {}), ...(color ? { color } : {}), updatedAt: new Date().toISOString() };
   return { profile, errors, ok: Object.keys(errors).length === 0 };
 }
