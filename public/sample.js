@@ -9,6 +9,7 @@ import { mountCallApp } from './call-app.js';
 import { mountBatchApp } from './batch-app.js';
 import { mountAgentApp } from './agent-app.js';
 import { mountScrapeApp } from './scrape-app.js';
+import { mountGroundApp } from './ground-app.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -109,7 +110,7 @@ function render() {
   const wf = currentWorkflow();
   const isData = app.type === 'data';
   const isChat = app.type === 'chat';
-  const fmt = ['call', 'batch', 'agent', 'scrape'].includes(app.type) ? app.type : null; // the other apps with their own screen
+  const fmt = ['call', 'batch', 'agent', 'scrape', 'ground'].includes(app.type) ? app.type : null; // the other apps with their own screen
   const custom = isData || isChat || Boolean(fmt); // apps with their own screen, not a day of steps
   const compare = state.compare && !custom; // these run one way at a time (Ask AI has its own retry button)
   const color = app.brand?.color || '#0f766e';
@@ -154,7 +155,7 @@ function render() {
         </div>
       </header>
       ${app.group ? missionTabs(app) : ''}
-      ${!state.protected && !compare ? `<div class="ribbon">⚠️ LayerOne is OFF. ${isData ? 'The AI’s database queries run unchecked, including deletes.' : fmt === 'agent' ? 'The agent’s plans go straight to the model, and its tools run unchecked.' : fmt === 'scrape' ? 'Whatever the web pages say goes straight to the AI, and straight into the database.' : 'AI requests go straight to the model: nothing is checked, removed, or recorded.'}</div>` : ''}
+      ${!state.protected && !compare ? `<div class="ribbon">⚠️ LayerOne is OFF. ${isData ? 'The AI’s database queries run unchecked, including deletes.' : fmt === 'agent' ? 'The agent’s plans go straight to the model, and its tools run unchecked.' : fmt === 'scrape' ? 'Whatever the web pages say goes straight to the AI, and straight into the database.' : fmt === 'ground' ? 'Answers go straight to the employee. Nobody checks them against the documents they cite.' : 'AI requests go straight to the model: nothing is checked, removed, or recorded.'}</div>` : ''}
       ${compare ? '<div class="ribbon compare">⇆ Compare mode: each AI action runs twice, with LayerOne and without it, side by side.</div>' : ''}
 
       ${isData ? '<div class="appwin-body data-body"><div id="dataRoot"></div></div>' : isChat ? '<div class="appwin-body chat-body"><div id="chatRoot"></div></div>' : fmt ? `<div class="appwin-body fmt-body"><div id="fmtRoot"></div></div>` : renderDayBody(app, wf)}
@@ -171,6 +172,7 @@ function render() {
   if (fmt === 'batch') mountBatchApp(fmtOpts);
   if (fmt === 'agent') mountAgentApp(fmtOpts);
   if (fmt === 'scrape') mountScrapeApp(fmtOpts);
+  if (fmt === 'ground') mountGroundApp(fmtOpts);
 }
 
 // The app picker: one card per app, except grouped apps (the Day in the life

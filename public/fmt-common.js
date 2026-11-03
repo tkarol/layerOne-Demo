@@ -65,7 +65,8 @@ export function offIssues(t, wf) {
   if (pii) list.push(`${pii} piece${pii > 1 ? 's' : ''} of personal data went to the AI model provider`);
   if ((t.promptTokens || 0) > 8000) list.push(`About ${Number(t.promptTokens).toLocaleString('en-US')} tokens went out in one request, with no limit`);
   if (wf?.policy === 'Bulk personal data') list.push('A bulk export of everyone’s SSNs went ahead');
-  if (wf?.policy === 'LLM judge') list.push('Nobody checked the answer before it was used, and it is wrong');
+  if (/^LLM judge: grounding/.test(wf?.policy || '')) list.push('Nobody checked the answer against the documents it cites, and it is wrong');
+  else if (/^LLM judge/.test(wf?.policy || '')) list.push('Nobody checked the answer before it was used, and it is wrong');
   if (new RegExp(LEAK_RE.source, 'i').test(out.replace(/\bCUI(?:\/\/[A-Z-]+)?\b/g, '')) && !list.some((x) => x.includes('obeyed'))) list.push('Sensitive data appeared in the AI’s answer');
   return list;
 }

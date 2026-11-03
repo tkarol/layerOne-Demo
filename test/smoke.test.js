@@ -171,9 +171,9 @@ const fired = (t) => Object.fromEntries((t.governance?.policies || []).filter((p
 test('sample apps are listed without request builders or full documents', async () => {
   const { apps, customer } = await (await fetch(`${base}/api/apps`)).json();
   assert.equal(customer, null);
-  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'acquisition', 'contact', 'intel', 'call', 'batch', 'agent', 'scrape', 'data']);
+  assert.deepEqual(apps.map((a) => a.id), ['chat', 'benefits', 'acquisition', 'contact', 'intel', 'call', 'batch', 'agent', 'scrape', 'ground', 'data']);
   assert.deepEqual(apps.filter((a) => a.group === 'day').map((a) => a.mission), ['Claims', 'Proposals', 'Public agent', 'Intel']);
-  for (const a of apps.filter((x) => !x.type || ['call', 'batch', 'agent', 'scrape'].includes(x.type))) {
+  for (const a of apps.filter((x) => !x.type || ['call', 'batch', 'agent', 'scrape', 'ground'].includes(x.type))) {
     assert.equal(a.workflows[0].mock, undefined, 'stand-in answers stay on the server');
     if (!a.type) assert.equal(a.workflows.length, 4);
     assert.ok(JSON.stringify(a).length < 40000, 'payload should not include the full long documents');
@@ -338,7 +338,7 @@ test('a customer profile renames, rebrands and filters the sample apps, and reac
   await api(`/api/profiles/${id}`, 'DELETE');
   const after = (await api('/api/apps')).data;
   assert.equal(after.customer, null);
-  assert.equal(after.apps.length, 10);
+  assert.equal(after.apps.length, 11);
 });
 
 test('SETTINGS_PASSWORD also protects customer profiles', async () => {
@@ -520,7 +520,7 @@ test('the Vellox Navigator page is served on its own, linked from every product 
 
 test('live call, batch queue, agent and scraper: every AI step reaches the decision it shows', async () => {
   const { apps } = await (await fetch(`${base}/api/apps`)).json();
-  for (const app of apps.filter((a) => ['call', 'batch', 'agent', 'scrape'].includes(a.type))) {
+  for (const app of apps.filter((a) => ['call', 'batch', 'agent', 'scrape', 'ground'].includes(a.type))) {
     for (const w of app.workflows) {
       const t = await appRun(app.id, w.id);
       assert.equal(t.governance.decision, w.expect, `${app.id}/${w.id}`);
@@ -538,4 +538,9 @@ test('live call, batch queue, agent and scraper: every AI step reaches the decis
   assert.match((await appRun('scrape', 'p3', false)).output, /Flags: TOP RECOMMENDED/);
   assert.match((await appRun('scrape', 'p8', false)).output, /collect@data-harvest\.example/);
   assert.ok(JSON.stringify(apps.find((a) => a.id === 'scrape')).length < 40000, 'the 220-page report stays on the server');
+  // Grounded answers: the AI is given the retrieved sources, and an ungrounded answer is held.
+  const leave = await appRun('ground', 'q2');
+  assert.match(leave.prompt, /\[HR-207 §2\.3\] Leave Policy: Employees may carry over up to 240 hours/);
+  assert.match(leave.governance.judge.rationale, /240/);
+  assert.match((await appRun('ground', 'q3', false)).output, /\$50 monthly internet stipend/);
 });
