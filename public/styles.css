@@ -1591,3 +1591,129 @@ details[open] > summary::before { transform: rotate(90deg); }
 @media (max-width: 640px) { .nv2-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) :is(.rg2-play:not(.on), .nv2-modes button.on) { color: #0b0a14; } }
 :root[data-theme='dark'] :is(.rg2-play:not(.on), .nv2-modes button.on) { color: #0b0a14; }
+
+/* ---------- Vellox: the suite overview (gold accent; each product keeps its own color) ---------- */
+.vx-page { --rv: #b45309; --rv-soft: #fef3c7; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .vx-page { --rv: #facc15; --rv-soft: #2d260b; } }
+:root[data-theme='dark'] .vx-page { --rv: #facc15; --rv-soft: #2d260b; }
+.vx-page .rv-topbar { border-bottom-color: #facc15; }
+.vx-page .rv-topbar h1 small { color: #fde68a; }
+.vx .deck-stage { --d-acc-rgb: 250 204 21; }
+.vx-status { display: inline-block; justify-self: start; padding: 0.25em 0.7em; border-radius: 99px; font-size: 0.72em; font-weight: 800; letter-spacing: 0.04em; white-space: nowrap; color: #4ade80; background: rgb(74 222 128 / 12%); border: 1px solid rgb(74 222 128 / 35%); }
+.vx-status.preview { color: #fbbf24; background: rgb(251 191 36 / 12%); border-color: rgb(251 191 36 / 35%); }
+.vx-status.soon { color: #93c5fd; background: rgb(147 197 253 / 12%); border-color: rgb(147 197 253 / 35%); }
+
+/* title: one dot per product on the orbit */
+.vx-od { background: rgb(var(--c)) !important; box-shadow: 0 0 1.2cqw rgb(var(--c) / 80%) !important; }
+
+/* slide 2: AI changed both sides */
+.vx-shift { display: grid; grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.2fr); gap: 2cqw; align-items: center; margin: auto 0; }
+.vx-side { display: grid; gap: 0.9cqw; }
+.vx-side h3 { display: flex; align-items: center; gap: 0.8cqw; margin: 0 0 0.4cqw; font-size: 0.85em; letter-spacing: 0.14em; text-transform: uppercase; color: var(--d-muted); }
+.vx-side h3 .d-svg { width: 1.8cqw; height: 1.8cqw; }
+.vx-side.atk h3 { color: var(--d-bad); }
+.vx-vs { font-size: 1.3em; font-weight: 800; color: var(--d-dim); }
+.vx-pain { display: flex; align-items: center; justify-content: space-between; gap: 1.2cqw; padding: 1cqw 1.3cqw; border-radius: 1.1cqw; border: 1px solid var(--d-line); background: rgb(255 255 255 / 3%); }
+.vx-pain-t { font-size: 0.98em; font-weight: 600; }
+.vx-pain-p { display: inline-flex; align-items: center; gap: 0.6cqw; flex: none; padding: 0.4cqw 1cqw; border-radius: 99px; font-size: 0.85em; font-weight: 800; color: rgb(var(--c)); background: rgb(var(--c) / 12%); border: 1px solid rgb(var(--c) / 40%); }
+.vx-pain-p .d-svg { width: 1.5cqw; height: 1.5cqw; }
+.slide.in .vx-pain { animation: d-in 0.9s both; animation-delay: calc(1.2s + var(--i) * 0.8s); }
+.slide.in .vx-pain-p { animation: vx-match 1s both; animation-delay: calc(2s + var(--i) * 0.8s); }
+.slide.in .vx-pain { border-color: rgb(var(--c) / 35%); }
+@keyframes vx-match { from { opacity: 0; transform: translateX(-1.5cqw) scale(0.9); } }
+.slide.in .vx-side.atk .rv-drv:nth-child(2) { animation-delay: 0.3s; }
+.slide.in .vx-side.atk .rv-drv:nth-child(3) { animation-delay: 0.6s; }
+.slide.in .vx-side.atk .rv-drv:nth-child(4) { animation-delay: 0.9s; }
+
+/* slide 3: four products around the hub */
+.vx-suite { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.6cqw 15cqw; margin: auto 0; }
+.vx-card { display: grid; gap: 0.5cqw; align-content: start; padding: 1.6cqw 1.8cqw; border-radius: 1.4cqw; border: 1px solid rgb(var(--c) / 35%); background: linear-gradient(160deg, rgb(var(--c) / 10%), rgb(255 255 255 / 2%) 60%); animation: vx-glow 16s ease-in-out infinite; animation-delay: calc(var(--i) * 4s); }
+.slide.in .vx-card { animation: d-rise 1s both, vx-glow 16s ease-in-out infinite; animation-delay: calc(0.4s + var(--i) * 0.4s), calc(2.5s + var(--i) * 4s); }
+@keyframes vx-glow { 0%, 22%, 100% { box-shadow: none; } 6%, 16% { box-shadow: 0 0 0 1px rgb(var(--c) / 70%), 0 0 2.6cqw rgb(var(--c) / 30%); } }
+.vx-card .vx-ic, .vx-node .vx-ic, .vx-info .vx-ic { display: grid; place-items: center; width: 3.2cqw; height: 3.2cqw; border-radius: 0.9cqw; color: rgb(var(--c)); background: rgb(var(--c) / 14%); }
+.vx-card .vx-ic .d-svg { width: 1.9cqw; height: 1.9cqw; }
+.vx-card > b { font-size: 1.45em; letter-spacing: -0.01em; }
+.vx-role { font-size: 0.85em; font-weight: 700; color: rgb(var(--c)); text-transform: uppercase; letter-spacing: 0.08em; }
+.vx-card p { margin: 0; color: var(--d-muted); font-size: 0.92em; line-height: 1.4; }
+.vx-hub { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 13cqw; aspect-ratio: 1; display: grid; place-content: center; gap: 0.4cqw; text-align: center; border-radius: 50%; border: 1px solid rgb(250 204 21 / 50%); background: radial-gradient(circle, rgb(250 204 21 / 16%), var(--d-bg) 70%); box-shadow: 0 0 3cqw rgb(250 204 21 / 18%); }
+.vx-hub b { font-size: 1.35em; color: #facc15; }
+.vx-hub span { font-size: 0.72em; color: var(--d-muted); line-height: 1.3; }
+.slide.in .vx-hub { animation: d-pop 1.2s 0.2s both; }
+
+/* slide 4: follow one threat */
+.vx-flow { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.2cqw; margin: auto 0 1.4cqw; padding: 0; list-style: none; }
+.vx-flow li { display: grid; gap: 0.6cqw; align-content: start; padding: 1.6cqw 1.3cqw; border-radius: 1.3cqw; border: 1px solid rgb(var(--c) / 45%); background: linear-gradient(180deg, rgb(var(--c) / 12%), rgb(255 255 255 / 2%)); opacity: 0.35; animation-timing-function: ease-out; animation-iteration-count: infinite; }
+.vx-flow-ic { display: grid; place-items: center; width: 3.4cqw; height: 3.4cqw; border-radius: 50%; color: rgb(var(--c)); background: rgb(var(--c) / 16%); }
+.vx-flow-ic .d-svg { width: 1.9cqw; height: 1.9cqw; }
+.vx-flow b { font-size: 1.12em; line-height: 1.2; }
+.vx-flow small { color: var(--d-muted); font-size: 0.82em; line-height: 1.35; }
+.vx-flow em { justify-self: start; margin-top: 0.4cqw; font-style: normal; font-size: 0.7em; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: rgb(var(--c)); }
+.vx-flow li:not(:last-child)::after { content: ''; position: absolute; }
+.vx-flow-rail { position: relative; height: 0.5cqw; margin-bottom: auto; border-radius: 99px; background: rgb(255 255 255 / 6%); overflow: hidden; }
+.vx-flow-rail i { position: absolute; inset: 0; background: linear-gradient(90deg, #f87171, #22d3ee, #a78bfa, #60a5fa, #4ade80); transform-origin: left; animation: vx-rail linear infinite; }
+@keyframes vx-rail { 0% { transform: scaleX(0); } 80%, 93% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+
+/* slide 6: start where it hurts */
+.vx-start { display: grid; gap: 1cqw; margin: auto 0 1.4cqw; }
+.vx-go { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 0.75fr); align-items: center; gap: 1.6cqw; padding: 1.2cqw 1.6cqw; border-radius: 1.2cqw; border: 1px solid var(--d-line); background: rgb(255 255 255 / 3%); color: inherit; text-decoration: none; transition: border-color 0.3s, background 0.3s; }
+.vx-go:hover { border-color: rgb(var(--c) / 70%); background: rgb(var(--c) / 8%); }
+.slide.in .vx-go { animation: d-slide-in 0.9s both; animation-delay: calc(0.4s + var(--i) * 0.45s); }
+.vx-go-pain { font-size: 1.02em; font-weight: 600; }
+.vx-go-arrow .d-svg { width: 1.8cqw; height: 1.8cqw; color: var(--d-dim); }
+.vx-go-prod { display: flex; align-items: center; gap: 0.8cqw; }
+.vx-go-prod > .d-svg { width: 2cqw; height: 2cqw; color: rgb(var(--c)); }
+.vx-go-prod b { font-size: 1.15em; color: rgb(var(--c)); margin-right: 0.4cqw; }
+
+/* architecture: the four products around your environment */
+.vx-modes button.on { background: var(--rv); }
+.vx-cap { display: grid; align-items: center; min-height: 128px; margin-bottom: 12px; }
+.vx-info { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 18px; border-radius: 16px; border: 1px solid rgb(var(--c) / 55%); background: var(--panel); box-shadow: var(--shadow); animation: l1-reveal 0.3s ease both; }
+.vx-info .vx-ic { width: 46px; height: 46px; border-radius: 12px; }
+.vx-info .vx-ic .d-svg { width: 24px; height: 24px; }
+.vx-info-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 17px; }
+.vx-info .vx-status { font-size: 11.5px; }
+.vx-info p { margin: 4px 0 0; font-size: 15px; }
+.vx-info ul { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.vx-open { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 10px; font-weight: 700; font-size: 14px; color: var(--text); text-decoration: none; border: 1px solid var(--border); background: var(--panel-2); white-space: nowrap; }
+.vx-open .d-svg { width: 16px; height: 16px; }
+.vx-open:hover { border-color: rgb(var(--c)); }
+.vx-map { position: relative; aspect-ratio: 16 / 7.4; min-height: 420px; border-radius: 22px; background: radial-gradient(60% 60% at 50% 50%, rgb(250 204 21 / 10%), transparent 70%), #0c0c0e; box-shadow: 0 20px 50px -24px rgb(0 0 0 / 50%); }
+.vx-map > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.vx-e { stroke: rgb(255 255 255 / 16%); stroke-width: 2; stroke-dasharray: 6 6; vector-effect: non-scaling-stroke; animation: erp-march-vx 6s linear infinite; transition: stroke 0.4s, stroke-width 0.4s; }
+.vx-e.spoke { stroke-dasharray: 3 6; }
+@keyframes erp-march-vx { to { stroke-dashoffset: -60; } }
+.vx-e.lit { stroke: #facc15; stroke-width: 3; }
+.vx-e.done { stroke: rgb(250 204 21 / 45%); }
+.vx-el { position: absolute; transform: translate(-50%, -50%); padding: 3px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; color: #a1a1aa; background: #0c0c0e; border: 1px solid rgb(255 255 255 / 10%); white-space: nowrap; transition: color 0.4s, border-color 0.4s, opacity 0.4s; }
+.vx-el.spoke { font-size: 11.5px; }
+.vx-el.lit { color: #fde68a; border-color: rgb(250 204 21 / 60%); }
+.vx-env { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 25%; display: grid; justify-items: center; gap: 4px; padding: 18px 14px; text-align: center; border-radius: 18px; color: #e4e4e7; border: 1px solid rgb(255 255 255 / 16%); background: #141418; transition: border-color 0.4s, box-shadow 0.4s; }
+.vx-env .d-svg { width: 26px; height: 26px; color: #facc15; }
+.vx-env b { font-size: 16px; }
+.vx-env span { font-size: 12.5px; color: #a1a1aa; }
+.vx-env.lit { border-color: #f87171; box-shadow: 0 0 0 4px rgb(248 113 113 / 25%); }
+.vx-node { position: absolute; transform: translate(-50%, -50%); display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; row-gap: 6px; align-items: center; width: 27%; padding: 14px 16px; border-radius: 16px; text-align: left; color: #f4f4f5; font: inherit; cursor: pointer; border: 1px solid rgb(var(--c) / 40%); background: linear-gradient(160deg, rgb(var(--c) / 14%), transparent 70%), #121215; transition: border-color 0.4s, box-shadow 0.4s, opacity 0.4s, transform 0.25s; }
+.vx-node:hover { transform: translate(-50%, calc(-50% - 2px)); }
+.vx-node .vx-ic { width: 44px; height: 44px; border-radius: 12px; grid-row: span 2; }
+.vx-node .vx-ic .d-svg { width: 24px; height: 24px; }
+.vx-node-t b { display: block; font-size: 17px; }
+.vx-node-t small { display: block; font-size: 12.5px; color: rgb(var(--c)); font-weight: 700; }
+.vx-node .vx-status { font-size: 11px; }
+.vx-node.lit, .vx-node.sel { border-color: rgb(var(--c)); box-shadow: 0 0 0 4px rgb(var(--c) / 25%), 0 0 30px rgb(var(--c) / 25%); }
+.vx-map:not(.playing) .vx-node:not(.lit) { opacity: 0.55; }
+.vx-map:not(.playing) .vx-el:not(.lit) { opacity: 0.5; }
+.vx-map.playing .vx-node:not(.lit):not(.done) { opacity: 0.35; }
+.vx-map.playing .vx-el:not(.lit) { opacity: 0.35; }
+.vx-node.done { border-color: rgb(var(--c) / 70%); }
+@media (max-width: 900px) {
+  .vx-map { aspect-ratio: auto; min-height: 0; display: grid; gap: 10px; padding: 14px; }
+  .vx-map > svg, .vx-el { display: none; }
+  .vx-env, .vx-node { position: static; transform: none; width: auto; }
+  .vx-node:hover { transform: none; }
+  .vx-info { grid-template-columns: auto minmax(0, 1fr); }
+  .vx-open { grid-column: 1 / -1; justify-self: start; }
+  .vx-shift { grid-template-columns: minmax(0, 1fr); }
+  .vx-vs { display: none; }
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .vx-modes button.on { color: #0b0a14; } }
+:root[data-theme='dark'] .vx-modes button.on { color: #0b0a14; }

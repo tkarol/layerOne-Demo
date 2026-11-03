@@ -82,6 +82,14 @@ The **Overview** tab is a 4-slide deck to open a customer demo: the title; **tod
 * With a customer profile active, the title slide says *Prepared for* that customer.
 * Claims stay within the LayerOne docs and what this demo shows. Edit the slides in `public/deck.js`.
 
+## Vellox: the suite overview page
+
+`/vellox.html` is the first page in the product switch (**Vellox · LayerOne · Reverser · Ranger · Navigator**). It covers the suite as a whole, with the four products in this demo; each has its own page for the deep dive. Gold accent; each product keeps its own color throughout.
+
+* **Overview:** a 6-slide deck with talking points: the title; *AI changed both sides* (attackers with AI: faster, more, newer; defenders today: four bottlenecks, each matched to a product as the slide plays); *four products, one mission* (Reverser, Ranger, Navigator and LayerOne around a "human operators + AI agents" hub, each with its role and status: Reverser and Ranger generally available, LayerOne limited preview, Navigator coming soon); *follow one threat through the suite* (new malware → Reverser explains it → Ranger detects it → Navigator records it → LayerOne governs the AI, lighting up in turn on a loop); *built on adversary tradecraft*; and *start where it hurts most* (each bottleneck links straight to its product page).
+* **Architecture (“How the suite fits together”):** the four products around *your environment*, with how their work connects (Reverser → Ranger: indicators, YARA, behaviors; Ranger → Navigator: detection coverage as evidence; LayerOne → Navigator: AI audit records). **Explore:** click a product to light up its connections and get a card with its status and an **Open** button to its page. **Follow one threat:** the same five-step story, step by step. The talking points and sources note say these show how the work connects, not a list of built-in integrations.
+* **Tailor:** the title tagline and the next step.
+
 ## Vellox Reverser: a separate product page
 
 `/reverser.html` is a separate page for **Vellox Reverser**, Booz Allen's AI malware reverse engineering product. It has nothing to do with LayerOne: its own header and a cyan accent. The **LayerOne · Reverser · Ranger** switch in the top-right corner moves between the product pages.
