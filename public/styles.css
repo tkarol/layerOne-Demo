@@ -1153,3 +1153,76 @@ details[open] > summary::before { transform: rotate(90deg); }
   .nv-gap i { width: 80%; }
   .nv-gap em, .nv-act { opacity: 1; }
 }
+
+/* ============ Layer One deck: live traffic on slides 2 and 3 ============ */
+/* One 12-second loop, four requests 3 seconds apart (--n). */
+.d-arch2 { position: relative; }
+.d-lane { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.pk { position: absolute; top: 50%; left: 14%; transform: translate(-50%, -50%); opacity: 0; display: grid; white-space: nowrap; font-size: 0.62em; font-weight: 700; letter-spacing: 0; text-transform: none;
+  padding: 0.35cqw 0.8cqw; border-radius: 999px; background: #10261a; color: #bbf7d0; border: 1px solid rgb(var(--d-acc-rgb) / 70%); box-shadow: 0 0 1.4cqw rgb(var(--d-acc-rgb) / 45%);
+  animation: 12s linear infinite both; animation-delay: calc(var(--n) * 3s); }
+.pk > span { grid-area: 1 / 1; }
+.d-lane.off .pk, .pk-block, .pk-hold { background: #2a0f0f; color: #fecaca; border-color: rgb(248 113 113 / 75%); box-shadow: 0 0 1.4cqw rgb(248 113 113 / 45%); }
+.pk-redact { background: #2a1f08; color: #fde68a; border-color: rgb(251 191 36 / 75%); box-shadow: 0 0 1.4cqw rgb(251 191 36 / 40%); }
+.pk-go { animation-name: pk-go; } .pk-back { animation-name: pk-back; }
+.pk-pass, .pk-redact { animation-name: pk-pass; } .pk-block { animation-name: pk-block; } .pk-hold { animation-name: pk-hold; }
+.pk-redact .a { animation: pk-a 12s linear infinite both; animation-delay: inherit; }
+.pk-redact .b { opacity: 0; animation: pk-b 12s linear infinite both; animation-delay: inherit; }
+@keyframes pk-go { 0% { left: 14%; opacity: 0; } 2% { opacity: 1; } 20% { left: 86%; opacity: 1; } 23%, 100% { left: 86%; opacity: 0; } }
+@keyframes pk-back { 0% { left: 86%; opacity: 0; } 2% { opacity: 1; } 20% { left: 14%; opacity: 1; } 23%, 100% { left: 14%; opacity: 0; } }
+@keyframes pk-pass { 0% { left: 14%; opacity: 0; } 2% { opacity: 1; } 8% { left: 31%; opacity: 1; } 9.5% { left: 34%; opacity: 0; } 14% { left: 66%; opacity: 0; } 15.5% { left: 69%; opacity: 1; } 21% { left: 86%; opacity: 1; } 23%, 100% { left: 86%; opacity: 0; } }
+@keyframes pk-block { 0% { left: 14%; opacity: 0; } 2% { opacity: 1; } 8% { left: 31%; opacity: 1; transform: translate(-50%, -50%); } 9% { transform: translate(-56%, -50%); } 10% { transform: translate(-44%, -50%); } 11% { transform: translate(-50%, -50%) scale(0.9); opacity: 1; } 13%, 100% { left: 31%; opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+@keyframes pk-hold { 0% { left: 86%; opacity: 0; } 2% { opacity: 1; } 8% { left: 69%; opacity: 1; transform: translate(-50%, -50%); } 11% { opacity: 1; transform: translate(-50%, -50%) scale(0.9); } 13%, 100% { left: 69%; opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+@keyframes pk-a { 0%, 9% { opacity: 1; } 10%, 100% { opacity: 0; } }
+@keyframes pk-b { 0%, 13% { opacity: 0; } 14%, 23% { opacity: 1; } 24%, 100% { opacity: 0; } }
+
+/* Slide 2: the void keeps its words at the top and bottom, so traffic runs through the middle. */
+.d-arch2.off .d-void { grid-template-rows: auto auto 1fr; align-content: stretch; padding: 1.6cqw 1cqw; }
+.d-arch2.off .d-void small { align-self: end; }
+
+/* Slide 3: what Layer One is doing right now, and which step is working. */
+.d-now { position: relative; height: 2.4cqw; margin-top: 1.1cqw; border-top: 1px solid rgb(var(--d-acc-rgb) / 25%); padding-top: 0.8cqw; }
+.d-now span { position: absolute; left: 0; right: 0; font-size: 0.85em; font-weight: 700; opacity: 0; animation: d-now 12s linear infinite both; }
+.d-now span:nth-child(1) { animation-delay: 0s; } .d-now span:nth-child(2) { animation-delay: 3s; } .d-now span:nth-child(3) { animation-delay: 6s; } .d-now span:nth-child(4) { animation-delay: 9s; }
+.d-now .ok { color: var(--d-acc); } .d-now .warn { color: var(--d-warn); } .d-now .bad { color: var(--d-bad); }
+@keyframes d-now { 0%, 8% { opacity: 0; transform: translateY(0.4cqw); } 9.5%, 21% { opacity: 1; transform: none; } 23%, 100% { opacity: 0; } }
+.slide[data-slide='how'] .d-core li { padding: 0.2cqw 0.6cqw; margin: 0 -0.6cqw; border-radius: 0.6cqw; }
+.slide[data-slide='how'] .d-core li:nth-child(1) { animation: d-step1 12s linear infinite; }
+.slide[data-slide='how'] .d-core li:nth-child(2) { animation: d-step2 12s linear infinite; }
+.slide[data-slide='how'] .d-core li:nth-child(3) { animation: d-step3 12s linear infinite; }
+.slide[data-slide='how'] .d-core li:nth-child(4) { animation: d-step4 12s linear infinite; }
+@keyframes d-step1 { 0%, 7%, 13%, 32%, 38%, 57%, 63%, 100% { background: transparent; } 8.5%, 11.5%, 33.5%, 36.5%, 58.5%, 61.5% { background: rgb(var(--d-acc-rgb) / 22%); } }
+@keyframes d-step2 { 0%, 11%, 17%, 36%, 42%, 100% { background: transparent; } 12.5%, 15.5%, 37.5%, 40.5% { background: rgb(var(--d-acc-rgb) / 22%); } }
+@keyframes d-step3 { 0%, 82%, 88%, 100% { background: transparent; } 83.5%, 86.5% { background: rgb(var(--d-acc-rgb) / 22%); } }
+@keyframes d-step4 { 0%, 14%, 20%, 39%, 45%, 64%, 70%, 89%, 95%, 100% { background: transparent; } 15.5%, 18.5%, 40.5%, 43.5%, 65.5%, 68.5%, 90.5%, 93.5% { background: rgb(var(--d-acc-rgb) / 22%); } }
+
+/* The outcome tiles light up as their request lands. */
+.d-outcomes.live > .d-out { transition: none; }
+.d-outcomes.on > .d-out { animation: d-tile-on 12s linear infinite both !important; }
+.d-outcomes.off > .d-out { animation: d-tile-off 12s linear infinite both !important; }
+.d-outcomes.live > .d-out:nth-child(1) { animation-delay: 0s !important; } .d-outcomes.live > .d-out:nth-child(2) { animation-delay: 3s !important; }
+.d-outcomes.live > .d-out:nth-child(3) { animation-delay: 6s !important; } .d-outcomes.live > .d-out:nth-child(4) { animation-delay: 9s !important; }
+.d-out.ok { --tile: var(--d-acc); } .d-out.warn { --tile: var(--d-warn); } .d-out.bad { --tile: var(--d-bad); }
+@keyframes d-tile-on { 0%, 8%, 24%, 100% { border-color: var(--d-line); box-shadow: none; transform: none; } 10%, 21% { border-color: var(--tile); box-shadow: 0 0 2cqw -0.4cqw var(--tile); transform: translateY(-0.3cqw); } }
+@keyframes d-tile-off { 0%, 18%, 32%, 100% { border-color: var(--d-line); box-shadow: none; transform: none; } 20%, 29% { border-color: var(--tile); box-shadow: 0 0 2cqw -0.4cqw var(--tile); transform: translateY(-0.3cqw); } }
+
+/* Title: dots travelling around the rings. */
+.orb-dot { position: absolute; top: -0.45cqw; left: 50%; width: 0.9cqw; height: 0.9cqw; margin-left: -0.45cqw; border-radius: 50%; background: var(--d-acc); box-shadow: 0 0 1.2cqw var(--d-acc); }
+.orb-dot.b { top: auto; bottom: -0.45cqw; background: #fff; box-shadow: 0 0 1cqw rgb(255 255 255 / 70%); }
+.d-orbit div:nth-child(1) { animation-duration: 24s !important; }
+.d-orbit div:nth-child(2) { animation-duration: 36s !important; }
+
+/* Slide 4: all eight apps. */
+.d-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.d-4 .d-go { grid-template-columns: auto minmax(0, 1fr); padding: 1.3cqw 1.2cqw; gap: 0.9cqw; }
+.d-4 .d-go-arrow { display: none; }
+.d-4 .d-go-t b { font-size: 0.98em; }
+.d-4 .d-go-t small { font-size: 0.78em; }
+.slide.in .d-grid > :nth-child(7) { animation-delay: 0.85s; }
+.slide.in .d-grid > :nth-child(8) { animation-delay: 0.95s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pk, .pk span, .d-now span, .slide[data-slide='how'] .d-core li, .d-outcomes.live > .d-out { animation: none !important; }
+  .pk { display: none; }
+  .d-now span:first-child { opacity: 1; }
+}

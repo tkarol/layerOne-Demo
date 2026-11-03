@@ -4,6 +4,11 @@
 // Claims stay within what Layer One's docs and this demo show.
 import { createDeck, icon, outcome, goCard as go, esc } from './deck-core.js';
 
+// One request moving through the architecture picture (slides 2 and 3). `kind` sets its path:
+// go / back (straight through, no checkpoint), pass, redact, block, hold (through Layer One).
+const packet = (n, kind, label, after) =>
+  `<span class="pk pk-${kind}" style="--n:${n}"><span class="a">${label}</span>${after ? `<span class="b">${after}</span>` : ''}</span>`;
+
 // Each slide: what's on screen, plus talking points (a key message, what to say, and the lead-in to the next slide).
 const SLIDES = [
   {
@@ -15,7 +20,7 @@ const SLIDES = [
         <p class="d-lead">Govern every AI request your organization makes, <span>in one place.</span></p>
         ${ctx.customer ? `<div class="d-for">Prepared for <b>${esc(ctx.customer)}</b></div>` : ''}
       </div>
-      <div class="d-orbit" aria-hidden="true"><div></div><div></div><div></div></div>`,
+      <div class="d-orbit" aria-hidden="true"><div><i class="orb-dot"></i></div><div><i class="orb-dot"></i><i class="orb-dot b"></i></div><div></div></div>`,
     talk: {
       key: 'This is about using AI safely, not stopping it.',
       points: [
@@ -37,8 +42,14 @@ const SLIDES = [
         <div class="d-void">${icon('x')}<b>No checkpoint</b><small>Nothing is checked, and nothing is recorded</small></div>
         <div class="d-wire"><span>any model →</span><i></i><i class="back"></i><span>← answer</span></div>
         <div class="d-end">${icon('sparkle')}<b>AI<br />models</b></div>
+        <div class="d-lane off" aria-hidden="true">
+          ${packet(0, 'go', 'SSN 123-45-6789')}
+          ${packet(1, 'go', 'Agency data → public model')}
+          ${packet(2, 'go', '“Ignore previous instructions…”')}
+          ${packet(3, 'back', '“Per rule 7.42(q), guaranteed…”')}
+        </div>
       </div>
-      <div class="d-outcomes">
+      <div class="d-outcomes live off">
         ${outcome('bad', 'Data leaves', 'SSNs and CUI sent out')}
         ${outcome('bad', 'Unapproved models', 'Public models, unseen')}
         ${outcome('bad', 'Manipulated AI', 'Hidden instructions obeyed')}
@@ -48,7 +59,7 @@ const SLIDES = [
     talk: {
       key: 'Nobody here is a bad actor. Helpful people and helpful tools are moving faster than the controls.',
       points: [
-        '<b>Point at the empty box in the middle.</b> Today, nothing sits between your people and the models. Whatever they type goes out as is, and whatever comes back is trusted as is.',
+        '<b>Point at the empty box in the middle.</b> Today, nothing sits between your people and the models. Watch the traffic: an SSN, agency data headed for a public model, a hidden instruction, and a made-up answer coming back all go straight through, and each risk tile lights up as it lands.',
         '<b>Tell it as a story.</b> Picture a caseworker at 4:45 on a Friday with a backlog. They paste a claimant’s email into a chat tool to draft a reply: name, SSN, date of birth. Nothing malicious; they’re trying to help. That data now sits with a provider the agency has no agreement with, and there’s no way to pull it back.',
         '<b>Why blocking doesn’t work.</b> Ban AI outright and people move it to personal phones and laptops, where you see even less. The goal is a safe default path, not a wall.',
         '<b>Agents raise the stakes.</b> With a chat tool, a bad answer is a bad paragraph. With an agent that can send email, update records or query a database, a hidden instruction becomes an action. The more useful the agent, the bigger the blast radius.',
@@ -76,11 +87,23 @@ const SLIDES = [
             <li><span>3</span>Check the answer</li>
             <li><span>4</span>Record the decision</li>
           </ol>
+          <div class="d-now" aria-hidden="true">
+            <span class="ok">✓ Normal request: passed</span>
+            <span class="warn">🛡 SSN removed, then sent</span>
+            <span class="bad">⛔ Hidden instruction: blocked</span>
+            <span class="warn">✋ Made-up rule: answer held</span>
+          </div>
         </div>
         <div class="d-wire"><span>approved →</span><i></i><i class="back"></i><span>← answer</span></div>
         <div class="d-end">${icon('sparkle')}<b>AI<br />models</b></div>
+        <div class="d-lane on" aria-hidden="true">
+          ${packet(0, 'pass', 'Draft a reply')}
+          ${packet(1, 'redact', 'SSN 123-45-6789', '[REDACTED]')}
+          ${packet(2, 'block', '“Ignore previous instructions…”')}
+          ${packet(3, 'hold', '“Per rule 7.42(q), guaranteed…”')}
+        </div>
       </div>
-      <div class="d-outcomes">
+      <div class="d-outcomes live on">
         ${outcome('ok', 'Pass', 'Normal work flows')}
         ${outcome('warn', 'Redact', 'Sensitive data removed')}
         ${outcome('bad', 'Block', 'Never reaches a model')}
@@ -91,6 +114,7 @@ const SLIDES = [
       key: 'Invisible when everything is fine, decisive when it isn’t.',
       points: [
         '<b>Use an analogy:</b> one security checkpoint at the front door instead of a different lock on every office. Set the rules once, and every app and agent inherits them.',
+        '<b>Let the traffic play once:</b> a normal request passes, the SSN goes in and comes out redacted, the hidden instruction stops at Layer One, and the made-up answer coming back is held. The four steps inside Layer One light up as it works.',
         '<b>Two moments matter:</b> before a model sees the request, and before a person sees the answer. That’s where Layer One acts.',
         '<b>Most traffic just passes,</b> and that’s the point. If governance slows people down, they route around it.',
         '<b>The record is the quiet win:</b> every decision is tied to an agent, project and run, so an audit question takes minutes, not weeks of digging.',
@@ -106,20 +130,22 @@ const SLIDES = [
     title: 'Let’s see it',
     html: () => `
       <p class="d-sub">Real requests through Layer One. Switch it off to see the difference; every request is in Behind the scenes.</p>
-      <div class="d-grid d-2 d-demo">
-        ${go('apps:chat', 'chat', 'Ask AI', 'A company AI chat · 5 minutes')}
-        ${go('apps:benefits', 'landmark', 'A day in the life', 'Claims, proposals, a public agent, intel')}
-        ${go('apps:call', 'users', 'Live call assist', 'AI listening to a call, in real time')}
-        ${go('apps:batch', 'layers', 'Batch document review', '20 FOIA records at once')}
-        ${go('apps:agent', 'zap', 'An AI agent with admin tools', 'It plans, then acts on its own')}
-        ${go('apps:data', 'db', 'AI agents and your data', 'An agent that queries a database')}
+      <div class="d-grid d-4 d-demo">
+        ${go('apps:chat', 'chat', 'Ask AI', 'A company AI chat')}
+        ${go('apps:benefits', 'landmark', 'A day in the life', 'Claims · proposals · public agent · intel')}
+        ${go('apps:call', 'users', 'Live call assist', 'AI listening to a call')}
+        ${go('apps:batch', 'layers', 'Batch review', '20 FOIA records at once')}
+        ${go('apps:agent', 'zap', 'Agent with admin tools', 'It plans, then acts')}
+        ${go('apps:scrape', 'search', 'Web scraper → database', 'Poisoned pages')}
+        ${go('apps:ground', 'file', 'Grounded answers', 'Checked against the sources')}
+        ${go('apps:data', 'db', 'AI and your data', 'An agent on a database')}
       </div>`,
     talk: {
       key: 'Let them see it catch real problems, then flip it off and see what gets through.',
       points: [
         '<b>Set it up:</b> “Everything you’re about to see is a real request going through Layer One. I’ll also switch it off, so you can see exactly what it’s catching.”',
         '<b>Let them choose</b> the scenario closest to their mission; people lean in when it looks like their own job.',
-        '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program or mission staff, A day in the life (pick the mission closest to them). Contact centers, Live call assist. Records or claims shops, Batch document review. Anyone building agents, the AI agent with admin tools or AI agents and your data. Security or engineering, finish in Behind the scenes, then Connect.',
+        '<b>Rule of thumb:</b> short slot or a mixed audience, Ask AI. Program or mission staff, A day in the life (pick the mission closest to them). Contact centers, Live call assist. Records or claims shops, Batch review. Anyone building agents, the agent with admin tools or AI and your data. Teams building on web or open-source data, the web scraper. Anyone worried about hallucination, Grounded answers. Security or engineering, finish in Behind the scenes, then Connect.',
       ],
       ask: 'Which of these looks most like your day-to-day?',
       next: 'Click a card to start.',
