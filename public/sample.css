@@ -750,3 +750,26 @@ body.present .story, body.present .email-body, body.present .ai-output, body.pre
 .gr-safe { border: 1px solid color-mix(in srgb, var(--ok) 50%, var(--border)); background: color-mix(in srgb, var(--ok) 6%, var(--panel)); }
 .gr-safe-h { display: block; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ok); margin-bottom: 4px; }
 .gr-why { margin: 0; font-size: 13px; color: var(--warn); font-weight: 600; }
+
+/* Grounding: one answer told as four numbered steps */
+.gstory { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.gs { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 0 0 14px; position: relative; }
+.gs:not(:last-child)::before { content: ''; position: absolute; left: 12px; top: 26px; bottom: 2px; width: 2px; background: var(--border); }
+.gs-n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+.gs > div { min-width: 0; display: grid; gap: 6px; }
+.gs > div > b { font-size: 14.5px; line-height: 26px; }
+.gs p { margin: 0; font-size: 14px; line-height: 1.5; }
+.gs.ok .gs-n { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.gs.bad .gs-n, .gs.caught .gs-n { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+.gs.caught .gs-n { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.gs-draft { font-size: 14.5px; line-height: 1.6; padding: 9px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); }
+.gs-draft.struck { border-style: dashed; border-color: var(--bad); opacity: 0.75; }
+.gs-draft + small { font-size: 12px; font-weight: 700; color: var(--bad); text-transform: uppercase; letter-spacing: 0.04em; }
+.gs-claims { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; line-height: 1.45; }
+.gs-claims li { padding: 6px 9px; border-radius: 8px; }
+.gs-claims li.ok { background: var(--ok-soft); color: var(--ok); }
+.gs-claims li.bad { background: var(--bad-soft); color: var(--bad); }
+.gs-verdict { font-weight: 700; }
+.gs-verdict.ok { color: var(--ok); }
+.gs-verdict.bad { color: var(--text); }
+.cmp-col .gs-draft, .cmp-col .gr-answer { font-size: 14px; }

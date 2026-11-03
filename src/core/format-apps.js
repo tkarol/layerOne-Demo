@@ -449,6 +449,7 @@ const question = ({ id, title, policy, expect, message, sources, answer, judge, 
     sources,
     claims,
     right,
+    draft: answer, // the AI's draft, shown in Dry run when LayerOne stops it (step 2 on the screen)
   });
 
 export const GROUND_APP = {

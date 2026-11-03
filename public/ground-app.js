@@ -17,7 +17,6 @@ export function mountGroundApp(options) {
 const qs = () => ctx.app.workflows;
 const mode = () => (ctx.isProtected() ? 'on' : 'off');
 const CITE_RE = /\[((?:HR|FIN)-\d+ §[\d.]+(?:, §[\d.]+)*)\]/g;
-const STATUS = { supported: ['✓', 'Supported by the source'], contradicted: ['✗', 'The source says otherwise'], missing: ['✗', 'No such source'] };
 
 // The claim-by-claim comparison comes from the Dry-run judge; a live judge returns its verdict and rationale only.
 const isDryRun = (t) => /\/mock\//.test(t?.endpoint?.url || '') || /\/mock\//.test(t?.governance?.judge?.url || '');
@@ -69,7 +68,7 @@ function draw() {
           <button class="ai-btn" id="grAsk" ${s.running ? 'disabled' : ''}>${s.running ? '<span class="spinner small"></span> Answering…' : r ? '↻ Ask again' : '📚 Ask Policy Answers'}</button>
           <span class="muted small">${cmp ? 'Compare: asked with and without LayerOne' : `LayerOne is <b>${m === 'on' ? 'on' : 'off'}</b>`}</span>
         </div>
-        ${cmp ? (r || rOff ? drawCompare(wf, r, rOff, checked) : '<p class="muted">Ask, and the answer appears twice: with LayerOne and without it.</p>') : r ? drawResult(wf, r, checked) : '<p class="muted">The assistant searches the documents on the left, then answers with a citation for every claim.</p>'}
+        ${cmp ? (r || rOff ? drawCompare(wf, r, rOff) : '<p class="muted">Ask, and the answer appears twice: with LayerOne and without it.</p>') : r ? drawResult(wf, r) : '<p class="muted">The assistant searches the documents on the left, then answers with a citation for every claim.</p>'}
       </section>
     </div>`;
   wire();
@@ -81,52 +80,64 @@ function cites(text, wf, checked) {
   return mark(text).replace(CITE_RE, (_, ref) => `<span class="cite ${status[ref] ? `c-${status[ref]}` : ''}">${esc(ref)}</span>`);
 }
 
-function drawResult(wf, r, checked) {
+function drawResult(wf, r) {
+  return story(wf, r, !r.trace?.bypass);
+}
+
+// Compare: the same four steps, with and without LayerOne, side by side.
+function drawCompare(wf, rOn, rOff) {
+  return cmpCols(rOn ? story(wf, rOn, true) : '<p class="muted">…</p>', rOff ? story(wf, rOff, false) : '<p class="muted">…</p>');
+}
+
+// One answer, told as four steps: search → AI's answer → the check → what the employee sees.
+function story(wf, r, on) {
   if (r.error) return `<p class="ac-issues">${esc(r.error)}</p>`;
   const t = r.trace;
   if (!t || t.status === 'running') return '<p class="muted"><span class="spinner small"></span> Searching the documents and drafting an answer…</p>';
-  const v = outcome(t, wf);
-  const found = `<div class="gr-found"><span>Found in the documents:</span>${wf.sources.map((x) => `<span class="cite">${esc(x)}</span>`).join('')}</div>`;
-  const head = `<div class="bd-verdict v-${v.cls}"><span class="ac-badge">${v.cls === 'ok' ? '✅ Grounded' : v.badge}</span><span>${esc(v.cls === 'ok' ? 'Every claim is backed by the cited source.' : v.text)}</span></div>${v.list?.length ? `<ul class="ac-issues">${v.list.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}`;
-  const draft = t.governance?.decision === 'held' ? null : t.output;
-  // With LayerOne on and the answer held, show the AI's draft so the audience sees what was stopped.
-  const heldDraft = t.governance?.decision === 'held' ? (wf.claims ? wf.claims : null) : null;
-  const claimTable = checked && wf.claims?.length
-    ? `<div class="gr-check"><div class="gr-check-h">🛡️ Grounding check: ${wf.claims.filter((c) => c.status === 'supported').length} of ${wf.claims.length} claims supported</div>
-        <table><tbody>${wf.claims
-          .map((c) => `<tr class="c-${c.status}"><td class="gc-mark">${STATUS[c.status][0]}</td><td><b>${esc(c.text)}</b><small>cites <span class="cite c-${c.status}">${esc(c.cite)}</span></small></td><td>${c.status === 'supported' ? STATUS.supported[1] : `${STATUS[c.status][1]}: <i>${esc(c.source)}</i>`}</td></tr>`)
-          .join('')}</tbody></table></div>`
-    : '';
-  const answerBox = draft != null
-    ? `<div class="cbubble b-ai gr-answer ${t.bypass && wf.claims?.some((c) => c.status !== 'supported') ? 'risky' : ''}">${cites(draft, wf, checked)}</div>${t.bypass && wf.right ? '<p class="gr-looks">Looks exactly as authoritative as a correct answer: same tone, real-looking citations.</p>' : ''}`
-    : `${safeReply(wf)}${heldDraft ? '<p class="gr-why">✋ The AI’s own answer was held: it cited sources that don’t say what it claimed (see the check below).</p>' : ''}`;
-  const right = wf.right && t.bypass ? `<div class="gr-right"><span>What the documents actually say</span>${cites(wf.right, wf, false)}</div>` : '';
-  return `${found}${head}${answerBox}${claimTable}${right}${t.id ? `<a href="#" class="muted small" data-trace="${esc(t.id)}">See what LayerOne did →</a>` : ''}`;
-}
+  const dry = isDryRun(t);
+  const stopped = on && t.governance?.decision === 'held';
+  const wrong = (wf.claims || []).filter((c) => c.status !== 'supported');
+  const step = (n, cls, title, body) => `<li class="gs ${cls}"><span class="gs-n">${n}</span><div><b>${title}</b>${body}</div></li>`;
+  const claimLine = (c) =>
+    c.status === 'supported'
+      ? `<li class="ok">✓ “${esc(c.text)}”: matches ${esc(c.cite)}</li>`
+      : c.status === 'contradicted'
+        ? `<li class="bad">✗ “${esc(c.text)}”: ${esc(c.cite)} actually says “${esc(c.source)}”</li>`
+        : `<li class="bad">✗ “${esc(c.text)}”: ${esc(c.source)}</li>`;
 
-// Compare: the two answers side by side, kept short; the source's real answer once, underneath.
-function drawCompare(wf, rOn, rOff, checked) {
-  const side = (r, on) => {
-    if (!r) return '<p class="muted">…</p>';
-    if (r.error) return `<p class="ac-issues">${esc(r.error)}</p>`;
-    const t = r.trace;
-    if (!t || t.status === 'running') return '<p class="muted"><span class="spinner small"></span> Answering…</p>';
-    const v = outcome(t, wf);
-    const held = t.governance?.decision === 'held';
-    const supported = wf.claims ? wf.claims.filter((c) => c.status === 'supported').length : 0;
-    return `<div class="bd-verdict v-${v.cls}"><span class="ac-badge">${v.cls === 'ok' ? '✅ Grounded' : v.badge}</span></div>
-      ${held ? `${safeReply(wf)}${on && checked && wf.claims ? `<p class="gr-why">✋ The AI’s answer was held: ${supported} of ${wf.claims.length} claims supported by the sources.</p>` : ''}` : `<div class="cbubble b-ai gr-answer ${!on && v.cls === 'bad' ? 'risky' : ''}">${cites(t.output || '', wf, on && checked)}</div>`}
-      ${!on && v.list?.length ? `<ul class="ac-issues">${v.list.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}`;
-  };
-  const right = '';
-  return `<div class="gr-found"><span>Found in the documents:</span>${wf.sources.map((x) => `<span class="cite">${esc(x)}</span>`).join('')}</div>${cmpCols(side(rOn, true), side(rOff, false))}${right}`;
+  const s1 = step(1, '', 'Searched the policy documents', `<p>Found ${wf.sources.length} relevant section${wf.sources.length > 1 ? 's' : ''}: ${wf.sources.map((x) => `<span class="cite">${esc(x)}</span>`).join('')}</p>`);
+  const draftText = stopped ? (dry ? wf.draft : null) : t.output;
+  const s2 = step(
+    2,
+    stopped ? 'stopped' : '',
+    stopped ? 'The AI wrote a draft answer' : 'The AI wrote an answer',
+    draftText ? `<div class="gs-draft ${stopped ? 'struck' : ''}">${cites(draftText, wf, dry)}</div>${stopped ? '<small>Not shown to the employee</small>' : ''}` : '<p class="muted">LayerOne stopped the draft before the employee saw it.</p>',
+  );
+  let s3;
+  if (on) {
+    const verdict = stopped
+      ? `<p class="gs-verdict bad">${wrong.length ? 'The draft doesn’t match the documents' : 'The draft isn’t supported by the documents'}, so LayerOne stopped it.</p>`
+      : '<p class="gs-verdict ok">Every statement matches the section it cites.</p>';
+    const lines = dry && wf.claims?.length ? `<ul class="gs-claims">${wf.claims.map(claimLine).join('')}</ul>` : stopped ? `<p class="muted small">${esc(outcome(t, wf).text)}</p>` : '';
+    s3 = step(3, stopped ? 'caught' : 'ok', '🛡️ LayerOne checked it against those sections', `${lines}${verdict}`);
+  } else {
+    s3 = step(3, 'bad', '⚠️ Nobody checked it', '<p>LayerOne was off, so the answer went straight to the employee.</p>');
+  }
+  let s4;
+  if (stopped) s4 = step(4, 'ok', 'What the employee sees', safeReply(wf));
+  else if (on) s4 = step(4, 'ok', 'What the employee sees', '<p class="muted">The answer above, as written.</p>');
+  else {
+    const issues = dry && wrong.length ? `<ul class="gs-claims">${wrong.map(claimLine).join('')}</ul>` : '';
+    s4 = step(4, wrong.length ? 'bad' : 'ok', 'What the employee sees', `<p>${wrong.length ? 'The answer above, and it’s wrong:' : 'The answer above, as written.'}</p>${issues}${wrong.length ? '<p class="gr-looks">It looks just as authoritative as a correct answer: same tone, real-looking citations.</p>' : ''}`);
+  }
+  return `<ol class="gstory">${s1}${s2}${s3}${s4}</ol>${t.id ? `<a href="#" class="muted small" data-trace="${esc(t.id)}">See what LayerOne did →</a>` : ''}`;
 }
 
 // When LayerOne holds an answer, the employee still gets a reply: only what the
 // retrieved sources say, or a plain "the documents don't cover this". Nothing invented.
 function safeReply(wf) {
   const text = wf.right || 'I couldn’t confirm an answer to that in the policy documents. Please check with your HR office.';
-  return `<div class="cbubble b-ai gr-answer gr-safe"><span class="gr-safe-h">🛡️ What the employee gets instead: an answer from the sources only</span>${cites(text, wf, false)}</div>`;
+  return `<div class="cbubble b-ai gr-answer gr-safe"><span class="gr-safe-h">An answer using only what the documents say</span>${cites(text, wf, false)}</div>`;
 }
 
 function wire() {
