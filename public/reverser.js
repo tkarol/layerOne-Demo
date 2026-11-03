@@ -149,7 +149,55 @@ sha256  9f2c…e41a</pre></div>
       ],
       ask: 'Where would these go first for you: your SIEM, your EDR, or your threat intel platform?',
       objection: '“Can we trust AI-generated detections?” Treat them like any detection: review and test before rollout. Reverser gets you to a reviewed, deployable rule in minutes instead of weeks.',
-      next: 'So what does that change for your team?',
+      next: 'And two add-ons are on the way.',
+    },
+  },
+  {
+    id: 'addons',
+    title: 'Coming soon: two add-ons',
+    html: () => `
+      <div class="rf">
+        <section class="rf-col flash">
+          <div class="rf-h"><span class="d-ic">${icon('zap')}</span><span><b>Reverser Flash</b><small>Triage every sample, fast</small></span><em class="rf-soon">Coming soon</em></div>
+          <div class="rf-funnel" aria-label="Every sample goes through Flash; most get an answer, the ones that need more go on to full Reverser">
+            <div class="rf-in">${icon('inbox')}<b>Every sample</b></div>
+            <div class="rf-gate">${icon('zap')}<b>Flash</b><span>~15 min</span></div>
+            <div class="rf-out ok">${icon('check')}<b>Answered</b><small>Verdict &amp; key indicators</small></div>
+            <div class="rf-out deep">${icon('nodes')}<b>Full Reverser</b><small>Needs a deeper look</small></div>
+            ${[0, 1, 2, 3, 4].map((i) => `<i class="rf-dot ${i === 2 ? 'deep' : 'ok'}" style="--k:${i}"></i>`).join('')}
+          </div>
+          <ul class="rf-pts">
+            <li><b>~15 minutes</b> to a result on a sample</li>
+            <li><b>Lower cost</b>, so you can run everything through it</li>
+            <li><b>A lighter report</b>: send what needs more to full Reverser</li>
+          </ul>
+        </section>
+        <section class="rf-col jail">
+          <div class="rf-h"><span class="d-ic">${icon('unlock')}</span><span><b>Reverser Jailbreak</b><small>Built for ransomware</small></span><em class="rf-soon">Coming soon</em></div>
+          <div class="rf-jb" aria-label="Encrypted files, Jailbreak works on the encryption, files recovered">
+            <div class="rf-file locked">${icon('lock')}<b>Encrypted files</b><small>report.docx.locked</small></div>
+            <div class="rf-key">${icon('key')}<span>Jailbreak</span></div>
+            <div class="rf-file free">${icon('unlock')}<b>Files back</b><small>report.docx</small></div>
+          </div>
+          <ul class="rf-pts">
+            <li><b>Goes after the encryption</b>, not just the behavior</li>
+            <li><b>Works to recover the key</b> from the ransomware itself</li>
+            <li><b>Get files back</b> without paying, where the encryption can be broken</li>
+          </ul>
+        </section>
+      </div>`,
+    talk: {
+      key: 'Two add-ons extend Reverser: Flash for speed and cost at volume, Jailbreak for ransomware recovery.',
+      points: [
+        '<b>Reverser Flash (left):</b> built for cost and speed. It gets you to a result on a sample in about 15 minutes, with a lighter report than full Reverser. Watch the dots: everything goes through Flash, most samples are answered there, and the ones that need more go on to full Reverser.',
+        '<b>How to position it:</b> “Throw everything into Flash, then send what needs further investigation into Reverser.” Flash replaces guesswork about which samples deserve an expert; Reverser stays the deep, function-level analysis.',
+        '<b>Reverser Jailbreak (right):</b> focused on ransomware. Instead of only explaining what the ransomware does, it goes after the encryption itself and works to recover the key, so files can come back without paying.',
+        '<b>Set expectations on Jailbreak:</b> not every ransomware family’s encryption can be broken. Say it works to recover files, never that it always will.',
+        '<b>Both are coming soon.</b> For dates, pricing and access, connect them with the Booz Allen Vellox team; don’t commit to timelines.',
+      ],
+      ask: 'How many samples a week never get looked at today? And when ransomware hits, what does your recovery plan look like?',
+      objection: '“Why not just use Flash for everything?” Flash is for breadth: a fast answer on every sample. When a sample matters, like an active intrusion or a new campaign, full Reverser gives the depth: every function, detections and campaign links.',
+      next: 'So what does all of this change for your team?',
     },
   },
   {
@@ -186,6 +234,8 @@ const PARTS = {
   validate: ['Peer validation', 'Subagents check each other’s findings, so a conclusion is confirmed before it is reported.'],
   bedrock: ['Amazon Bedrock', 'Foundation models on Amazon Bedrock power every agent; the work runs on AWS.'],
   out: ['Countermeasures', 'YARA rules, IOCs, ATT&CK mappings and reports, ready for the tools your analysts already use.'],
+  flash: ['Reverser Flash (coming soon)', 'A fast, lower-cost first pass: a result on a sample in about 15 minutes, with a lighter report. Run everything through Flash, and send what needs a deeper look into full Reverser.'],
+  jail: ['Reverser Jailbreak (coming soon)', 'Built for ransomware: it goes after the encryption and works to recover the key, so files can come back without paying, where the encryption can be broken.'],
 };
 const GROUPS = [
   ['Unpack', 4],
@@ -252,9 +302,22 @@ function drawArch(el) {
         <small>→ ${tx('tools', 'SIEM · EDR · threat intel')}, after analyst review</small>
       </button>
     </div>
+    <div class="rva-addons">
+      <span class="rva-addons-h">Coming soon</span>
+      <button type="button" class="rva-addon flash ${on('flash')}" data-part="flash">
+        <span class="rva-ad-step">${icon('inbox')}Every sample</span><i class="rva-ad-arr"></i>
+        <span class="rva-ad-main">${icon('zap')}<b>Reverser Flash</b><small>~15 min · lighter report</small></span><i class="rva-ad-arr"></i>
+        <span class="rva-ad-split"><span>${icon('check')}Answered</span><span class="deep">${icon('nodes')}Needs more → <b>Reverser</b></span></span>
+      </button>
+      <button type="button" class="rva-addon jail ${on('jail')}" data-part="jail">
+        <span class="rva-ad-step">${icon('lock')}Ransomware</span><i class="rva-ad-arr"></i>
+        <span class="rva-ad-main">${icon('key')}<b>Reverser Jailbreak</b><small>works to recover the key</small></span><i class="rva-ad-arr"></i>
+        <span class="rva-ad-step ok">${icon('unlock')}Files back</span>
+      </button>
+    </div>
     <p class="rva-tip"><b>${esc(PARTS[st.part][0])}:</b> ${esc(PARTS[st.part][1])}</p>
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">Public descriptions: Booz Allen’s announcements and press coverage. The architecture (one orchestrator, 20+ subagents with peer validation, Amazon Bedrock) reflects the product team’s description; subagent role names here are examples. Confirm figures and deployment options with the Vellox team.</p></details>`;
+      <p class="muted small">Public descriptions: Booz Allen’s announcements and press coverage. The architecture (one orchestrator, 20+ subagents with peer validation, Amazon Bedrock) reflects the product team’s description; subagent role names here are examples. Reverser Flash and Reverser Jailbreak are upcoming add-ons described by the product team; they aren’t in the public announcements yet. Confirm figures and deployment options with the Vellox team.</p></details>`;
   el.querySelectorAll('[data-part]').forEach((b) => (b.onclick = () => ((st.part = b.dataset.part), drawArch(el))));
 }
 
