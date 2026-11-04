@@ -698,3 +698,40 @@ test('guests look around read-only, in their own sandbox, and never see customer
   await api(`/api/layouts/${lay}`, 'DELETE', null, as(emilio));
   await api(`/api/profiles/${cust}`, 'DELETE', null, as(emilio));
 });
+
+test('admins add and remove people; new people choose a PIN, and admin status stays private', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const login = (id, pin) => api('/api/presenters/login', 'POST', { id, pin });
+  const emilio = (await login('emilio', '2468')).data.token;
+  const chris = (await login('chris', '1357')).data.token;
+
+  assert.equal((await api('/api/presenters', 'POST', { name: 'Sam' }, as(chris))).status, 403);
+  assert.equal((await api('/api/presenters', 'POST', { name: 'Sam' })).status, 401);
+  assert.equal((await api('/api/presenters/manage', 'GET', null, as(chris))).status, 403);
+  assert.equal((await api('/api/presenters', 'POST', { name: '' }, as(emilio))).status, 400);
+  assert.equal((await api('/api/presenters', 'POST', { name: 'chris' }, as(emilio))).status, 409);
+
+  const sam = (await api('/api/presenters', 'POST', { name: 'Sam Rivera', admin: true }, as(emilio))).data.presenter;
+  assert.equal(sam.id, 'sam-rivera');
+  const listed = (await api('/api/presenters')).data.presenters;
+  assert.ok(listed.some((p) => p.id === 'sam-rivera' && !p.hasPin));
+  assert.ok(listed.every((p) => !('admin' in p)), 'admin status is still never listed');
+
+  // Sam picks a PIN at first sign-in and is an admin.
+  const samToken = (await login('sam-rivera', '8080')).data.token;
+  assert.equal((await api('/api/presenters/me', 'GET', null, as(samToken))).data.me.admin, true);
+  const people = (await api('/api/presenters/manage', 'GET', null, as(emilio))).data.people;
+  assert.equal(people.find((p) => p.id === 'sam-rivera').builtIn, false);
+  assert.equal(people.find((p) => p.id === 'tyler').builtIn, true);
+
+  // Removing: admins only, never the built-in four or yourself; it signs the person out.
+  assert.equal((await api('/api/presenters/chris', 'DELETE', null, as(emilio))).status, 400);
+  assert.equal((await api('/api/presenters/sam-rivera', 'DELETE', null, as(chris))).status, 403);
+  assert.equal((await api('/api/presenters/sam-rivera', 'DELETE', null, as(samToken))).status, 400);
+  assert.equal((await api('/api/presenters/sam-rivera', 'DELETE', null, as(emilio))).status, 200);
+  assert.equal((await api('/api/presenters/me', 'GET', null, as(samToken))).data.me, null);
+  assert.equal((await login('sam-rivera', '8080')).status, 404);
+  const after = (await api('/api/presenters')).data;
+  assert.ok(!after.presenters.some((p) => p.id === 'sam-rivera'));
+  assert.deepEqual(after.former.find((p) => p.id === 'sam-rivera'), { id: 'sam-rivera', name: 'Sam Rivera' });
+});

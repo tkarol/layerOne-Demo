@@ -58,7 +58,7 @@
   const state = { presenters: [], setupPasswordRequired: false, customers: [], deck: null };
   // Your layout choice is remembered per deck and per customer you present to.
   const layoutKey = (deckId) => `ws-layout:${me?.id}:${deckId}:${customer || 'none'}`;
-  const nameOf = (id) => state.presenters.find((p) => p.id === id)?.name || id;
+  const nameOf = (id) => [...state.presenters, ...(state.former || [])].find((p) => p.id === id)?.name || id;
 
   // Shared with the page scripts (tailor.js, customize.js).
   window.ws = {
@@ -303,8 +303,12 @@
     );
   }
 
-  function meMenu(anchor, note = '') {
-    const others = state.presenters.filter((p) => p.id !== me.id);
+  async function meMenu(anchor, note = '') {
+    // Admins manage people here: add someone, reset a PIN, remove someone they added.
+    let people = [];
+    if (me.admin) people = (await api('/api/presenters/manage').catch(() => ({ people: [] }))).people;
+    const others = people.filter((p) => p.id !== me.id);
+    const person = (p) => `<div class="ws-reset"><span>${esc(p.name)}${p.admin ? ' <em>Admin</em>' : ''}${p.hasPin ? '' : ' <em>no PIN yet</em>'}</span><span class="ws-acts"><button type="button" class="ws-small" data-reset="${esc(p.id)}" ${p.hasPin ? '' : 'disabled'}>Reset PIN</button>${p.builtIn ? '' : `<button type="button" class="ws-small danger" data-remove="${esc(p.id)}">Remove</button>`}</span></div>`;
     openMenu(
       anchor,
       `<div class="ws-menu-h">${esc(me.name)}</div>
@@ -312,11 +316,43 @@
          <input type="password" inputmode="numeric" maxlength="8" placeholder="Current PIN" data-old />
          <input type="password" inputmode="numeric" maxlength="8" placeholder="New PIN (4–8 digits)" data-new />
          <button type="submit" class="ws-small">Change PIN</button></form>
-       ${me.admin ? `<div class="ws-menu-sub">Reset someone’s PIN <span>they choose a new one at next sign-in</span></div>${others.map((p) => `<div class="ws-reset"><span>${esc(p.name)}</span><button type="button" class="ws-small" data-reset="${esc(p.id)}">Reset</button></div>`).join('')}` : ''}
+       ${
+         me.admin
+           ? `<div class="ws-menu-sub">People <span>a reset or new person chooses a PIN at next sign-in</span></div>${others.map(person).join('')}
+              <form class="ws-add"><input type="text" maxlength="30" placeholder="Add a person: their name" data-name autocomplete="off" />
+                <label><input type="checkbox" data-admin /> Admin</label><button type="submit" class="ws-small">Add</button></form>`
+           : ''
+       }
        ${note ? `<p class="ws-note">${esc(note)}</p>` : ''}
        <div class="ws-menu-f"><button type="button" class="ws-link" data-signout>Sign out</button></div>`,
       (m) => {
-        m.querySelector('form').onsubmit = async (e) => {
+        m.querySelector('.ws-add')?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const name = m.querySelector('[data-name]').value.trim();
+          try {
+            const out = await api('/api/presenters', 'POST', { name, admin: m.querySelector('[data-admin]').checked });
+            state.presenters.push(out.presenter);
+            meMenu(anchor, `${out.presenter.name} was added. They pick their name on the sign-in screen and choose a PIN.`);
+          } catch (err) {
+            meMenu(anchor, err.message);
+          }
+        });
+        m.querySelectorAll('[data-remove]').forEach(
+          (b) =>
+            (b.onclick = async () => {
+              const who = nameOf(b.dataset.remove);
+              if (!confirm(`Remove ${who}? They’re signed out and can’t sign in again. Their customers and layouts stay, still marked as theirs.`)) return;
+              try {
+                await api(`/api/presenters/${b.dataset.remove}`, 'DELETE');
+                state.presenters = state.presenters.filter((p) => p.id !== b.dataset.remove);
+                state.former = [...(state.former || []), { id: b.dataset.remove, name: who }];
+                meMenu(anchor, `${who} was removed.`);
+              } catch (err) {
+                meMenu(anchor, err.message);
+              }
+            }),
+        );
+        m.querySelector('.ws-chpin').onsubmit = async (e) => {
           e.preventDefault();
           try {
             await api('/api/presenters/me/pin', 'PUT', { pin: m.querySelector('[data-old]').value, newPin: m.querySelector('[data-new]').value });
@@ -430,6 +466,7 @@
     try {
       const [list, mine] = await Promise.all([api('/api/presenters'), token ? api('/api/presenters/me') : { me: null }]);
       state.presenters = list.presenters;
+      state.former = list.former || [];
       state.setupPasswordRequired = list.setupPasswordRequired;
       if (!mine.me) {
         if (me || token) {
