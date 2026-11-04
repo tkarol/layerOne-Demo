@@ -99,7 +99,8 @@ Every deck (Vellox, LayerOne, Reverser, Ranger, Navigator) has a **Layout ▾** 
 * **✎ Edit this layout / ＋ New layout:** drag (or ▲▼) to reorder slides, untick to skip one, retitle it, and open **Talk track** to rewrite the key message, talking points (add, remove, reorder), the question to ask the room, the objection and the lead-in. Add **private notes** per slide; they show as *Your notes* in your talking points only. Use `**double asterisks**` for bold.
 * **Only what you change is saved.** Everything else keeps following the official deck, so improvements to the official slides still reach your layout. A slide added to the official deck later appears in your layout next to its official neighbor.
 * **Other SEs' layouts** can be used as-is or **copied to yours** to change; only the owner can edit or delete a layout.
-* A customer's own Tailor settings (hidden slides, titles, notes for that customer) still apply on top of your layout.
+* **Layouts for a customer.** A layout can be *for* one customer (the **For** field in the editor). It switches on automatically whenever you present to that customer, and the Layout menu lists it first under **For &lt;customer&gt;**. Your layout choice is remembered per customer. If you have no layout for a customer, a teammate's layout for them is used; with none at all you get the official deck.
+* **One source of truth:** layouts are the only place slides change (order, show/hide, titles, talk track, notes). Customers (Tailor) hold facts and wording about the customer, not slides. Slide edits made in Tailor before this change were moved into customer layouts automatically, owned by the customer's owner.
 
 Coming next: an "official version updated · review" badge when a slide you rewrote changes officially, and an admin screen. The Oracle page is outside workspaces.
 
@@ -166,7 +167,7 @@ All three product pages look exactly as described above until you choose to tail
   * Reverser: the key message on the threat slide, the sample file name (slide 4 and architecture), their tools for detections (architecture) and the next step.
   * Ranger: their crown-jewel system (it replaces *Finance DB* on the network slides and in the example pull request), GitHub or GitLab, their detection tools (architecture) and the next step.
   * Navigator: their system name and control baseline (e.g. *NIST SP 800-53 Moderate*) on the package slide and architecture, who reviews changes (e.g. *the ISSO*), and the next step.
-* **Slides:** untick a slide to skip it, give any slide a new title, or add **your notes for this customer**. Notes appear at the top of that slide's talking points and are never shown on the slide.
+* **Slides and talking points:** not here. **Edit &lt;product&gt; slides for &lt;customer&gt; →** opens your layout for that customer (or starts one from what's on screen), so slide changes live in one place: the layout. See *Your own deck layouts*.
 
 Tailoring is saved in the same customer profile that white-labels the LayerOne demo apps (`pitch` in the profile), so one customer setting covers every page, and saving from the LayerOne **Customize** dialog keeps it. It's stored on the server and protected by `SETTINGS_PASSWORD` / `ALLOW_UI_SETTINGS` like the rest of Customize. **Reset to standard** in the form clears just one product's tailoring.
 ## Sample apps

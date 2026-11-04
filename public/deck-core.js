@@ -3,8 +3,9 @@
 //
 //   createDeck({ slides, label, storageKey, context, onGoto }) → { mount(el) }
 //   slides: [{ id, title?, html(ctx), talk: { key, points[], ask?, objection?, next } }]
-//   context() may also return optional tailoring: { hide: [ids], titles: { id: text }, notes: { id: text }, customer }
-//   → hidden slides are skipped, titles replaced, and notes added to the talking points.
+//   context() returns what the slides need (customer facts and wording).
+//   Slide changes (order, show/hide, titles, talk track, notes) come only from the
+//   presenter's layout for this deck (layouts.js): one source of truth.
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -81,7 +82,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
   let slides = allSlides;
   // A layout reorders and hides slides, and a customer can hide more; never all of them.
   const pick = () => {
-    const hide = new Set([...(st.ctx.hide || []), ...(st.layout?.hidden || [])]);
+    const hide = new Set(st.layout?.hidden || []);
     const ordered = layoutOrder(allSlides, st.layout);
     const shown = ordered.filter((x) => !hide.has(x.id));
     slides = shown.length ? shown : ordered;
@@ -89,8 +90,17 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
   };
   // The active layout for this deck (chosen per presenter, in this browser).
   async function loadLayout() {
-    const id = window.ws?.layoutId?.(deckId);
+    let id = window.ws?.layoutId?.(deckId); // null: not chosen yet for this customer; '': the official deck
     st.layout = null;
+    // Presenting to a customer you haven't picked a layout for yet: use your layout for
+    // them (or a teammate's, if you have none).
+    const cust = window.ws?.customer;
+    if (id == null && cust) {
+      try {
+        const { layouts } = await fetch(`/api/layouts?deck=${encodeURIComponent(deckId)}&customer=${encodeURIComponent(cust)}`).then((r) => r.json());
+        id = (layouts.find((l) => l.mine) || layouts[0])?.id || '';
+      } catch {}
+    }
     if (!id) return;
     try {
       const res = await fetch(`/api/layouts/${encodeURIComponent(id)}`);
@@ -110,7 +120,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
       next: 'next' in o ? fmtText(o.next) : s.talk.next,
     };
   };
-  const titleFor = (s) => (st.ctx.titles?.[s.id] ? esc(st.ctx.titles[s.id]) : st.layout?.titles?.[s.id] ? esc(st.layout.titles[s.id]) : s.title);
+  const titleFor = (s) => (st.layout?.titles?.[s.id] ? esc(st.layout.titles[s.id]) : s.title);
   try {
     st.i = Math.min(Number(sessionStorage.getItem(`${storageKey}-slide`)) || 0, allSlides.length - 1);
     st.notes = sessionStorage.getItem(`${storageKey}-notes`) !== '0';
@@ -159,8 +169,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     notes.innerHTML = `
       <div class="tp-head"><span class="tp-label">Talking points${st.layout ? ` <em class="tp-layout">${esc(st.layout.name)}</em>` : ''}</span><span class="muted small">Slide ${st.i + 1} of ${slides.length} · not shown when presenting</span></div>
       <p class="tp-key">${t.key}</p>
-      ${mine ? `<p class="tp-mine"><span>Your notes</span>${fmtText(mine)}</p>` : ''}
-      ${st.ctx.notes?.[s.id] ? `<p class="tp-cust"><span>For ${esc(st.ctx.customer || 'this customer')}</span>${esc(st.ctx.notes[s.id]).replace(/\n/g, '<br />')}</p>` : ''}
+      ${mine ? `<p class="tp-mine"><span>${st.layout.customer && st.ctx.customer ? `Notes for ${esc(st.ctx.customer)}` : 'Your notes'}</span>${fmtText(mine)}</p>` : ''}
       <ul class="tp-list">${t.points.map((p) => `<li>${p}</li>`).join('')}</ul>
       ${t.ask ? `<p class="tp-ask"><span>Ask the room</span>${t.ask}</p>` : ''}
       ${t.objection ? `<p class="tp-obj"><span>If they say…</span>${t.objection}</p>` : ''}

@@ -1975,3 +1975,12 @@ dialog.layout-ed { width: min(920px, calc(100vw - 32px)); }
 /* Reverser Walkthrough tab */
 #rvWalkRoot { display: grid; align-content: start; }
 #rvWalkRoot .rv-sources { margin-top: 18px; }
+
+/* one source of truth: customer layouts */
+.le-headrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.le-headrow .le-name input { max-width: none; }
+.le-name select { font: inherit; font-size: 14px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.ws-dot.lay.cust { background: var(--warn); }
+.ws-item span em { font-style: normal; font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.tl-slides { display: grid; gap: 10px; justify-items: start; margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--panel-2); font-size: 13.5px; line-height: 1.5; }
+@media (max-width: 640px) { .le-headrow { grid-template-columns: minmax(0, 1fr); } }

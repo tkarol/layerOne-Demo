@@ -2,8 +2,11 @@
 // retitles slides and rewrites the talk track; anything it leaves out follows
 // the official deck, so official improvements still come through.
 // Layouts are shared to view and copy; only their owner can change them.
+// A layout can be for one customer: it switches on when you present to them.
+// This is the only place slides are changed (customers hold facts, not slides).
 // Text is stored as plain text (with **bold**); the browser escapes it.
 import { json, randomHex } from './util.js';
+import { LEGACY_OWNER } from './workspace.js';
 
 export const DECKS = ['vellox', 'layerone', 'reverser', 'ranger', 'navigator'];
 const ID_RE = /^[a-z0-9-]{1,40}$/;
@@ -49,10 +52,12 @@ export function validateLayout(input, existing) {
     if (typeof t.base === 'string' && /^[0-9a-f]{1,16}$/.test(t.base)) out.base = t.base;
     if (Object.keys(out).some((k) => k !== 'base')) talk[id] = out;
   }
+  const customer = typeof input.customer === 'string' && /^p_[0-9a-f]+$/.test(input.customer) ? input.customer : null;
   const layout = {
     id: existing?.id || `l_${randomHex(6)}`,
     deck,
     name,
+    customer,
     order,
     hidden,
     titles,
@@ -63,16 +68,43 @@ export function validateLayout(input, existing) {
   return { layout, errors, ok: Object.keys(errors).length === 0 };
 }
 
-const summary = (l, me) => ({ id: l.id, deck: l.deck, name: l.name, owner: l.owner, updatedAt: l.updatedAt, mine: Boolean(me && l.owner === me.id) });
+const summary = (l, me) => ({ id: l.id, deck: l.deck, name: l.name, customer: l.customer || null, owner: l.owner, updatedAt: l.updatedAt, mine: Boolean(me && l.owner === me.id) });
+
+// One-time move: slide changes that used to live on customers (Tailor: hidden
+// slides, titles, notes) become customer layouts owned by the customer's owner.
+export async function migrateCustomerSlides(storage) {
+  if (await storage.getKV('migrated:customer-slides')) return;
+  for (const profile of (await storage.listKV('profile:p_')).filter(Boolean)) {
+    let changed = false;
+    for (const deck of DECKS) {
+      const p = profile.pitch?.[deck];
+      if (!p || !(p.hide?.length || p.titles || p.notes)) continue;
+      const talk = Object.fromEntries(Object.entries(p.notes || {}).map(([id, notes]) => [id, { notes }]));
+      const { layout, ok } = validateLayout({ deck, name: profile.name, customer: profile.id, hidden: p.hide || [], titles: p.titles || {}, talk });
+      if (ok) {
+        layout.owner = profile.owner || LEGACY_OWNER;
+        await storage.putKV(`layout:${layout.id}`, layout);
+      }
+      delete p.hide;
+      delete p.titles;
+      delete p.notes;
+      changed = true;
+    }
+    if (changed) await storage.putKV(`profile:${profile.id}`, profile);
+  }
+  await storage.putKV('migrated:customer-slides', new Date().toISOString());
+}
 
 // /api/layouts/*
 export async function handleLayoutApi(request, { storage, pathname, method, readJson, me, url }) {
   if (!me) return json(401, { error: 'Sign in to use layouts' });
+  await migrateCustomerSlides(storage);
   const [, , , id, action] = pathname.split('/');
 
   if (method === 'GET' && !id) {
     const deck = url.searchParams.get('deck');
-    const all = (await storage.listKV('layout:l_')).filter((l) => l && (!deck || l.deck === deck));
+    const customer = url.searchParams.get('customer');
+    const all = (await storage.listKV('layout:l_')).filter((l) => l && (!deck || l.deck === deck) && (!customer || l.customer === customer));
     return json(200, { layouts: all.map((l) => summary(l, me)).sort((a, b) => Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name)) });
   }
   const existing = id ? await storage.getKV(`layout:${id}`) : null;

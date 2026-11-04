@@ -96,14 +96,8 @@ export async function listProfiles(storage) {
 }
 
 // ----- tailoring the Vellox Reverser, Ranger and Navigator pages (all optional) -----
-// profile.pitch = { logo, hidePrepared, reverser: {...}, ranger: {...} }. Anything
-// left out keeps the standard slide; an empty pitch changes nothing.
-export const PITCH_SLIDES = {
-  reverser: ['title', 'gap', 'speed', 'how', 'outputs', 'addons', 'team'],
-  ranger: ['title', 'noise', 'inside', 'caught', 'control'],
-  navigator: ['title', 'drift', 'loop', 'live', 'lineage'],
-  vellox: ['title', 'shift', 'suite', 'together', 'why', 'start'],
-};
+// profile.pitch = { logo, hidePrepared, reverser: { lead, ... }, ... }: facts and
+// wording about the customer. Slide changes live in deck layouts (layouts.js).
 const PITCH_FIELDS = {
   reverser: { lead: 120, callout: 140, file: 60, tools: 120, next: 200 },
   ranger: { lead: 120, jewel: 40, tools: 120, review: 10, next: 200 },
@@ -124,7 +118,6 @@ function validatePitch(input, errors) {
   for (const [product, fields] of Object.entries(PITCH_FIELDS)) {
     const src = input[product];
     if (!src || typeof src !== 'object') continue;
-    const slides = PITCH_SLIDES[product];
     const p = {};
     for (const [k, max] of Object.entries(fields)) {
       const v = str(src[k]);
@@ -133,18 +126,7 @@ function validatePitch(input, errors) {
       if (v.length > max) errors[`pitch.${product}.${k}`] = 'Too long';
       p[k] = v;
     }
-    const hide = Array.isArray(src.hide) ? [...new Set(src.hide.filter((id) => slides.includes(id)))] : [];
-    if (hide.length && hide.length < slides.length) p.hide = hide;
-    for (const [key, max] of [['titles', 120], ['notes', 2000]]) {
-      const m = {};
-      for (const id of slides) {
-        const v = str(src[key]?.[id]);
-        if (!v) continue;
-        if (v.length > max) errors[`pitch.${product}.${key}.${id}`] = 'Too long';
-        m[id] = v;
-      }
-      if (Object.keys(m).length) p[key] = m;
-    }
+    // Slide changes (show/hide, titles, notes) live in deck layouts, not here: one source of truth.
     if (Object.keys(p).length) out[product] = p;
   }
   return Object.keys(out).length ? out : undefined;

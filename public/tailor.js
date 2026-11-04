@@ -32,12 +32,9 @@ export async function loadTailoring(product) {
       prepared: customer && !pitch?.hidePrepared ? customer.name : null,
       logo: pitch?.logo || null,
       p,
-      hide: p.hide || [],
-      titles: p.titles || {},
-      notes: p.notes || {},
     };
   } catch {
-    return { customer: null, prepared: null, logo: null, p: {}, hide: [], titles: {}, notes: {} };
+    return { customer: null, prepared: null, logo: null, p: {} };
   }
 }
 
@@ -55,7 +52,7 @@ export function tailorButton(btn, t) {
 
 let dlg;
 
-// opts: { product, label, fields: [{ k, label, placeholder, options? }], slides: [{ id, title }], onSaved }
+// opts: { product, label, fields: [{ k, label, placeholder, options? }], onSaved }
 // Signed in (workspace.js), the customer is chosen per browser; otherwise it's the site-wide one.
 const ws = () => (window.ws?.signedIn ? window.ws : null);
 const ownerLabel = (x) => (ws() && x.owner ? (x.owner === ws().me.id ? ' · yours' : ` · ${ws().presenterName(x.owner)}’s`) : '');
@@ -91,15 +88,6 @@ function draw(ui) {
       : `<input data-f="${f.k}" value="${esc(v)}" placeholder="${esc(f.placeholder)}" />`;
     return `<label class="${f.full ? 'full' : ''}">${esc(f.label)}${f.where ? ` <span class="muted">(${esc(f.where)})</span>` : ''}${input}</label>`;
   };
-  const slideRow = (s, n) => `
-    <details class="tl-slide">
-      <summary><label class="check" onclick="event.stopPropagation()"><input type="checkbox" data-show-slide="${s.id}" ${p.hide?.includes(s.id) ? '' : 'checked'} /> Show</label>
-        <span class="tl-n">${n + 1}</span><b>${esc(p.titles?.[s.id] || s.title)}</b>${p.titles?.[s.id] || p.notes?.[s.id] ? '<span class="tl-edited">edited</span>' : ''}</summary>
-      <div class="grid2">
-        <label class="full">Slide title<input data-title="${s.id}" value="${esc(p.titles?.[s.id] || '')}" placeholder="${esc(s.title)}" /></label>
-        <label class="full">Your notes for this customer <span class="muted">(talking points only; never shown on the slide)</span><textarea data-note="${s.id}" rows="3" placeholder="e.g. Their CISO cares most about…">${esc(p.notes?.[s.id] || '')}</textarea></label>
-      </div>
-    </details>`;
 
   dlg.innerHTML = `
     <form novalidate>
@@ -133,8 +121,9 @@ function draw(ui) {
                </div>
                <div class="s-section-title">${esc(label)} details <span class="dim-note">blank keeps the standard text</span></div>
                <div class="grid2">${ui.fields.map(field).join('')}</div>
-               <div class="s-section-title">Slides <span class="dim-note">untick to skip a slide; open one to retitle it or add notes</span></div>
-               ${ui.slides.map(slideRow).join('')}
+               <div class="s-section-title">Slides and talking points</div>
+               <p class="tl-slides">Slide changes for ${esc(draft.name || 'this customer')} (show or hide, order, titles, talk track, notes) live in a <b>layout</b> for this customer, so there’s one place to change slides. It switches on automatically whenever you present to them.
+                 ${draft.id && window.ws?.signedIn ? `<button type="button" class="secondary small" id="tlSlides">Edit ${esc(label)} slides for ${esc(draft.name || 'this customer')} →</button>` : '<span class="muted">Save the customer first, then edit its slides.</span>'}</p>
                <p class="muted small">This customer also applies to the LayerOne demo apps and the other Vellox pages. Clear just this page with <button type="button" class="link-btn" id="tlReset">reset ${esc(label)} to standard</button>.</p></fieldset>`
             : '<p class="muted">The standard version: no customer name, standard slides and architecture.</p>'
         }
@@ -163,11 +152,6 @@ function collect(ui) {
   else if (!d.pitch.logo?.startsWith('data:')) delete d.pitch.logo;
   const p = (d.pitch[ui.product] ||= {});
   dlg.querySelectorAll('[data-f]').forEach((el) => (p[el.dataset.f] = el.value.trim()));
-  p.hide = ui.slides.map((s) => s.id).filter((id) => !q(`[data-show-slide="${id}"]`)?.checked);
-  p.titles = {};
-  p.notes = {};
-  dlg.querySelectorAll('[data-title]').forEach((el) => el.value.trim() && (p.titles[el.dataset.title] = el.value.trim()));
-  dlg.querySelectorAll('[data-note]').forEach((el) => el.value.trim() && (p.notes[el.dataset.note] = el.value.trim()));
   const pw = q('#tlPw')?.value;
   if (pw) {
     try {
@@ -211,6 +195,18 @@ function wire(ui) {
       draw(ui);
     };
     r.readAsDataURL(f);
+  };
+  // Slides for this customer: present to them, then open your layout for them in the editor.
+  if (q('#tlSlides')) q('#tlSlides').onclick = async () => {
+    collect(ui);
+    try {
+      if (ui.draft.canEdit !== false && ui.draft.id) await call(`/api/profiles/${ui.draft.id}`, 'PUT', ui.draft);
+      dlg.close();
+      await window.ws.editCustomerLayout(ui.draft.id);
+    } catch (err) {
+      ui.error = err.message;
+      draw(ui);
+    }
   };
   if (q('#tlCopy')) q('#tlCopy').onclick = async () => {
     try {

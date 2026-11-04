@@ -52,7 +52,8 @@
   };
 
   const state = { presenters: [], setupPasswordRequired: false, customers: [], deck: null };
-  const layoutKey = (deckId) => `ws-layout:${me?.id}:${deckId}`;
+  // Your layout choice is remembered per deck and per customer you present to.
+  const layoutKey = (deckId) => `ws-layout:${me?.id}:${deckId}:${customer || 'none'}`;
   const nameOf = (id) => state.presenters.find((p) => p.id === id)?.name || id;
 
   // Shared with the page scripts (tailor.js, customize.js).
@@ -68,12 +69,33 @@
     },
     presenterName: nameOf,
     // The layout this presenter uses for a deck (per browser), and changing it.
-    layoutId: (deckId) => (me ? read(layoutKey(deckId)) || '' : ''),
+    // null = not chosen yet for this customer (deck-core then uses your layout for them); '' = official deck.
+    layoutId: (deckId) => (me ? read(layoutKey(deckId)) : ''),
     setLayout(deckId, id, { silent = false } = {}) {
       write(layoutKey(deckId), id || '');
       if (!silent && state.deck?.id === deckId) state.deck.reload().then(() => me && drawBar());
     },
     // A deck on this page (deck-core.js) offers its layouts in the top bar.
+    // Edit the slides for a customer: your layout for them on this deck, or a new one
+    // that starts from what's on screen. Presents to that customer first.
+    async editCustomerLayout(customerId) {
+      const d = state.deck;
+      if (!d) return;
+      if (customerId !== customer) {
+        // Switch the whole page to that customer first, then come back to the editor.
+        try {
+          sessionStorage.setItem('ws-edit-layout-for', customerId || '');
+        } catch {}
+        return window.ws.setCustomer(customerId);
+      }
+      let layout = d.layout?.mine && d.layout.customer === customerId ? d.layout : null;
+      if (!layout) {
+        const name = state.customers.find((c) => c.id === customerId)?.name || 'Customer';
+        const base = d.layout ? { ...d.layout } : {};
+        layout = { ...base, id: undefined, name, customer: customerId };
+      }
+      openEditor(layout);
+    },
     registerDeck(deck) {
       state.deck = deck;
       if (me && document.querySelector('.ws-bar')) drawBar();
@@ -190,6 +212,19 @@
     );
   }
 
+  async function openEditor(layout) {
+    const d = state.deck;
+    closeMenu();
+    const { openLayoutEditor } = await import('./layouts.js');
+    openLayoutEditor({
+      deck: d,
+      layout,
+      customers: state.customers,
+      onSaved: (saved) => window.ws.setLayout(d.id, saved.id),
+      onDeleted: () => window.ws.setLayout(d.id, ''),
+    });
+  }
+
   async function layoutMenu(anchor) {
     const d = state.deck;
     const cur = d.layout;
@@ -197,18 +232,25 @@
     try {
       list = (await api(`/api/layouts?deck=${encodeURIComponent(d.id)}`)).layouts;
     } catch {}
-    const row = (l) => `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-lay="${esc(l.id)}"><i class="ws-dot lay"></i><span>${esc(l.name)}</span><small>${l.mine ? 'Yours' : `${esc(nameOf(l.owner))}’s`}</small></button>`;
-    const mine = list.filter((l) => l.mine);
-    const others = list.filter((l) => !l.mine);
+    const custName = (id) => state.customers.find((c) => c.id === id)?.name;
+    const row = (l) => `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-lay="${esc(l.id)}"><i class="ws-dot lay ${l.customer ? 'cust' : ''}"></i><span>${esc(l.name)}${l.customer && l.customer !== customer && custName(l.customer) ? ` <em>· for ${esc(custName(l.customer))}</em>` : ''}</span><small>${l.mine ? 'Yours' : `${esc(nameOf(l.owner))}’s`}</small></button>`;
+    // Layouts for the customer you're presenting to come first.
+    const forCust = customer ? list.filter((l) => l.customer === customer) : [];
+    const rest = list.filter((l) => !forCust.includes(l));
+    const mine = rest.filter((l) => l.mine);
+    const others = rest.filter((l) => !l.mine);
+    const curCust = custName(customer);
     openMenu(
       anchor,
       `<div class="ws-menu-h">Layout · ${esc(d.label)}</div>
        <button type="button" class="ws-item ${cur ? '' : 'on'}" data-lay=""><i class="ws-dot std"></i><span>Official deck</span></button>
+       ${curCust ? `<div class="ws-menu-sub">For ${esc(curCust)} <span>switches on when you present to them</span></div>${forCust.length ? forCust.map(row).join('') : '<p class="ws-note">No layout for this customer yet.</p>'}` : ''}
        ${mine.length ? `<div class="ws-menu-sub">Your layouts</div>${mine.map(row).join('')}` : ''}
        ${others.length ? `<div class="ws-menu-sub">Other SEs’ layouts <span>use as-is, or copy to edit</span></div>${others.map(row).join('')}` : ''}
        <div class="ws-menu-f ws-acts">
          ${cur?.mine ? '<button type="button" class="ws-link" data-edit>✎ Edit this layout</button>' : ''}
          ${cur && !cur.mine ? '<button type="button" class="ws-link" data-copy>Copy to mine and edit</button>' : ''}
+         ${curCust && !forCust.some((l) => l.mine) ? `<button type="button" class="ws-link" data-forcust>＋ Layout for ${esc(curCust)}</button>` : ''}
          <button type="button" class="ws-link" data-new>＋ New layout${cur ? ' from this one' : ''}</button>
        </div>`,
       (m) => {
@@ -219,16 +261,8 @@
               window.ws.setLayout(d.id, b.dataset.lay);
             }),
         );
-        const editor = async (layout) => {
-          closeMenu();
-          const { openLayoutEditor } = await import('./layouts.js');
-          openLayoutEditor({
-            deck: d,
-            layout,
-            onSaved: (saved) => window.ws.setLayout(d.id, saved.id),
-            onDeleted: () => window.ws.setLayout(d.id, ''),
-          });
-        };
+        const editor = openEditor;
+        m.querySelector('[data-forcust]')?.addEventListener('click', () => window.ws.editCustomerLayout(customer));
         m.querySelector('[data-edit]')?.addEventListener('click', () => editor(cur));
         m.querySelector('[data-copy]')?.addEventListener('click', async () => {
           try {
@@ -316,6 +350,17 @@
     bar.querySelector('.ws-cust').onclick = (e) => (menu ? closeMenu() : customerMenu(e.currentTarget));
     bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : meMenu(e.currentTarget));
     bar.querySelector('.ws-lay')?.addEventListener('click', (e) => (menu ? closeMenu() : layoutMenu(e.currentTarget)));
+    // Coming back from "Edit slides for this customer": open the editor now.
+    let pending = null;
+    try {
+      pending = sessionStorage.getItem('ws-edit-layout-for');
+    } catch {}
+    if (pending != null && pending === customer && state.deck && state.customers.length) {
+      try {
+        sessionStorage.removeItem('ws-edit-layout-for');
+      } catch {}
+      setTimeout(() => window.ws.editCustomerLayout(customer), 50);
+    }
   }
 
   // On narrower screens the product switch collapses to the current product + a menu.

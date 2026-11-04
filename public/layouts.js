@@ -31,7 +31,7 @@ const FIELDS = [
 
 let dlg;
 
-// opts: { deck: { id, label, slides }, layout: full layout or null (start from official), onSaved(layout), onDeleted() }
+// opts: { deck: { id, label, slides }, layout: full layout or null (start from official), customers, onSaved(layout), onDeleted() }
 export function openLayoutEditor(opts) {
   const { deck, layout } = opts;
   const official = Object.fromEntries(deck.slides.map((s) => [s.id, s]));
@@ -40,6 +40,7 @@ export function openLayoutEditor(opts) {
   const ui = {
     ...opts,
     name: layout?.name || `My ${deck.label.replace(/^Vellox /, '')} layout`,
+    customer: layout?.customer || '',
     rows: order.map((id) => {
       const s = official[id];
       const o = layout?.talk?.[id] || {};
@@ -111,8 +112,11 @@ function draw(ui) {
     <form novalidate>
       <div class="s-head"><h2>Your layout · ${esc(ui.deck.label)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
       <div class="s-body">
-        <label class="le-name">Layout name<input id="leName" value="${esc(ui.name)}" maxlength="60" /></label>
-        <p class="s-hint">Drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change keeps following the official deck. Other SEs can see and copy your layouts, but only you can change them.</p>
+        <div class="le-headrow">
+          <label class="le-name">Layout name<input id="leName" value="${esc(ui.name)}" maxlength="60" /></label>
+          <label class="le-name">For<select id="leCust"><option value="">Any customer (general)</option>${(ui.customers || []).map((c) => `<option value="${esc(c.id)}" ${c.id === ui.customer ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+        </div>
+        <p class="s-hint">Drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change keeps following the official deck. A layout <b>for a customer</b> switches on automatically when you present to them. Other SEs can see and copy your layouts, but only you can change them.</p>
         <ol class="le-list">${ui.rows.map(row).join('')}</ol>
         <p class="err">${esc(ui.error)}</p>
       </div>
@@ -130,6 +134,7 @@ function draw(ui) {
 function collect(ui) {
   const q = (sel) => dlg.querySelectorAll(sel);
   ui.name = dlg.querySelector('#leName').value;
+  ui.customer = dlg.querySelector('#leCust').value;
   q('[data-show]').forEach((el) => (ui.rows[el.dataset.show].show = el.checked));
   q('[data-title]').forEach((el) => (ui.rows[el.dataset.title].title = el.value.trim()));
   q('[data-f]').forEach((el) => (ui.rows[el.dataset.r][el.dataset.f] = el.value));
@@ -201,7 +206,7 @@ function wire(ui) {
       ui.error = 'Show at least one slide.';
       return draw(ui);
     }
-    const body = { deck: ui.deck.id, name: ui.name.trim(), order: ui.rows.map((r) => r.id), hidden: ui.rows.filter((r) => !r.show).map((r) => r.id), titles: {}, talk: {} };
+    const body = { deck: ui.deck.id, name: ui.name.trim(), customer: ui.customer || null, order: ui.rows.map((r) => r.id), hidden: ui.rows.filter((r) => !r.show).map((r) => r.id), titles: {}, talk: {} };
     for (const r of ui.rows) {
       const s = r.official.talk;
       if (r.title) body.titles[r.id] = r.title;

@@ -490,7 +490,8 @@ test('Reverser and Ranger tailoring is optional, stored in the customer profile,
   });
   assert.equal(created.status, 200);
   const { id, pitch } = created.data;
-  assert.deepEqual(pitch.reverser, { file: 'loader.dll', hide: ['gap'], titles: { team: 'What changes for Example' }, notes: { speed: 'They lost a week on the last sample.' } });
+  // Customers hold facts and wording; slide changes (hide, titles, notes) live only in layouts.
+  assert.deepEqual(pitch.reverser, { file: 'loader.dll' });
   // Hiding every slide is ignored; blank fields are dropped.
   assert.deepEqual(pitch.ranger, { jewel: 'Claims database', review: 'gitlab' });
   assert.equal(pitch.hidePrepared, undefined);
@@ -514,7 +515,7 @@ test('the Vellox Navigator page is served on its own, linked from every product 
   for (const p of ['/', '/reverser.html', '/ranger.html']) assert.match(await (await fetch(`${base}${p}`)).text(), /href="navigator.html"/);
   assert.equal((await fetch(`${base}/navigator.js`)).status, 200);
   const created = await api('/api/profiles', 'POST', { name: 'Nav Example', pitch: { navigator: { system: 'Claims System', baseline: 'NIST SP 800-53 Moderate', hide: ['drift'], bogus: 'x' } } });
-  assert.deepEqual(created.data.pitch.navigator, { system: 'Claims System', baseline: 'NIST SP 800-53 Moderate', hide: ['drift'] });
+  assert.deepEqual(created.data.pitch.navigator, { system: 'Claims System', baseline: 'NIST SP 800-53 Moderate' });
   await api(`/api/profiles/${created.data.id}`, 'DELETE');
 });
 
@@ -634,4 +635,18 @@ test('deck layouts: owner-only edits, shared to view and copy, plain text only',
   assert.equal((await api(`/api/layouts/${copy.data.id}`, 'PUT', { name: 'Chris version', order: ['team', 'title'] }, as(chris))).status, 200);
 
   for (const [id, who] of [[l.id, tyler], [copy.data.id, chris]]) assert.equal((await api(`/api/layouts/${id}`, 'DELETE', null, as(who))).status, 200);
+});
+
+test('one source of truth: customer slide edits move into customer layouts, which follow the customer', async () => {
+  const login = async (id, pin) => (await api('/api/presenters/login', 'POST', { id, pin })).data.token;
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const tyler = await login('tyler', '2468');
+  const cust = (await api('/api/profiles', 'POST', { name: 'Layout City' }, as(tyler))).data;
+  const made = await api('/api/layouts', 'POST', { deck: 'ranger', name: 'Layout City', customer: cust.id, hidden: ['noise'] }, as(tyler));
+  assert.equal(made.data.customer, cust.id);
+  const forCust = (await api(`/api/layouts?deck=ranger&customer=${cust.id}`, 'GET', null, as(tyler))).data.layouts;
+  assert.deepEqual(forCust.map((l) => l.id), [made.data.id]);
+  assert.equal((await api('/api/layouts?deck=ranger&customer=p_000000', 'GET', null, as(tyler))).data.layouts.length, 0);
+  await api(`/api/layouts/${made.data.id}`, 'DELETE', null, as(tyler));
+  await api(`/api/profiles/${cust.id}`, 'DELETE', null, as(tyler));
 });
