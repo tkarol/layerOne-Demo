@@ -319,7 +319,7 @@
   }
 
   // On narrower screens the product switch collapses to the current product + a menu.
-  const narrow = matchMedia('(max-width: 1400px)');
+  const narrow = matchMedia('(max-width: 1520px)');
   document.addEventListener('click', (e) => {
     const cur = e.target.closest('.product-switch a.on');
     if (!cur || !narrow.matches) return;
