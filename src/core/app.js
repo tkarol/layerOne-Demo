@@ -13,6 +13,7 @@ import { FREE_WORKFLOW, MAX_MESSAGE } from './chat-app.js';
 import { json, safeEqual } from './util.js';
 import { connectInfo, runChecks, sendCustom } from './connect.js';
 import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi } from './workspace.js';
+import { applySeeds } from './seeds.js';
 import { handleLayoutApi } from './layouts.js';
 
 const summarize = (t) => ({
@@ -129,6 +130,7 @@ export function createApp({ env, storage }) {
 
       // Who's presenting: a signed-in SE gets their own settings, data and history
       // (falling back to the site-wide settings until they save their own).
+      await applySeeds(storage); // ready-made customers and layouts, added once
       const me = await presenterFromRequest(request, storage);
       const mine = me ? scopeStorage(storage, me.scope || me.id) : storage;
       // Guests look around: they can use the demos (in their own sandbox) but change nothing,

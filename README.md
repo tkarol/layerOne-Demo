@@ -94,6 +94,12 @@ Four sales engineers share this site: **Tyler**, **Emilio**, **Ethan** and **Chr
 * On screens under 1520px wide, the product switch collapses to the current product with a ▾ menu, to make room.
 * **Guests:** anyone who isn't an SE can pick **Look around as a guest** on the sign-in screen (no PIN). Guests see every deck, architecture page and sample app, always in the standard official version, and can try the demos; their Customer Hub data and history are a throwaway sandbox for that visit (12 hours). They can't change anything: no settings, Connect, customers, Tailor, Customize, step edits, layouts or PINs, and they never see the customer list or SEs' layouts. The server enforces this; the edit buttons are also hidden. **Guest ▾ → Sales engineer? Sign in** goes back to the sign-in screen.
 
+### Ready-made customers (seeds)
+
+`src/core/seeds.js` adds ready-made customers and layouts to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
+
+* **AWS re:Invent** (Tyler's): a customer with an AWS-orange accent and a webinar call to action on the Vellox deck's last slide, plus the layout **AWS re:Invent webinar** for the Vellox deck. The layout rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Pick **Presenting to → AWS re:Invent** and the layout switches on.
+
 ### Your own deck layouts
 
 Every deck (Vellox, LayerOne, Reverser, Ranger, Navigator) has a **Layout ▾** picker in the top bar: the **Official deck**, your layouts, and other SEs' layouts. Picking one applies only in your browser, straight away.

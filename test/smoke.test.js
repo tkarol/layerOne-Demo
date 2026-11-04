@@ -735,3 +735,23 @@ test('admins add and remove people; new people choose a PIN, and admin status st
   assert.ok(!after.presenters.some((p) => p.id === 'sam-rivera'));
   assert.deepEqual(after.former.find((p) => p.id === 'sam-rivera'), { id: 'sam-rivera', name: 'Sam Rivera' });
 });
+
+test('the AWS re:Invent webinar ships as Tyler’s customer with its own Vellox layout', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const login = async (id, pin) => (await api('/api/presenters/login', 'POST', { id, pin })).data.token;
+  const tyler = await login('tyler', '2468');
+  const ethan = await login('ethan', '4321');
+  const cust = (await api('/api/profiles', 'GET', null, as(tyler))).data.profiles.find((p) => p.name === 'AWS re:Invent');
+  assert.ok(cust, 'the customer is there');
+  assert.equal(cust.owner, 'tyler');
+  assert.equal(cust.canEdit, true);
+  assert.equal((await api('/api/profiles', 'GET', null, as(ethan))).data.profiles.find((p) => p.id === cust.id).canEdit, false);
+  const lays = (await api(`/api/layouts?deck=vellox&customer=${cust.id}`, 'GET', null, as(tyler))).data.layouts;
+  assert.equal(lays.length, 1);
+  assert.equal(lays[0].mine, true);
+  const lay = (await api(`/api/layouts/${lays[0].id}`, 'GET', null, as(tyler))).data;
+  assert.equal(lay.titles.start, 'Where to start after today');
+  assert.deepEqual(Object.keys(lay.talk).sort(), ['shift', 'start', 'suite', 'title', 'together', 'why']);
+  assert.match(lay.talk.title.ask, /Poll/);
+  assert.match((await api('/api/pitch', 'GET', null, { 'X-Customer': cust.id })).data.pitch.vellox.next, /working session/);
+});
