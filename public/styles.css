@@ -1604,10 +1604,9 @@ details[open] > summary::before { transform: rotate(90deg); }
 .vx-status.soon { color: #93c5fd; background: rgb(147 197 253 / 12%); border-color: rgb(147 197 253 / 35%); }
 
 /* title: one dot per product on the orbit */
-.vx-od { background: rgb(var(--c)) !important; box-shadow: 0 0 1.2cqw rgb(var(--c) / 80%) !important; }
 
 /* slide 2: AI changed both sides */
-.vx-shift { display: grid; grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.2fr); gap: 2cqw; align-items: center; margin: auto 0; }
+.vx-shift { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.1fr); gap: 2cqw; align-items: center; margin: auto 0; }
 .vx-side { display: grid; gap: 0.9cqw; }
 .vx-side h3 { display: flex; align-items: center; gap: 0.8cqw; margin: 0 0 0.4cqw; font-size: 0.85em; letter-spacing: 0.14em; text-transform: uppercase; color: var(--d-muted); }
 .vx-side h3 .d-svg { width: 1.8cqw; height: 1.8cqw; }
@@ -1641,17 +1640,8 @@ details[open] > summary::before { transform: rotate(90deg); }
 .slide.in .vx-hub { animation: d-pop 1.2s 0.2s both; }
 
 /* slide 4: follow one threat */
-.vx-flow { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.2cqw; margin: auto 0 1.4cqw; padding: 0; list-style: none; }
-.vx-flow li { display: grid; gap: 0.6cqw; align-content: start; padding: 1.6cqw 1.3cqw; border-radius: 1.3cqw; border: 1px solid rgb(var(--c) / 45%); background: linear-gradient(180deg, rgb(var(--c) / 12%), rgb(255 255 255 / 2%)); opacity: 0.35; animation-timing-function: ease-out; animation-iteration-count: infinite; }
 .vx-flow-ic { display: grid; place-items: center; width: 3.4cqw; height: 3.4cqw; border-radius: 50%; color: rgb(var(--c)); background: rgb(var(--c) / 16%); }
 .vx-flow-ic .d-svg { width: 1.9cqw; height: 1.9cqw; }
-.vx-flow b { font-size: 1.12em; line-height: 1.2; }
-.vx-flow small { color: var(--d-muted); font-size: 0.82em; line-height: 1.35; }
-.vx-flow em { justify-self: start; margin-top: 0.4cqw; font-style: normal; font-size: 0.7em; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: rgb(var(--c)); }
-.vx-flow li:not(:last-child)::after { content: ''; position: absolute; }
-.vx-flow-rail { position: relative; height: 0.5cqw; margin-bottom: auto; border-radius: 99px; background: rgb(255 255 255 / 6%); overflow: hidden; }
-.vx-flow-rail i { position: absolute; inset: 0; background: linear-gradient(90deg, #f87171, #22d3ee, #a78bfa, #60a5fa, #4ade80); transform-origin: left; animation: vx-rail linear infinite; }
-@keyframes vx-rail { 0% { transform: scaleX(0); } 80%, 93% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
 
 /* slide 6: start where it hurts */
 .vx-start { display: grid; gap: 1cqw; margin: auto 0 1.4cqw; }
@@ -2002,3 +1992,96 @@ dialog.layout-ed { width: min(920px, calc(100vw - 32px)); }
 .ws-add input[type='text'] { min-width: 0; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font: inherit; font-size: 13.5px; }
 .ws-add label { display: flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
 .ws-menu:has(.ws-add) { width: 380px; }
+
+/* ---------- Vellox overview, refreshed ---------- */
+/* Title: the four products around a Vellox core (separate products, so no lines between them). */
+.vx-const { position: absolute !important; right: 3cqw; top: 50%; width: 38cqw; aspect-ratio: 1; transform: translateY(-50%); z-index: 0 !important; }
+.vx-ring { position: absolute; inset: 10%; border-radius: 50%; border: 1px dashed rgb(250 204 21 / 22%); animation: d-spin 80s linear infinite; }
+.vx-ring.b { inset: 27%; border-style: dotted; border-color: rgb(250 204 21 / 18%); animation-duration: 120s; animation-direction: reverse; }
+.vx-core { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; border: 1px solid rgb(250 204 21 / 45%); background: radial-gradient(circle, rgb(250 204 21 / 28%), rgb(250 204 21 / 4%) 72%); box-shadow: 0 0 6cqw rgb(250 204 21 / 16%); }
+.vx-core span { font-size: 4.2cqw; font-weight: 800; color: #facc15; }
+.vx-core::before, .vx-core::after { content: ''; position: absolute; inset: -1px; border-radius: 50%; border: 1px solid rgb(250 204 21 / 45%); animation: vx-ping 5s ease-out infinite; }
+.vx-core::after { animation-delay: 2.5s; }
+@keyframes vx-ping { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.6); opacity: 0; } }
+.vx-sat { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 0.6cqw; }
+.vx-sat i { display: grid; place-items: center; width: 5.2cqw; height: 5.2cqw; border-radius: 50%; color: rgb(var(--c)); background: rgb(var(--c) / 14%); border: 1px solid rgb(var(--c) / 50%); box-shadow: 0 0 2.4cqw rgb(var(--c) / 25%); }
+.vx-sat i .d-svg { width: 2.4cqw; height: 2.4cqw; }
+.vx-sat b { font-size: 0.9em; font-weight: 700; color: var(--d-text); }
+.slide.in .vx-sat { animation: vx-sat-in 0.9s cubic-bezier(0.22, 0.8, 0.24, 1) both, vx-float 8s ease-in-out infinite; animation-delay: calc(0.9s + var(--i) * 0.35s), calc(2.6s + var(--i) * 1.3s); }
+@keyframes vx-sat-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+@keyframes vx-float { 50% { transform: translate(-50%, calc(-50% - 0.7cqw)); } }
+
+/* AI changed both sides: the growing gap. */
+.vx-gap { position: relative; padding: 2.6cqw 1.6cqw 1.2cqw; border-radius: 1.3cqw; border: 1px solid var(--d-line); background: rgb(255 255 255 / 3%); }
+.vx-gap svg { display: block; width: 100%; height: auto; overflow: visible; }
+.vx-gap-l { fill: none; stroke-width: 1.3; stroke-linecap: round; stroke-dasharray: 1; }
+.vx-gap-l.atk { stroke: #f87171; }
+.vx-gap-l.def { stroke: #a1a1aa; }
+.vx-gap-fill { fill: rgb(248 113 113 / 13%); }
+.vx-gap-t { position: absolute; right: 1.6cqw; font-size: 0.78em; font-weight: 700; }
+.vx-gap-t.atk { top: 0.7cqw; color: #f87171; }
+.vx-gap-t.def { top: 76%; color: #a1a1aa; }
+.vx-gap-x { position: absolute; left: 76%; top: 52%; transform: translate(-50%, -50%); font-size: 0.68em; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: rgb(252 165 165 / 90%); }
+.vx-tags { display: flex; flex-wrap: wrap; gap: 0.8cqw; margin-top: 1.2cqw; }
+.vx-tags span { display: inline-flex; align-items: center; gap: 0.5cqw; padding: 0.5cqw 1.1cqw; border-radius: 99px; font-size: 0.85em; font-weight: 700; color: #fca5a5; background: rgb(248 113 113 / 10%); border: 1px solid rgb(248 113 113 / 30%); }
+.vx-tags .d-svg { width: 1.5cqw; height: 1.5cqw; }
+.slide.in .vx-gap-l { animation: vx-draw 2.6s 0.6s ease-out both; }
+.slide.in .vx-gap-l.atk { animation-duration: 3.2s; }
+.slide.in .vx-gap-fill, .slide.in .vx-gap-x { animation: vx-fade 1.4s 3.2s both; }
+.slide.in .vx-gap-t { animation: vx-fade 0.8s 1.6s both; }
+.slide.in .vx-tags span { animation: d-rise 0.6s both; }
+.slide.in .vx-tags span:nth-child(1) { animation-delay: 3.8s; }
+.slide.in .vx-tags span:nth-child(2) { animation-delay: 4.1s; }
+.slide.in .vx-tags span:nth-child(3) { animation-delay: 4.4s; }
+@keyframes vx-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes vx-fade { from { opacity: 0; } }
+
+/* Suite: a slow pulse from the hub. */
+.vx-hub::before, .vx-hub::after { content: ''; position: absolute; inset: -1px; border-radius: 50%; border: 1px solid rgb(250 204 21 / 40%); animation: vx-ping 6s ease-out infinite; pointer-events: none; }
+.vx-hub::after { animation-delay: 3s; }
+
+/* When a new threat lands: Ranger and Reverser at the same time; Navigator and LayerOne always on. */
+.vx-par { display: grid; gap: 1.8cqw; margin: auto 0; }
+.vx-par-row { display: grid; grid-template-columns: minmax(0, 1fr) 6cqw minmax(0, 1.55fr) 6cqw minmax(0, 1fr); align-items: center; }
+.vx-threat { --c: 248 113 113; display: grid; gap: 0.6cqw; padding: 1.6cqw 1.4cqw; border-radius: 1.3cqw; border: 1px solid rgb(var(--c) / 45%); background: linear-gradient(180deg, rgb(var(--c) / 12%), rgb(255 255 255 / 2%)); }
+.vx-threat.you { --c: 250 204 21; }
+.vx-threat b { font-size: 1.12em; line-height: 1.2; }
+.vx-threat small, .vx-act small, .vx-band small { color: var(--d-muted); font-size: 0.8em; line-height: 1.35; }
+.vx-wire { align-self: stretch; width: 100%; height: 100%; overflow: visible; }
+.vx-wire path { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-dasharray: 5 6; animation: vx-march 1.6s linear infinite; }
+.vx-wire path:nth-child(1) { stroke: rgb(167 139 250 / 65%); }
+.vx-wire path:nth-child(2) { stroke: rgb(34 211 238 / 65%); }
+@keyframes vx-march { to { stroke-dashoffset: -22; } }
+.vx-pair { position: relative; display: grid; gap: 2.8cqw; }
+.vx-same { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; padding: 0.35cqw 1.1cqw; border-radius: 99px; font-size: 0.68em; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; color: #facc15; background: var(--d-bg, #0b0b0d); border: 1px solid rgb(250 204 21 / 45%); }
+.vx-act { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.8cqw 1.1cqw; align-items: center; padding: 1.2cqw 1.4cqw; border-radius: 1.3cqw; border: 1px solid rgb(var(--c) / 45%); background: linear-gradient(160deg, rgb(var(--c) / 12%), rgb(255 255 255 / 2%)); }
+.vx-act-t { display: grid; gap: 0.3cqw; padding-right: 6cqw; }
+.vx-act-t b { font-size: 1.05em; }
+.vx-act-bar { grid-column: 1 / -1; height: 0.35cqw; border-radius: 99px; background: rgb(255 255 255 / 8%); overflow: hidden; }
+.vx-act-bar i { display: block; height: 100%; background: rgb(var(--c)); transform-origin: left; }
+.vx-act em { position: absolute; top: 1cqw; right: 1.2cqw; display: inline-flex; align-items: center; gap: 0.3cqw; font-style: normal; font-size: 0.66em; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: rgb(var(--c)); }
+.vx-act em .d-svg { width: 1.3cqw; height: 1.3cqw; }
+.vx-bands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2cqw; }
+.vx-band { position: relative; overflow: hidden; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1.1cqw; align-items: center; padding: 1.1cqw 1.4cqw; border-radius: 1.3cqw; border: 1px solid rgb(var(--c) / 40%); background: rgb(var(--c) / 7%); }
+.vx-band > span:nth-child(2) { display: grid; gap: 0.2cqw; }
+.vx-band b { font-size: 1em; }
+.vx-band em { display: inline-flex; align-items: center; gap: 0.5cqw; font-style: normal; font-size: 0.66em; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: rgb(var(--c)); white-space: nowrap; }
+.vx-band em::before { content: ''; width: 0.7cqw; height: 0.7cqw; border-radius: 50%; background: rgb(var(--c)); animation: d-breathe 2.4s ease-in-out infinite; }
+.vx-band::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(var(--c) / 12%), transparent); transform: translateX(-100%); animation: vx-sweep 7s ease-in-out infinite; animation-delay: calc(8s + var(--i) * 3.5s); pointer-events: none; }
+@keyframes vx-sweep { 0% { transform: translateX(-100%); } 35%, 100% { transform: translateX(100%); } }
+.vx-par-note { margin: 0; text-align: center; color: var(--d-muted); font-size: 0.85em; }
+.slide.in .vx-threat:not(.you) { animation: d-pop 0.7s 0.4s both; }
+.slide.in .vx-threat:not(.you) .vx-flow-ic { animation: vx-alarm 2.4s 1.2s ease-out infinite; }
+@keyframes vx-alarm { from { box-shadow: 0 0 0 0 rgb(248 113 113 / 55%); } to { box-shadow: 0 0 0 1.4cqw rgb(248 113 113 / 0%); } }
+.slide.in .vx-wire.fork { animation: vx-wipe 0.9s 1.3s ease-out both; }
+.slide.in .vx-act { animation: d-rise 0.7s 2.1s both; }
+.slide.in .vx-same { animation: vx-fade 0.6s 2.4s both; }
+.slide.in .vx-act-bar i { animation: vx-fill 2.2s 2.6s ease-in-out both; }
+.slide.in .vx-act em { animation: d-pop 0.5s 4.8s both; }
+.slide.in .vx-wire.join { animation: vx-wipe 0.9s 5.1s ease-out both; }
+.slide.in .vx-threat.you { animation: d-pop 0.7s 5.8s both; }
+.slide.in .vx-band { animation: d-rise 0.7s both; animation-delay: calc(6.6s + var(--i) * 0.3s); }
+.slide.in .vx-par-note { animation: vx-fade 1s 7.6s both; }
+@keyframes vx-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes vx-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .vx-ring, .vx-core::before, .vx-core::after, .vx-hub::before, .vx-hub::after, .vx-band::after, .vx-wire path, .slide.in .vx-sat { animation: none !important; } }

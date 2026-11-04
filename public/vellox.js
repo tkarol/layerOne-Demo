@@ -4,8 +4,8 @@
 //
 // Product facts come from Booz Allen's Vellox announcements (RSAC 2026 launch,
 // July 2026 update) and each product's page in this demo; statuses are as of
-// those announcements. The "how the work connects" story is a way to explain
-// the suite, not a list of product integrations; the talking points say so.
+// those announcements. The products are separate today: they don't exchange
+// data with each other, so nothing here shows one product feeding another.
 import { createDeck, icon, $, esc } from './deck-core.js';
 import { loadTailoring, tailorButton, openTailor } from './tailor.js';
 
@@ -17,25 +17,16 @@ const STATUS = { ga: 'Generally available', preview: 'Limited preview', soon: 'C
 const PRODUCTS = [
   { k: 'reverser', name: 'Reverser', role: 'Understand the threat', does: 'AI agents take malware apart and explain it, in minutes.', pain: 'Malware piles up faster than experts can reverse it', status: 'ga', href: 'reverser.html', rgb: '34 211 238', icon: 'bug' },
   { k: 'ranger', name: 'Ranger', role: 'Detect it where it matters', does: 'Detections written for your environment and ranked by real attack paths.', pain: 'Generic detections miss what matters in your network', status: 'ga', href: 'ranger.html', rgb: '167 139 250', icon: 'radar' },
-  { k: 'navigator', name: 'Navigator', role: 'Prove you’re compliant', does: 'Evidence collected and mapped to controls, so the package stays current.', pain: 'Compliance paperwork is out of date the day it’s signed', status: 'soon', href: 'navigator.html', rgb: '96 165 250', icon: 'target' },
+  { k: 'navigator', name: 'Navigator', role: 'Prove you’re compliant', does: 'Evidence collected and mapped to controls, so the package stays current.', pain: 'Compliance paperwork is out of date the day it’s signed', status: 'ga', href: 'navigator.html', rgb: '96 165 250', icon: 'target' },
   { k: 'layerone', name: 'LayerOne', role: 'Govern your AI', does: 'Every AI request checked, governed and logged before it reaches a model.', pain: 'AI agents are going into production without guardrails', status: 'preview', href: './#overview', rgb: '74 222 128', icon: 'shield' },
 ];
 const P = Object.fromEntries(PRODUCTS.map((p) => [p.k, p]));
 const chip = (p) => `<span class="vx-status ${p.status}">${STATUS[p.status]}</span>`;
 
-// Slide 4: one threat, followed through the suite. Keyframes are generated so each
-// step lights up in turn and the whole thing loops.
-const FLOW = [
-  [null, 'alert', 'New malware lands', 'A phishing email delivers a sample nobody has seen before'],
-  ['reverser', 'bug', 'Reverser explains it', 'What it does, its indicators and behaviors, in minutes'],
-  ['ranger', 'radar', 'Ranger detects it', 'Detections tuned to your network, guarding the systems that matter'],
-  ['navigator', 'target', 'Navigator records it', 'The new coverage becomes evidence against your controls'],
-  ['layerone', 'shield', 'LayerOne governs the AI', 'The AI agents your teams use stay checked and logged'],
-];
-const LOOP_S = 20;
-const RUN = 80; // % of the loop spent lighting the steps
-const stepAt = (i) => +((i / (FLOW.length - 1)) * (RUN - 8) + 4).toFixed(2);
-const flowKeyframes = FLOW.map((_, i) => `@keyframes vx-st${i} { 0%, ${Math.max(stepAt(i) - 0.5, 0)}% { opacity: .35; transform: none; } ${stepAt(i)}% { opacity: 1; transform: translateY(-0.4cqw); } ${stepAt(i) + 3}%, 93% { opacity: 1; transform: none; } 98%, 100% { opacity: .35; } }`).join('\n');
+// Title slide: the four products around a Vellox core (no lines between them:
+// they're separate products).
+const SAT_ANGLE = [-50, 40, 130, 220];
+const satPos = (i) => [50 + 36 * Math.cos((SAT_ANGLE[i] * Math.PI) / 180), 50 + 36 * Math.sin((SAT_ANGLE[i] * Math.PI) / 180)].map((n) => n.toFixed(1));
 
 const SLIDES = [
   {
@@ -47,7 +38,11 @@ const SLIDES = [
         <p class="d-lead">${tx('lead', 'AI-native cyber defense, <span>built on adversary tradecraft.</span>')}</p>
         ${prepared(ctx)}
       </div>
-      <div class="d-orbit vx-orbit" aria-hidden="true"><div>${PRODUCTS.slice(0, 2).map((p, i) => `<i class="orb-dot vx-od ${i ? 'b' : ''}" style="--c:${p.rgb}"></i>`).join('')}</div><div>${PRODUCTS.slice(2).map((p, i) => `<i class="orb-dot vx-od ${i ? 'b' : ''}" style="--c:${p.rgb}"></i>`).join('')}</div><div></div></div>`,
+      <div class="vx-const" aria-hidden="true">
+        <div class="vx-ring"></div><div class="vx-ring b"></div>
+        <div class="vx-core"><span>V</span></div>
+        ${PRODUCTS.map((p, i) => `<span class="vx-sat" style="--c:${p.rgb};--i:${i};left:${satPos(i)[0]}%;top:${satPos(i)[1]}%"><i>${icon(p.icon)}</i><b>${p.name}</b></span>`).join('')}
+      </div>`,
     talk: {
       key: 'Vellox is Booz Allen’s suite of AI-native cyber products: human operators and AI agents working together, built from how real adversaries operate.',
       points: [
@@ -65,21 +60,29 @@ const SLIDES = [
     html: () => `
       <div class="vx-shift">
         <section class="vx-side atk">
-          <h3>${icon('alert')}Attackers, with AI</h3>
-          <div class="rv-drv">${icon('zap')}<span><b>Faster</b><small>From idea to working attack in less time</small></span></div>
-          <div class="rv-drv">${icon('layers')}<span><b>More</b><small>New and modified malware at higher volume</small></span></div>
-          <div class="rv-drv">${icon('sparkle')}<span><b>Newer</b><small>Frontier AI helps write and mutate code</small></span></div>
+          <h3>${icon('alert')}The gap is growing</h3>
+          <div class="vx-gap">
+            <svg viewBox="0 0 100 58" aria-hidden="true">
+              <path class="vx-gap-fill" d="M2,50 C40,47 62,30 98,6 L98,40 C70,43 40,47 2,50 Z"/>
+              <path class="vx-gap-l atk" pathLength="1" d="M2,50 C40,47 62,30 98,6"/>
+              <path class="vx-gap-l def" pathLength="1" d="M2,50 C40,47 70,43 98,40"/>
+            </svg>
+            <span class="vx-gap-t atk">Attackers, with AI</span>
+            <span class="vx-gap-t def">Defenders, today</span>
+            <span class="vx-gap-x">the gap</span>
+          </div>
+          <div class="vx-tags"><span>${icon('zap')}Faster</span><span>${icon('layers')}More</span><span>${icon('sparkle')}Newer</span></div>
         </section>
         <div class="vx-vs" aria-hidden="true">vs</div>
         <section class="vx-side def">
-          <h3>${icon('users')}Defenders, today</h3>
+          <h3>${icon('users')}Where defenders fall behind</h3>
           ${PRODUCTS.map((p, i) => `<div class="vx-pain" style="--c:${p.rgb};--i:${i}"><span class="vx-pain-t">${p.pain}</span><span class="vx-pain-p">${icon(p.icon)}${p.name}</span></div>`).join('')}
         </section>
       </div>`,
     talk: {
       key: 'AI made attacking cheaper and faster. Defense still runs on a handful of experts and manual processes.',
       points: [
-        '<b>Left side:</b> attackers are using frontier AI to move faster, produce more variants, and try new techniques. Public 2025 threat reports from AI labs and threat intelligence teams describe this; pull the one you’ll cite before the meeting.',
+        '<b>Left side:</b> the chart is a picture, not data: attacker capability is climbing with AI while defense grows slowly. Attackers are using frontier AI to move faster, produce more variants, and try new techniques. Public 2025 threat reports from AI labs and threat intelligence teams describe this; pull the one you’ll cite before the meeting.',
         '<b>Right side, four bottlenecks:</b> malware analysis, detections that fit your environment, compliance that keeps up, and governing the AI your own organization is adopting. Watch each one get matched to a Vellox product.',
         '<b>Let them pick:</b> ask which bottleneck is theirs. That tells you which product page to go to next.',
       ],
@@ -101,32 +104,54 @@ const SLIDES = [
       points: [
         '<b>Reverser</b> (generally available): AI agents reverse engineer malware and produce detections, indicators and reports in minutes instead of days or weeks (vendor-reported). Add-ons Reverser Flash and Reverser Jailbreak are coming.',
         '<b>Ranger</b> (generally available): models their environment, finds the paths an attacker would take, and writes detections ranked for those paths.',
-        '<b>Navigator</b> (coming soon): collects evidence, maps it to controls and keeps the authorization package current.',
+        '<b>Navigator</b> (generally available): collects evidence, maps it to controls and keeps the authorization package current.',
         '<b>LayerOne</b> (limited preview): a governance gateway for AI agents. Every request is checked against policy and logged before it reaches a model.',
         '<b>Check status before the meeting:</b> availability changes; confirm with the Vellox team.',
       ],
       ask: 'Do you already have something in place for any of these four?',
-      next: 'They’re separate products, but the work connects. Let’s follow one threat.',
+      next: 'They’re separate products today. Here’s what each one does when a new threat lands.',
     },
   },
   {
     id: 'together',
-    title: 'Follow one threat through the suite',
+    title: 'When a new threat lands',
     html: () => `
-      <style>${flowKeyframes}</style>
-      <ol class="vx-flow">
-        ${FLOW.map(([k, ic, t, d], i) => `<li style="--c:${k ? P[k].rgb : '248 113 113'};animation-name:vx-st${i};animation-duration:${LOOP_S}s">
-          <span class="vx-flow-ic">${icon(ic)}</span><b>${t}</b><small>${d}</small>${k ? `<em>${P[k].name}</em>` : '<em class="t">The threat</em>'}</li>`).join('')}
-      </ol>
-      <div class="vx-flow-rail" aria-hidden="true"><i style="animation-duration:${LOOP_S}s"></i></div>`,
+      <div class="vx-par">
+        <div class="vx-par-row">
+          <div class="vx-threat"><span class="vx-flow-ic">${icon('alert')}</span><b>New malware lands</b><small>A phishing email delivers a sample nobody has seen before</small></div>
+          <svg class="vx-wire fork" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0,50 C55,50 45,22 100,22"/><path d="M0,50 C55,50 45,78 100,78"/></svg>
+          <div class="vx-pair">
+            <span class="vx-same">At the same time</span>
+            ${[
+              ['ranger', 'Ranger spots it', 'Detections tuned to your network flag it on the systems that matter', 'Detected'],
+              ['reverser', 'Reverser takes it apart', 'What it does, its indicators and behaviors, in minutes', 'Explained'],
+            ]
+              .map(([k, t, d, done]) => `<div class="vx-act" style="--c:${P[k].rgb}"><span class="vx-flow-ic">${icon(P[k].icon)}</span><span class="vx-act-t"><b>${t}</b><small>${d}</small></span><span class="vx-act-bar"><i></i></span><em>${icon('check')}${done}</em></div>`)
+              .join('')}
+          </div>
+          <svg class="vx-wire join" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0,22 C55,22 45,50 100,50"/><path d="M0,78 C55,78 45,50 100,50"/></svg>
+          <div class="vx-threat you"><span class="vx-flow-ic">${icon('users')}</span><b>Your analysts decide</b><small>Contain, hunt and tune, with both answers in hand</small></div>
+        </div>
+        <div class="vx-bands">
+          ${[
+            ['navigator', 'Navigator keeps compliance current', 'Evidence collected and mapped to your controls'],
+            ['layerone', 'LayerOne governs your AI', 'Every request your AI agents make, checked and logged'],
+          ]
+            .map(([k, t, d], i) => `<div class="vx-band" style="--c:${P[k].rgb};--i:${i}"><span class="vx-flow-ic">${icon(P[k].icon)}</span><span><b>${t}</b><small>${d}</small></span><em>Always on</em></div>`)
+            .join('')}
+        </div>
+        <p class="vx-par-note">Each product runs on its own today: start with one, add the others when you’re ready.</p>
+      </div>`,
     talk: {
-      key: 'Each product is useful on its own; together they cover a threat from first sighting to proof of compliance.',
+      key: 'When a new threat lands, Ranger and Reverser go to work at the same time; Navigator and LayerOne are always on in the background.',
       points: [
-        '<b>Let it play once, then narrate:</b> a new piece of malware arrives. Reverser explains what it does and pulls out its indicators and behaviors. Ranger turns that into detections tuned to their network. Navigator records the new coverage as evidence against their controls.',
-        '<b>LayerOne is the thread under all of it:</b> as their teams put AI agents to work, LayerOne checks and logs every request, so the AI is governed too.',
-        '<b>Be precise:</b> this shows how the work connects, not a list of built-in integrations. Confirm which integrations exist with the Vellox team before promising any.',
+        '<b>Let it play, then narrate:</b> a new piece of malware arrives. Ranger’s detections, tuned to their network, flag it on the systems that matter. At the same time, Reverser takes the sample apart and explains what it does, its indicators and behaviors.',
+        '<b>People make the call:</b> their analysts decide what to do with both answers in hand: contain, hunt for more, tune detections.',
+        '<b>Always on:</b> Navigator keeps their compliance evidence current, and LayerOne governs the AI agents their teams use, checking and logging every request.',
+        '<b>Be precise:</b> the products are separate today and don’t pass data to each other. Don’t promise integrations; check the roadmap with the Vellox team.',
       ],
-      ask: 'Today, how long does it take from a new sample to detections deployed, and does that show up in your compliance record?',
+      ask: 'Today, when a new sample shows up, how long until you know what it does, and whether it’s already in your network?',
+      objection: '“Do they work together?” Today they’re separate products, each useful on its own. That’s also why it’s easy to start with just one.',
       next: 'Why Booz Allen built it this way.',
     },
   },
@@ -176,18 +201,15 @@ const SLIDES = [
 // The four products around the customer's environment, with how their work
 // connects. Click a product, or follow one threat through the suite.
 const NODE_POS = { reverser: [17, 20], ranger: [83, 20], navigator: [83, 80], layerone: [17, 80] };
-const EDGES = [
-  ['reverser', 'ranger', 'Indicators · YARA · behaviors'],
-  ['ranger', 'navigator', 'Detection coverage as evidence'],
-  ['layerone', 'navigator', 'AI audit records'],
-];
+// The products are separate today, so each one connects to your environment only.
+const EDGES = [];
 const SPOKES = { reverser: 'Suspicious files', ranger: 'Telemetry & existing rules', navigator: 'Evidence from your systems', layerone: 'Every AI request' };
 const STORY = [
   { lit: ['env'], text: 'A phishing email delivers a piece of malware nobody has seen before.' },
-  { lit: ['reverser', 'spoke-reverser'], text: 'Reverser takes the sample apart and explains what it does, in minutes.' },
-  { lit: ['ranger', 'edge-reverser-ranger'], text: 'Its indicators and behaviors feed Ranger, which writes detections tuned to your network.' },
-  { lit: ['navigator', 'edge-ranger-navigator'], text: 'The new detection coverage becomes evidence in Navigator, mapped to your controls.' },
-  { lit: ['layerone', 'spoke-layerone', 'edge-layerone-navigator'], text: 'Throughout, LayerOne governs the AI agents your teams use, and its audit records feed the same compliance picture.' },
+  { lit: ['ranger', 'spoke-ranger', 'reverser', 'spoke-reverser'], text: 'At the same time, Ranger’s detections flag it on the systems that matter, and Reverser takes the sample apart to explain what it does.' },
+  { lit: ['env'], text: 'Your analysts decide what to do, with both answers in hand: contain, hunt, tune.' },
+  { lit: ['navigator', 'spoke-navigator'], text: 'All along, Navigator keeps your compliance evidence current, mapped to your controls.' },
+  { lit: ['layerone', 'spoke-layerone'], text: 'And LayerOne governs the AI agents your teams use, checking and logging every request.' },
 ];
 const STEP_MS = 5000;
 
@@ -210,7 +232,7 @@ function drawArch(el) {
   const spokeLabels = PRODUCTS.map((p) => `<span class="vx-el spoke" data-e="spoke-${p.k}" style="left:${(pos(p.k)[0] + 50) / 2}%;top:${(pos(p.k)[1] + 50) / 2}%">${SPOKES[p.k]}</span>`).join('');
   el.innerHTML = `
     <div class="xa-head">
-      <div><h2>How the suite fits together</h2><p class="muted">Four products around your environment. Click one, or follow a threat through the suite.</p></div>
+      <div><h2>The suite around your environment</h2><p class="muted">Four products around your environment, each working on its own today. Click one, or follow a threat.</p></div>
       <div class="nv2-modes vx-modes">
         <button type="button" id="vxExplore">${icon('search')}Explore</button>
         <button type="button" id="vxPlay">${icon('alert')}Follow one threat</button>
@@ -224,7 +246,7 @@ function drawArch(el) {
       ${PRODUCTS.map((p) => `<button type="button" class="vx-node" data-n="${p.k}" style="--c:${p.rgb};left:${pos(p.k)[0]}%;top:${pos(p.k)[1]}%"><span class="vx-ic">${icon(p.icon)}</span><span class="vx-node-t"><b>${p.name}</b><small>${p.role}</small></span>${chip(p)}</button>`).join('')}
     </div>
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">Product descriptions and statuses come from Booz Allen’s Vellox announcements. The connections show how the work relates across the suite, not a list of built-in integrations; confirm integrations, availability and deployment options with the Vellox team.</p></details>`;
+      <p class="muted small">Product descriptions and statuses come from Booz Allen’s Vellox announcements. The products are separate today and don’t exchange data with each other; confirm the roadmap, availability and deployment options with the Vellox team.</p></details>`;
   el.querySelectorAll('.vx-node').forEach(
     (b) =>
       (b.onclick = () => {

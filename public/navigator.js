@@ -6,8 +6,7 @@
 // announcements: a continuous cyber compliance layer that automates evidence
 // collection, ties technical evidence to controls, flags gaps, keeps SSP content,
 // POA&Ms, assessments and authorization records current, and preserves evidence
-// lineage and human review. Navigator was listed as "coming soon"; the talking
-// points say so. Examples on the slides (systems, findings) are made up.
+// lineage and human review. Navigator is generally available. Examples on the slides (systems, findings) are made up.
 import { createDeck, icon, $, esc } from './deck-core.js';
 import { loadTailoring, tailorButton, openTailor } from './tailor.js';
 
@@ -53,7 +52,7 @@ const SLIDES = [
         'Open with their world: “How long does it take your team to put together an authorization package, and how accurate is it a month later?”',
         'Navigator in one sentence: it keeps compliance running alongside the system: evidence collected automatically, mapped to controls, gaps flagged, and the package kept current.',
         'It’s part of Booz Allen’s Vellox line of cyber products, alongside Reverser and Ranger. It is a separate product from LayerOne.',
-        '<b>Availability:</b> Booz Allen has listed Navigator as coming soon. Position this as a preview and an early-access conversation, and check current status with the Vellox team before the meeting.',
+        '<b>Availability:</b> Navigator is generally available. Confirm supported frameworks and deployment options with the Vellox team before the meeting.',
       ],
       ask: 'How many systems are you keeping authorized today, and how many people does that take?',
       next: 'Let’s start with why compliance falls behind.',
@@ -291,7 +290,7 @@ function drawArch(el) {
       </section>
     </div>
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">Public descriptions: Booz Allen’s Navigator product page and Vellox announcements, which list Navigator as coming soon. The board summarizes the published capabilities (automated evidence collection, mapping evidence to controls, flagging gaps, keeping SSP content, POA&amp;Ms, assessments and authorization records current, evidence lineage and human review). Control IDs are from NIST SP 800-53; the system, evidence, times and the drift story are illustrative. Confirm availability, supported frameworks and integrations with the Vellox team.</p></details>`;
+      <p class="muted small">Public descriptions: Booz Allen’s Navigator product page and Vellox announcements. The board summarizes the published capabilities (automated evidence collection, mapping evidence to controls, flagging gaps, keeping SSP content, POA&amp;Ms, assessments and authorization records current, evidence lineage and human review). Control IDs are from NIST SP 800-53; the system, evidence, times and the drift story are illustrative. Confirm supported frameworks and integrations with the Vellox team.</p></details>`;
 
   el.querySelectorAll('.nv2-tile').forEach(
     (b) =>

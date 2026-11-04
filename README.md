@@ -110,8 +110,9 @@ Coming next: an "official version updated · review" badge when a slide you rewr
 
 `/vellox.html` is the first page in the product switch (**Vellox · LayerOne · Reverser · Ranger · Navigator**). It covers the suite as a whole, with the four products in this demo; each has its own page for the deep dive. Gold accent; each product keeps its own color throughout.
 
-* **Overview:** a 7-slide deck with talking points: the title; *AI changed both sides* (attackers with AI: faster, more, newer; defenders today: four bottlenecks, each matched to a product as the slide plays); *four products, one mission* (Reverser, Ranger, Navigator and LayerOne around a "human operators + AI agents" hub, each with its role and status: Reverser and Ranger generally available, LayerOne limited preview, Navigator coming soon); *follow one threat through the suite* (new malware → Reverser explains it → Ranger detects it → Navigator records it → LayerOne governs the AI, lighting up in turn on a loop); *built on adversary tradecraft*; and *start where it hurts most* (each bottleneck links straight to its product page).
-* **Architecture (“How the suite fits together”):** the four products around *your environment*, with how their work connects (Reverser → Ranger: indicators, YARA, behaviors; Ranger → Navigator: detection coverage as evidence; LayerOne → Navigator: AI audit records). **Explore:** click a product to light up its connections and get a card with its status and an **Open** button to its page. **Follow one threat:** the same five-step story, step by step. The talking points and sources note say these show how the work connects, not a list of built-in integrations.
+* **Overview:** a 6-slide deck with talking points: the title (the four products around a Vellox core); *AI changed both sides* (a chart of the growing gap between attackers with AI and defenders today, next to the four places defenders fall behind, each matched to a product); *four products, one mission* (Reverser, Ranger, Navigator and LayerOne around a "human operators + AI agents" hub, each with its role and status: Reverser, Ranger and Navigator generally available, LayerOne limited preview); *when a new threat lands* (Ranger spots it and Reverser takes it apart **at the same time**, then your analysts decide with both answers in hand, while Navigator and LayerOne are always on); *built on adversary tradecraft*; and *start where it hurts most* (each bottleneck links straight to its product page). The slides play once with measured animations, then settle.
+* **Products are separate today:** they don't exchange data with each other, so nothing on this page shows one product feeding another. The talking points say so, and treat "do they work together?" as an objection.
+* **Architecture (“The suite around your environment”):** the four products around *your environment*, each connected only to it. **Explore:** click a product to light it up and get a card with its status and an **Open** button to its page. **Follow one threat:** the same story, step by step (Ranger and Reverser light up together).
 * **Tailor:** the title tagline and the next step.
 
 ## Vellox Reverser: a separate product page
@@ -145,7 +146,7 @@ Product details come from Booz Allen's announcements and press coverage (listed 
 
 ## Vellox Navigator: a separate product page
 
-`/navigator.html` is a separate page for **Vellox Navigator**, Booz Allen's continuous cyber compliance product (listed by Booz Allen as *coming soon*; the talking points say so). It has its own header and a blue accent, and sits in the **LayerOne · Reverser · Ranger · Navigator** switch.
+`/navigator.html` is a separate page for **Vellox Navigator**, Booz Allen's continuous cyber compliance product (generally available). It has its own header and a blue accent, and sits in the **LayerOne · Reverser · Ranger · Navigator** switch.
 
 * **Overview:** a 7-slide deck with talking points:
   1. Title: *compliance that keeps pace with your systems, not a snapshot that goes stale*.
