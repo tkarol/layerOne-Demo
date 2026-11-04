@@ -650,3 +650,51 @@ test('one source of truth: customer slide edits move into customer layouts, whic
   await api(`/api/layouts/${made.data.id}`, 'DELETE', null, as(tyler));
   await api(`/api/profiles/${cust.id}`, 'DELETE', null, as(tyler));
 });
+
+test('guests look around read-only, in their own sandbox, and never see customers or layouts', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const guest = (await api('/api/presenters/guest', 'POST')).data.token;
+  const other = (await api('/api/presenters/guest', 'POST')).data.token;
+  assert.deepEqual((await api('/api/presenters/me', 'GET', null, as(guest))).data.me, { id: 'guest', name: 'Guest', guest: true });
+
+  const emilio = (await api('/api/presenters/login', 'POST', { id: 'emilio', pin: '2468' })).data.token;
+  const cust = (await api('/api/profiles', 'POST', { name: 'Guest Test County' }, as(emilio))).data.id;
+  const lay = (await api('/api/layouts', 'POST', { deck: 'ranger', name: 'Emilio’s cut', hidden: ['title'] }, as(emilio))).data.id;
+
+  // Nothing can be changed.
+  const denied = [
+    ['/api/settings', 'PUT', { pace: 'slow' }],
+    ['/api/settings', 'DELETE', null],
+    ['/api/profiles', 'POST', { name: 'Nope' }],
+    [`/api/profiles/${cust}`, 'PUT', { name: 'Nope' }],
+    [`/api/profiles/${cust}/copy`, 'POST', {}],
+    ['/api/profiles/active', 'PUT', { id: cust }],
+    ['/api/layouts', 'POST', { deck: 'ranger', name: 'Nope' }],
+    [`/api/layouts/${lay}/copy`, 'POST', {}],
+    [`/api/layouts/${lay}`, 'PUT', { name: 'Nope' }],
+    ['/api/connect/check', 'POST', {}],
+    ['/api/presenters/me/pin', 'PUT', { pin: '', newPin: '1111' }],
+    ['/api/presenters/ethan/reset', 'POST', {}],
+  ];
+  for (const [p, m, body] of denied) assert.equal((await api(p, m, body, as(guest))).status, 403, `${m} ${p}`);
+
+  // Customers and SEs' layouts stay hidden; decks are always the standard version.
+  assert.deepEqual((await api('/api/profiles', 'GET', null, as(guest))).data.profiles, []);
+  assert.equal((await api(`/api/profiles/${cust}`, 'GET', null, as(guest))).status, 403);
+  assert.deepEqual((await api('/api/layouts?deck=ranger', 'GET', null, as(guest))).data.layouts, []);
+  assert.equal((await api(`/api/layouts/${lay}`, 'GET', null, as(guest))).status, 403);
+  assert.equal((await api('/api/pitch', 'GET', null, { ...as(guest), 'X-Customer': cust })).data.customer, null);
+
+  // The demos work, in a sandbox per guest visit.
+  await api('/api/data/reset', 'POST', {}, as(guest));
+  await api('/api/data/reset', 'POST', {}, as(other));
+  await api('/api/data/ask', 'POST', { message: 'Delete all inactive customers', protected: false }, as(guest));
+  const rows = async (t) => (await api('/api/data', 'GET', null, as(t))).data.rows.length;
+  assert.ok((await rows(guest)) < (await rows(other)));
+
+  assert.equal((await api('/api/presenters/logout', 'POST', {}, as(guest))).status, 200);
+  assert.equal((await api('/api/presenters/me', 'GET', null, as(guest))).data.me, null);
+
+  await api(`/api/layouts/${lay}`, 'DELETE', null, as(emilio));
+  await api(`/api/profiles/${cust}`, 'DELETE', null, as(emilio));
+});

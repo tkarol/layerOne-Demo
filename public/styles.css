@@ -1984,3 +1984,10 @@ dialog.layout-ed { width: min(920px, calc(100vw - 32px)); }
 .ws-item span em { font-style: normal; font-weight: 400; color: var(--muted); font-size: 12.5px; }
 .tl-slides { display: grid; gap: 10px; justify-items: start; margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--panel-2); font-size: 13.5px; line-height: 1.5; }
 @media (max-width: 640px) { .le-headrow { grid-template-columns: minmax(0, 1fr); } }
+
+/* Guests: look around read-only. Nothing to customize, so the edit controls go. */
+.ws-guest-opt { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 13.5px; color: #a1a1aa; }
+.ws-guest-opt .ws-link { color: #fafafa; font-weight: 600; }
+.ws-guest-chip .ws-av { background: #52525b; }
+.ws-guest :is(#tailorBtn, #openSettings, #customizeBtn, #editBtn, #tabConnect, .edit-btn) { display: none !important; }
+.ws-guest-chip .ws-me-n { display: inline !important; }

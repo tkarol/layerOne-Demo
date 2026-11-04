@@ -91,6 +91,7 @@ Four sales engineers share this site: **Tyler**, **Emilio**, **Ethan** and **Chr
 * **Customers are a shared library.** The **Presenting to ▾** menu in the top bar lists your customers and other SEs' customers; picking one applies only in your browser, so nobody else's choice changes your screen. Only the SE who created a customer (or an admin) can edit it; anyone else sees it read-only with **make a copy**. Customers made before workspaces belong to the first admin.
 * **Brand color:** a customer can have a brand color (set in **✎ Tailor**). It's used as an accent only (the "Prepared for" line, the top-bar dot), so product colors and red/green meanings stay as they are.
 * On screens under 1520px wide, the product switch collapses to the current product with a ▾ menu, to make room.
+* **Guests:** anyone who isn't an SE can pick **Look around as a guest** on the sign-in screen (no PIN). Guests see every deck, architecture page and sample app, always in the standard official version, and can try the demos; their Customer Hub data and history are a throwaway sandbox for that visit (12 hours). They can't change anything: no settings, Connect, customers, Tailor, Customize, step edits, layouts or PINs, and they never see the customer list or SEs' layouts. The server enforces this; the edit buttons are also hidden. **Guest ▾ → Sales engineer? Sign in** goes back to the sign-in screen.
 
 ### Your own deck layouts
 

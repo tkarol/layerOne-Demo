@@ -13,6 +13,10 @@ export const PRESENTERS = [
   { id: 'ethan', name: 'Ethan' },
   { id: 'chris', name: 'Chris' },
 ];
+// Guests (anyone who isn't an SE) can look around without a PIN, but can't change
+// anything. Each guest visit gets its own throwaway sandbox for the sample apps.
+export const GUEST = { id: 'guest', name: 'Guest', guest: true };
+const GUEST_HOURS = 12;
 // Customers created before workspaces existed belong to this presenter.
 export const LEGACY_OWNER = 'tyler';
 
@@ -40,6 +44,7 @@ export async function presenterFromRequest(request, storage) {
   if (!/^[0-9a-f]{48}$/.test(token)) return null;
   const session = await storage.getKV(`session:${token}`);
   if (!session || session.expires < Date.now()) return null;
+  if (session.presenter === GUEST.id) return { ...GUEST, token, scope: `guest-${session.scope}` };
   const p = byId(session.presenter);
   // A PIN reset bumps the presenter's epoch, which signs out their old sessions.
   if (!p || (session.epoch || 0) !== ((await storage.getKV(`presenter-epoch:${p.id}`)) || 0)) return null;
@@ -99,7 +104,14 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
     const list = await Promise.all(PRESENTERS.map(async (p) => publicPresenter(p, await rec(p.id))));
     return json(200, { presenters: list, setupPasswordRequired: Boolean(cfg.settingsPassword) });
   }
-  if (method === 'GET' && rest === 'me') return json(200, { me: me ? selfPresenter(me, await rec(me.id)) : null });
+  if (method === 'GET' && rest === 'me') return json(200, { me: me ? (me.guest ? { id: GUEST.id, name: GUEST.name, guest: true } : selfPresenter(me, await rec(me.id))) : null });
+
+  // Look around as a guest: no PIN, read-only, a short-lived session.
+  if (method === 'POST' && rest === 'guest') {
+    const token = randomHex(24);
+    await storage.putKV(`session:${token}`, { presenter: GUEST.id, scope: randomHex(4), expires: Date.now() + GUEST_HOURS * 36e5 });
+    return json(200, { token, me: { id: GUEST.id, name: GUEST.name, guest: true } });
+  }
 
   if (method === 'POST' && rest === 'login') {
     const { id, pin, setupPassword } = await readJson(request);
@@ -132,6 +144,7 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
     await storage.deleteKV(`session:${me.token}`);
     return json(200, { ok: true });
   }
+  if (me.guest && rest !== 'logout') return json(403, { error: 'Guests can look around, but can’t change anything.' });
   if (method === 'PUT' && rest === 'me/pin') {
     const { pin, newPin } = await readJson(request);
     const r = (await rec(me.id)) || {};

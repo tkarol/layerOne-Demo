@@ -27,7 +27,11 @@
     me = JSON.parse(read('ws-me') || 'null');
   } catch {}
   const custKey = () => `ws-customer:${me?.id}`;
-  let customer = me ? read(custKey()) || '' : '';
+  // Guests look around read-only: always the standard, official version, nothing to edit.
+  const isGuest = () => Boolean(me?.guest);
+  let customer = me && !isGuest() ? read(custKey()) || '' : '';
+  const markGuest = () => document.documentElement.classList.toggle('ws-guest', isGuest());
+  markGuest();
 
   // 1. Every /api/ call carries who's presenting and to whom.
   const nativeFetch = window.fetch.bind(window);
@@ -58,8 +62,12 @@
 
   // Shared with the page scripts (tailor.js, customize.js).
   window.ws = {
+    // Signed in as an SE (guests are not: they can't change anything).
     get signedIn() {
-      return Boolean(me);
+      return Boolean(me && !me.guest);
+    },
+    get guest() {
+      return isGuest();
     },
     get me() {
       return me;
@@ -70,8 +78,9 @@
     presenterName: nameOf,
     // The layout this presenter uses for a deck (per browser), and changing it.
     // null = not chosen yet for this customer (deck-core then uses your layout for them); '' = official deck.
-    layoutId: (deckId) => (me ? read(layoutKey(deckId)) : ''),
+    layoutId: (deckId) => (me && !isGuest() ? read(layoutKey(deckId)) : ''),
     setLayout(deckId, id, { silent = false } = {}) {
+      if (isGuest()) return;
       write(layoutKey(deckId), id || '');
       if (!silent && state.deck?.id === deckId) state.deck.reload().then(() => me && drawBar());
     },
@@ -80,7 +89,7 @@
     // that starts from what's on screen. Presents to that customer first.
     async editCustomerLayout(customerId) {
       const d = state.deck;
-      if (!d) return;
+      if (!d || isGuest()) return;
       if (customerId !== customer) {
         // Switch the whole page to that customer first, then come back to the editor.
         try {
@@ -101,6 +110,7 @@
       if (me && document.querySelector('.ws-bar')) drawBar();
     },
     setCustomer(id) {
+      if (isGuest()) return;
       customer = id || '';
       write(custKey(), customer);
       location.reload();
@@ -125,7 +135,9 @@
                <div class="ws-people">${state.presenters
                  .map((x) => `<button type="button" data-who="${esc(x.id)}"><span class="ws-av big">${esc(x.name[0])}</span><b>${esc(x.name)}</b>${x.hasPin ? '' : '<em>New: choose a PIN</em>'}</button>`)
                  .join('')}</div>
-               <p class="ws-gate-note">Your customers, slides and settings stay yours. Other SEs can use your customers, but only you can change them.</p>`
+               <p class="ws-gate-note">Your customers, slides and settings stay yours. Other SEs can use your customers, but only you can change them.</p>
+               <div class="ws-guest-opt"><span>Not a sales engineer?</span><button type="button" class="ws-link" data-guest>Look around as a guest →</button></div>
+               ${step.error ? `<p class="ws-err">${esc(step.error)}</p>` : ''}`
             : `<form class="ws-pin">
                  <button type="button" class="ws-back" data-back>← Not ${esc(p.name)}?</button>
                  <span class="ws-av big">${esc(p.name[0])}</span>
@@ -142,6 +154,18 @@
     document.body.append(gate);
     gate.querySelectorAll('[data-who]').forEach((b) => (b.onclick = () => showGate({ who: b.dataset.who, error: '' })));
     gate.querySelector('[data-back]')?.addEventListener('click', () => showGate());
+    gate.querySelector('[data-guest]')?.addEventListener('click', async () => {
+      try {
+        const out = await api('/api/presenters/guest', 'POST');
+        token = out.token;
+        me = out.me;
+        write('ws-token', token);
+        write('ws-me', JSON.stringify({ id: me.id, name: me.name, guest: true }));
+        location.reload();
+      } catch (err) {
+        showGate({ who: null, error: err.message });
+      }
+    });
     const form = gate.querySelector('form');
     if (form) {
       gate.querySelector('#wsPin').focus();
@@ -321,6 +345,21 @@
     );
   }
 
+  function guestMenu(anchor) {
+    openMenu(
+      anchor,
+      `<div class="ws-menu-h">Browsing as a guest</div>
+       <p class="ws-note">Look around the decks, architecture and sample apps, and try the demos. Anything you try in the demos is just for this visit, and nothing here can be changed or customized.</p>
+       <div class="ws-menu-f"><button type="button" class="ws-link" data-signout>Sales engineer? Sign in</button></div>`,
+      (m) => {
+        m.querySelector('[data-signout]').onclick = async () => {
+          await api('/api/presenters/logout', 'POST').catch(() => {});
+          signOut();
+        };
+      },
+    );
+  }
+
   function signOut() {
     write('ws-token', null);
     write('ws-me', null);
@@ -332,6 +371,15 @@
   function drawBar() {
     const host = document.querySelector('.topbar .top-right');
     if (!host) return;
+    if (isGuest()) {
+      document.querySelector('.ws-bar')?.remove();
+      const bar = document.createElement('div');
+      bar.className = 'ws-bar';
+      bar.innerHTML = `<button type="button" class="ws-me ws-guest-chip" title="Browsing as a guest (read-only)"><span class="ws-av">G</span><span class="ws-me-n">Guest</span><span class="ws-caret">▾</span></button>`;
+      host.prepend(bar);
+      bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : guestMenu(e.currentTarget));
+      return;
+    }
     const cur = state.customers.find((c) => c.id === customer);
     if (customer && !cur) {
       // The customer was deleted: back to the standard version.
@@ -393,8 +441,10 @@
         return showGate();
       }
       me = mine.me;
-      write('ws-me', JSON.stringify({ id: me.id, name: me.name, admin: me.admin }));
-      state.customers = (await api('/api/profiles')).profiles || [];
+      markGuest();
+      write('ws-me', JSON.stringify(me.guest ? { id: me.id, name: me.name, guest: true } : { id: me.id, name: me.name, admin: me.admin }));
+      if (isGuest()) customer = '';
+      else state.customers = (await api('/api/profiles')).profiles || [];
       drawBar();
     } catch {
       // The page still works signed out if the server can't be reached.

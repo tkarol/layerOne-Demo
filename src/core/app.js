@@ -130,11 +130,21 @@ export function createApp({ env, storage }) {
       // Who's presenting: a signed-in SE gets their own settings, data and history
       // (falling back to the site-wide settings until they save their own).
       const me = await presenterFromRequest(request, storage);
-      const mine = me ? scopeStorage(storage, me.id) : storage;
+      const mine = me ? scopeStorage(storage, me.scope || me.id) : storage;
+      // Guests look around: they can use the demos (in their own sandbox) but change nothing,
+      // and never see the customer list or SEs' layouts.
+      if (me?.guest) {
+        const write = method !== 'GET';
+        if (write && /^\/api\/(settings|profiles|layouts|connect)(\/|$)/.test(pathname)) return json(403, { error: 'Guests can look around, but can’t change anything.', guest: true });
+        if (pathname === '/api/profiles') return json(200, { active: null, profiles: [], me: { id: 'guest', guest: true }, locked: true, passwordRequired: false });
+        if (pathname.startsWith('/api/profiles/') || pathname.startsWith('/api/layouts/')) return json(403, { error: 'Not available to guests', guest: true });
+        if (pathname === '/api/layouts') return json(200, { layouts: [] });
+      }
       const configNow = async () => mergeSaved(baseConfig(), (me && (await mine.getSettings())) || (await storage.getSettings()));
       // The customer this browser is presenting to (X-Customer), or the legacy site-wide one.
       const customerFor = async () => {
         const h = request.headers.get('x-customer');
+        if (me?.guest) return null; // guests always see the standard version
         if (h === null) return getActiveProfile(storage);
         return /^p_[0-9a-f]+$/.test(h) ? storage.getKV(`profile:${h}`) : null;
       };
