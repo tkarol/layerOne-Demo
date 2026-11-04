@@ -12,7 +12,18 @@ let T = { p: {} };
 const tx = (k, fallback) => (T.p[k] ? esc(T.p[k]) : fallback);
 const prepared = (ctx) => `${ctx.logo ? `<img class="d-cust-logo" src="${esc(ctx.logo)}" alt="" />` : ''}${ctx.prepared ? `<div class="d-for">Prepared for <b>${esc(ctx.prepared)}</b></div>` : ''}`;
 
-const STEPS = ['Triage', 'Unpack', 'Disassemble', 'Analyze', 'Write detections'];
+const STEPS = ['Triage', 'Sandbox run', 'Unpack', 'Analyze code', 'Write detections'];
+// Slide 4 and the architecture: what one sample does when Reverser runs it (illustrative).
+const FEED = [
+  ['proc', '0.4s', 'Launches a hidden PowerShell'],
+  ['file', '1.1s', 'Drops updsvc.dll in AppData'],
+  ['reg', '1.3s', 'Adds a Run key to survive reboots'],
+  ['evade', '2.0s', 'Sleeps 10 minutes → fast-forwarded'],
+  ['evade', '2.2s', 'Checks for a virtual machine → fooled'],
+  ['net', '2.9s', 'Beacons to update-cdn[.]example'],
+];
+// The sample's functions: m = malicious, d = dormant (never ran in the sandbox).
+const FUNCS = 'nnmnnmnndnnmnnnmnnnmnnmnndnnnmnnmnnnmnmnndnnnmnn'.split('');
 const CLOCK = ['Hour 1', 'Day 2', 'Day 5', 'Week 2', 'Week 3']; // illustrative
 const big = (ic, t, d) => `<div class="rv-big"><span class="d-ic">${icon(ic)}</span><b>${t}</b><p>${d}</p></div>`;
 
@@ -107,14 +118,49 @@ const SLIDES = [
     talk: {
       key: 'Speed is the whole game: the attacker keeps operating while you wait for analysis.',
       points: [
-        '<b>Let the animation run first, then narrate it.</b> Top lane: a skilled analyst triages, unpacks, disassembles, analyzes and finally writes detections. Each step waits on the one before, and on that analyst’s calendar; watch the clock tick into weeks.',
+        '<b>Let the animation run first, then narrate it.</b> Top lane: a skilled analyst triages the file, runs it in a sandbox, unpacks it, analyzes the code and finally writes detections. Each step waits on the one before, and on that analyst’s calendar; watch the clock tick into weeks.',
         '<b>Bottom lane:</b> Reverser splits the sample across many AI agents (Booz Allen calls it a peer-to-peer swarm), so every step runs at once. Point at the flag: detections are ready while the manual lane has barely started. It replays on a loop, so you can point at it again whenever you like. The timing is illustrative; Reverser’s minutes-not-weeks figure is vendor-reported, so say so if asked.',
         '<b>Why it matters:</b> if detections arrive after the incident is over, they only protect the next victim. Minutes means you can still contain this one.',
         '<b>Be careful with the claim:</b> Booz Allen reports minutes instead of days or weeks in representative cases. In one evaluation it assessed more than 120 functions of a sophisticated sample and flagged dozens as malicious. Call these vendor-reported.',
       ],
       ask: 'When you last had a novel sample, how long did it take to get from “found it” to “detecting it everywhere”?',
-      objection: '“Our sandbox already does this.” A sandbox shows what a sample did in one run. Reverse engineering explains how it works, including paths that didn’t run, and that is what turns into durable detections.',
-      next: 'Fast is only useful if what comes out is usable. Here’s what you get.',
+      objection: '“We already have a sandbox.” Good: Reverser runs one too. But a sandbox only shows what the sample did in one run. Reverser also reads the code, so it finds what didn’t run, and that’s what makes detections durable.',
+      next: 'So what’s happening inside those minutes? Two things at once.',
+    },
+  },
+  {
+    id: 'how',
+    title: 'Watch it run. Read the code.',
+    html: () => `
+      <div class="rvh">
+        <div class="rvh-file">${icon('bug')}<b>${tx('file', 'invoice_update.exe')}</b><small>Never seen before</small></div>
+        <div class="rvh-split" aria-hidden="true"><i></i><i></i></div>
+        <div class="rvh-lanes">
+          <div class="rvh-lane sbx">
+            <div class="rvh-lh">${icon('monitor')}<b>Sandbox</b><span>Run it safely and watch everything it does</span></div>
+            <ul class="rvh-feed">${FEED.map(([k, t, d], i) => `<li class="${k}" style="--i:${i}"><em>${t}</em>${d}</li>`).join('')}</ul>
+          </div>
+          <div class="rvh-lane code">
+            <div class="rvh-lh">${icon('code')}<b>Code</b><span>Unpack it and read every function</span></div>
+            <div class="rvh-grid">${FUNCS.map((f, i) => `<i class="${f}" style="--i:${i}"></i>`).join('')}</div>
+            <p class="rvh-key"><span class="m">Malicious</span><span class="d">Never ran in the sandbox</span></p>
+          </div>
+        </div>
+        <div class="rvh-split join" aria-hidden="true"><i></i><i></i></div>
+        <div class="rvh-merge">${icon('nodes')}<b>AI agents cross-check both</b><small>YARA · IOCs · ATT&amp;CK · report</small></div>
+      </div>`,
+    talk: {
+      key: 'Reverser does both halves of malware analysis: it runs the sample in a sandbox to see what it does, and reverse engineers the code to see everything it could do.',
+      points: [
+        '<b>Top lane, the sandbox:</b> Reverser detonates the sample in an instrumented sandbox and records what it does: the processes it launches, the files it drops, how it persists, where it calls home. Booz Allen describes Reverser as fully executing malware to expose its logic, behavior and intent.',
+        '<b>The amber lines are evasion:</b> malware stalls or checks for a virtual machine to hide from sandboxes. Reverser counters common tricks like delayed execution and environment detection, so the sample behaves as it would on a real machine.',
+        '<b>Bottom lane, the code:</b> the real payload is unpacked and every function is analyzed by AI agents in parallel. Red is malicious. <b>Amber is the point:</b> code that never ran in the sandbox, like a backup server or a trigger date. A sandbox alone would miss it.',
+        '<b>Both lanes meet:</b> the agents cross-check each other and the two views, so what the sample did confirms what the code says, and the detections cover both.',
+        'The sample, events and function counts are illustrative.',
+      ],
+      ask: 'Do you use a sandbox today? What happens when a sample detects it and goes quiet?',
+      objection: '“Malware detects sandboxes.” That’s why Reverser counters common evasion, and why it doesn’t rely on the run alone: the code lane still sees what the sample was hiding.',
+      next: 'Here’s what comes out the other end.',
     },
   },
   {
@@ -224,26 +270,32 @@ sha256  9f2c…e41a</pre></div>
   },
 ];
 
-// ---------- architecture: under the hood ----------
-// One orchestrator agent directs 20+ specialized subagents that cross-check each
-// other's findings; Amazon Bedrock models power every agent.
-const PARTS = {
-  sample: ['Malware sample', 'Any suspicious file: from incident response, an EDR alert or a phishing email.'],
-  orch: ['Orchestrator agent', 'One orchestrator plans the analysis, hands tasks to the subagents, and assembles their findings into one answer.'],
-  swarm: ['20+ subagents', 'More than twenty specialized subagents each take a piece of the work and run in parallel.'],
-  validate: ['Peer validation', 'Subagents check each other’s findings, so a conclusion is confirmed before it is reported.'],
-  bedrock: ['Amazon Bedrock', 'Foundation models on Amazon Bedrock power every agent; the work runs on AWS.'],
-  out: ['Countermeasures', 'YARA rules, IOCs, ATT&CK mappings and reports, ready for the tools your analysts already use.'],
+// ---------- architecture: one sample through Reverser ----------
+// Six stages, played in order or clicked: triage → sandbox detonation → unpack &
+// disassemble → AI agents → cross-check & connect → countermeasures. One
+// orchestrator agent directs 20+ subagents that cross-check each other;
+// Amazon Bedrock models power every agent. The sample and events are examples.
+const STAGES = [
+  ['triage', 'inbox', 'Triage'],
+  ['sandbox', 'monitor', 'Run it in the sandbox'],
+  ['unpack', 'layers', 'Unpack & disassemble'],
+  ['agents', 'nodes', 'AI agents analyze it'],
+  ['check', 'check', 'Cross-check & connect'],
+  ['out', 'shieldPlus', 'Countermeasures'],
+];
+const CAPTIONS = [
+  'Reverser identifies the file: a packed Windows executable it has never seen before, so it goes to full analysis.',
+  'It runs the sample in an instrumented sandbox and records everything: processes, files, registry, network. When the malware stalls or checks for a virtual machine, Reverser counters it.',
+  'The real payload, unpacked in memory during the run, is pulled out and disassembled into its functions.',
+  'An orchestrator agent splits the functions across 20+ specialized subagents, which analyze them in parallel. Red marks malicious code.',
+  'Subagents check each other’s findings, and the sandbox run confirms the code. Code that never ran (amber) is caught too, and similar samples link it to known campaigns.',
+  'Out come countermeasures: YARA rules, indicators, ATT&CK mappings and reports, ready for your tools after analyst review.',
+];
+const ADDONS = {
   flash: ['Reverser Flash (coming soon)', 'A fast, lower-cost first pass: a result on a sample in about 15 minutes, with a lighter report. Run everything through Flash, and send what needs a deeper look into full Reverser.'],
   jail: ['Reverser Jailbreak (coming soon)', 'Built for ransomware: it goes after the encryption and works to recover the key, so files can come back without paying, where the encryption can be broken.'],
 };
-const GROUPS = [
-  ['Unpack', 4],
-  ['Disassemble', 5],
-  ['Analyze functions', 5],
-  ['Match campaigns', 4],
-  ['Map behaviors', 4],
-];
+const STAGE_MS = 5600;
 
 const SOURCES = [
   ['Booz Allen: Vellox Reverser product page', 'https://www.boozallen.com/expertise/products/vellox-reverser.html'],
@@ -251,74 +303,131 @@ const SOURCES = [
   ['Booz Allen announces general availability of Vellox Reverser (Nasdaq press release)', 'https://www.nasdaq.com/press-release/booz-allen-announces-general-availability-vellox-reverser-automate-malware-defense'],
   ['SiliconANGLE: Booz Allen debuts Vellox Reverser', 'https://siliconangle.com/2025/07/28/booz-allen-debuts-vellox-reverser-automate-malware-reverse-engineering-using-ai/'],
   ['Help Net Security: Vellox Reverser accelerates malware analysis and threat intelligence', 'https://www.helpnetsecurity.com/2026/01/26/booz-allen-vellox-reverser/'],
+  ['AWS case study: Booz Allen powers malware reverse engineering with agentic AI', 'https://aws.amazon.com/solutions/case-studies/booz-allen-case-study/'],
   ['AWS Marketplace: Vellox Reverser', 'https://aws.amazon.com/marketplace/pp/prodview-neuhq5xqsisaa'],
 ];
 
-const st = { part: 'orch' };
+const st = { stage: 0, playing: false, timer: null, addon: null };
+let archEl;
 
 function drawArch(el) {
-  const on = (k) => (st.part === k ? 'on' : '');
-  let n = 0;
-  const swarm = GROUPS.map(([name, count]) => `<div class="uh-col"><span class="uh-role">${esc(name)}</span><div class="uh-dots">${Array.from({ length: count }, () => `<i style="--i:${n++}"></i>`).join('')}</div></div>`).join('');
+  archEl = el;
+  const malicious = FUNCS.filter((f) => f === 'm').length;
   el.innerHTML = `
-    <div class="rva-head"><h2>Under the hood</h2><span class="muted">Click any part</span></div>
-    <div class="uh">
-      <button type="button" class="uh-side uh-sample ${on('sample')}" data-part="sample">${icon('bug')}<b>Malware sample</b><small>${tx('file', 'invoice_update.exe')}</small></button>
-      <div class="uh-flow in" aria-hidden="true"><i></i></div>
+    <div class="xa-head">
+      <div><h2>Inside Reverser: one sample, start to finish</h2><p class="muted">Step through it, or press play. Click any stage to jump.</p></div>
+      <button type="button" class="rg2-play" id="rv3Play"></button>
+    </div>
+    <ol class="rg2-stages rv3-stages">${STAGES.map(([, ic, t], i) => `<li><button type="button" data-stage="${i}"><span class="rg2-sn">${i + 1}</span>${icon(ic)}<b>${t.replace('&', '&amp;')}</b></button></li>`).join('')}</ol>
+    <div class="nv2-story rv3-cap"><div class="nv2-story-top"><span class="nv2-step-n" id="rv3N"></span></div><p id="rv3Cap"></p></div>
 
-      <div class="uh-box">
-        <div class="uh-box-h">${icon('nodes')}<b>Vellox Reverser</b></div>
-
-        <button type="button" class="uh-orch ${on('orch')}" data-part="orch">
-          <span class="uh-orch-ic">${icon('sparkle')}</span>
-          <span><b>Orchestrator agent</b><small>Plans · delegates · assembles the answer</small></span>
-        </button>
-
-        <svg class="uh-fan" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-          ${[10, 30, 50, 70, 90].map((x) => `<path d="M50 0 C 50 22, ${x} 18, ${x} 40"/>`).join('')}
-        </svg>
-
-        <div class="uh-swarm-wrap">
-          <button type="button" class="uh-swarm ${on('swarm')}" data-part="swarm">${swarm}</button>
-          <button type="button" class="uh-validate ${on('validate')}" data-part="validate" aria-label="Peer validation">
-            <svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M10 0 Q 20 26, 30 0"/><path d="M30 0 Q 40 26, 50 0"/><path d="M50 0 Q 60 26, 70 0"/><path d="M70 0 Q 80 26, 90 0"/>
-            </svg>
-            ${[20, 40, 60, 80].map((x, i) => `<span class="uh-check" style="left:${x}%;--k:${i}">✓</span>`).join('')}
-          </button>
-          <div class="uh-swarm-cap"><b>20+ subagents</b> · <span class="uh-val-cap">⇄ they cross-check each other’s findings</span></div>
-        </div>
-
-        <button type="button" class="uh-bedrock ${on('bedrock')}" data-part="bedrock">
-          <span class="uh-bedrock-main"><b>Amazon Bedrock</b> foundation models power every agent</span>
-          <span class="uh-bedrock-sub">Runs on AWS · Lambda workers and Step Functions orchestration</span>
-        </button>
+    <div class="rv3" data-stage="0">
+      <div class="rv3-file">
+        <span class="rv3-ic">${icon('bug')}</span>
+        <b>${tx('file', 'invoice_update.exe')}</b>
+        <small>sha256 9f2c…e41a</small>
+        <span class="rv3-tags"><i>Windows executable</i><i>Packed</i><i class="new">Never seen before</i></span>
       </div>
 
-      <div class="uh-flow out" aria-hidden="true"><i></i></div>
-      <button type="button" class="uh-side uh-out ${on('out')}" data-part="out">
-        <span class="uh-out-h">${icon('shieldPlus')}<b>Countermeasures</b></span>
-        <span class="uh-chip">YARA rules</span><span class="uh-chip">IOCs</span><span class="uh-chip">MITRE ATT&amp;CK</span><span class="uh-chip">Reports</span>
+      <div class="rv3-lanes">
+        <section class="rv3-lane sbx">
+          <div class="rv3-lh">${icon('monitor')}<b>Instrumented sandbox</b><span>Detonate and watch</span></div>
+          <ul class="rv3-feed">${FEED.map(([k, t, d], i) => `<li class="${k}" style="--i:${i}"><em>${t}</em><span>${d}</span>${k === 'evade' ? '<b>countered</b>' : ''}</li>`).join('')}</ul>
+        </section>
+        <section class="rv3-lane code">
+          <div class="rv3-lh">${icon('code')}<b>Static analysis</b><span>Unpack, disassemble, read</span></div>
+          <div class="rv3-unpacked">${icon('layers')}Payload unpacked from memory · ${FUNCS.length} functions</div>
+          <div class="rv3-grid">${FUNCS.map((f, i) => `<i class="${f}" style="--i:${i}"></i>`).join('')}</div>
+          <p class="rv3-key"><span class="m">${malicious} malicious</span><span class="d">${FUNCS.filter((f) => f === 'd').length} never ran in the sandbox</span></p>
+        </section>
+      </div>
+
+      <div class="rv3-agents">
+        <div class="rv3-orch">${icon('sparkle')}<span><b>Orchestrator agent</b><small>Plans and assembles</small></span></div>
+        <div class="rv3-subs">${Array.from({ length: 20 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div>
+        <span class="rv3-subs-l">20+ subagents, in parallel</span>
+        <div class="rv3-checks"><span>✓ Findings cross-checked</span><span>✓ Behavior matches code</span><span>✓ Linked to a known campaign</span></div>
+      </div>
+
+      <div class="rv3-out">
+        <div class="rv3-out-h">${icon('shieldPlus')}<b>Countermeasures</b></div>
+        <span class="rv3-chip">YARA rules</span><span class="rv3-chip">IOCs</span><span class="rv3-chip">MITRE ATT&amp;CK</span><span class="rv3-chip">Reports</span>
         <small>→ ${tx('tools', 'SIEM · EDR · threat intel')}, after analyst review</small>
-      </button>
+      </div>
+
+      <div class="rv3-aws">${icon('layers')}<span>Runs on AWS: <b>Amazon Bedrock</b> models power every agent · Lambda workers · Step Functions orchestration</span></div>
     </div>
+
     <div class="rva-addons">
       <span class="rva-addons-h">Coming soon</span>
-      <button type="button" class="rva-addon flash ${on('flash')}" data-part="flash">
+      <button type="button" class="rva-addon flash ${st.addon === 'flash' ? 'on' : ''}" data-addon="flash">
         <span class="rva-ad-step">${icon('inbox')}Every sample</span><i class="rva-ad-arr"></i>
         <span class="rva-ad-main">${icon('zap')}<b>Reverser Flash</b><small>~15 min · lighter report</small></span><i class="rva-ad-arr"></i>
         <span class="rva-ad-split"><span>${icon('check')}Answered</span><span class="deep">${icon('nodes')}Needs more → <b>Reverser</b></span></span>
       </button>
-      <button type="button" class="rva-addon jail ${on('jail')}" data-part="jail">
+      <button type="button" class="rva-addon jail ${st.addon === 'jail' ? 'on' : ''}" data-addon="jail">
         <span class="rva-ad-step">${icon('lock')}Ransomware</span><i class="rva-ad-arr"></i>
         <span class="rva-ad-main">${icon('key')}<b>Reverser Jailbreak</b><small>works to recover the key</small></span><i class="rva-ad-arr"></i>
         <span class="rva-ad-step ok">${icon('unlock')}Files back</span>
       </button>
     </div>
-    <p class="rva-tip"><b>${esc(PARTS[st.part][0])}:</b> ${esc(PARTS[st.part][1])}</p>
+    ${st.addon ? `<p class="rva-tip"><b>${esc(ADDONS[st.addon][0])}:</b> ${esc(ADDONS[st.addon][1])}</p>` : ''}
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">Public descriptions: Booz Allen’s announcements and press coverage. The architecture (one orchestrator, 20+ subagents with peer validation, Amazon Bedrock) reflects the product team’s description; subagent role names here are examples. Reverser Flash and Reverser Jailbreak are upcoming add-ons described by the product team; they aren’t in the public announcements yet. Confirm figures and deployment options with the Vellox team.</p></details>`;
-  el.querySelectorAll('[data-part]').forEach((b) => (b.onclick = () => ((st.part = b.dataset.part), drawArch(el))));
+      <p class="muted small">Public descriptions: Booz Allen’s announcements, the AWS case study and press coverage. Booz Allen describes Reverser as fully executing malware to expose its logic, behavior and intent, and defeating evasive techniques such as delayed execution and environment detection. The architecture (one orchestrator, 20+ subagents with peer validation, Amazon Bedrock) reflects the product team’s description. The sample, events and counts are illustrative. Reverser Flash and Reverser Jailbreak are upcoming add-ons described by the product team; they aren’t in the public announcements yet. Confirm figures and deployment options with the Vellox team.</p></details>`;
+  el.querySelectorAll('[data-stage]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        pause();
+        st.stage = Number(b.dataset.stage);
+        paint();
+      }),
+  );
+  el.querySelectorAll('[data-addon]').forEach((b) => (b.onclick = () => ((st.addon = st.addon === b.dataset.addon ? null : b.dataset.addon), drawArch(el))));
+  el.querySelector('#rv3Play').onclick = () => (st.playing ? pause() : play());
+  paint();
+}
+
+function paint() {
+  const el = archEl;
+  if (!el) return;
+  el.querySelector('.rv3').dataset.stage = String(st.stage);
+  el.querySelectorAll('.rv3-stages button').forEach((b) => {
+    const i = Number(b.dataset.stage);
+    b.classList.toggle('on', i === st.stage);
+    b.classList.toggle('done', i < st.stage);
+  });
+  el.querySelector('#rv3N').textContent = `Step ${st.stage + 1} of ${STAGES.length} · ${STAGES[st.stage][2]}`;
+  const cap = el.querySelector('#rv3Cap');
+  cap.textContent = CAPTIONS[st.stage];
+  cap.style.animation = 'none';
+  void cap.offsetWidth;
+  cap.style.animation = '';
+  const btn = el.querySelector('#rv3Play');
+  btn.innerHTML = st.playing ? '❚❚ Pause' : st.stage === STAGES.length - 1 ? '↻ Watch again' : '▶ Watch it work';
+  btn.classList.toggle('on', st.playing);
+  const bar = el.querySelector('.rv3-stages');
+  bar.style.setProperty('--ms', st.playing ? `${STAGE_MS}ms` : '0ms');
+  bar.classList.toggle('playing', st.playing);
+}
+
+function play() {
+  clearTimeout(st.timer);
+  if (st.stage === STAGES.length - 1) st.stage = 0;
+  st.playing = true;
+  paint();
+  const tick = () => {
+    if (!st.playing) return;
+    if (st.stage >= STAGES.length - 1) return pause();
+    st.stage++;
+    paint();
+    st.timer = setTimeout(tick, STAGE_MS);
+  };
+  st.timer = setTimeout(tick, STAGE_MS);
+}
+function pause() {
+  clearTimeout(st.timer);
+  st.playing = false;
+  paint();
 }
 
 // ---------- page ----------
@@ -326,6 +435,7 @@ function setView(v) {
   const view = v === 'architecture' ? 'architecture' : 'overview';
   $('#rvOverview').hidden = view !== 'overview';
   $('#rvArch').hidden = view !== 'architecture';
+  if (view !== 'architecture' && st.playing) pause();
   document.querySelectorAll('.view-tabs button').forEach((b) => {
     b.classList.toggle('active', b.dataset.view === view);
     b.setAttribute('aria-selected', String(b.dataset.view === view));

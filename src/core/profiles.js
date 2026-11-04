@@ -99,7 +99,7 @@ export async function listProfiles(storage) {
 // profile.pitch = { logo, hidePrepared, reverser: {...}, ranger: {...} }. Anything
 // left out keeps the standard slide; an empty pitch changes nothing.
 export const PITCH_SLIDES = {
-  reverser: ['title', 'gap', 'speed', 'outputs', 'addons', 'team'],
+  reverser: ['title', 'gap', 'speed', 'how', 'outputs', 'addons', 'team'],
   ranger: ['title', 'noise', 'inside', 'caught', 'control'],
   navigator: ['title', 'drift', 'loop', 'live', 'lineage'],
   vellox: ['title', 'shift', 'suite', 'together', 'why', 'start'],
