@@ -1972,25 +1972,6 @@ dialog.layout-ed { width: min(920px, calc(100vw - 32px)); }
 }
 @media (max-width: 640px) { .rv3 { grid-template-columns: minmax(0, 1fr); } .rvh { grid-template-columns: minmax(0, 1fr); } .rvh-split { display: none; } }
 
-/* Reverser Architecture tab: the sandbox run inside the Reverser box */
-.uh-sandbox { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; row-gap: 8px; align-items: center; width: 100%; padding: 12px 16px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--warn) 50%, var(--border)); background: color-mix(in srgb, var(--warn) 7%, var(--panel)); cursor: pointer; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; }
-.uh-sandbox:hover { transform: translateY(-2px); }
-.uh-sandbox.on { border-color: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent); }
-.uh-sb-ic { grid-row: span 2; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
-.uh-sb-ic .d-svg { width: 24px !important; height: 24px !important; }
-.uh-sb-t b { display: block; font-size: 16px; }
-.uh-sb-t small { display: block; font-size: 13px; color: var(--muted); }
-.uh-sb-feed { display: flex; flex-wrap: wrap; gap: 6px; }
-.uh-sb-feed i { font-style: normal; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--border); background: var(--panel); animation: uh-sb-tick 6s ease-in-out infinite; }
-.uh-sb-feed i:nth-child(2) { animation-delay: 1.5s; }
-.uh-sb-feed i:nth-child(3) { animation-delay: 3s; }
-.uh-sb-feed i:nth-child(4) { animation-delay: 4.5s; }
-@keyframes uh-sb-tick { 0%, 20%, 100% { border-color: var(--border); } 6%, 14% { border-color: var(--warn); } }
-.uh-sb-down { position: relative; display: flex; justify-content: center; align-items: center; gap: 8px; height: 34px; }
-.uh-sb-down i { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--border); overflow: hidden; }
-.uh-sb-down i::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 40%; background: linear-gradient(180deg, transparent, var(--rv)); animation: uh-flow-v 2.6s linear infinite; }
-.uh-sb-down span { position: relative; padding: 1px 10px; border-radius: 99px; font-size: 12px; color: var(--muted); background: var(--panel); }
-
 /* Reverser Walkthrough tab */
 #rvWalkRoot { display: grid; align-content: start; }
 #rvWalkRoot .rv-sources { margin-top: 18px; }

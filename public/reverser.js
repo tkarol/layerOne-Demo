@@ -416,13 +416,12 @@ function pauseWalk() {
 }
 
 // ---------- Architecture tab: under the hood ----------
-// The sample is detonated in a sandbox, then one orchestrator agent directs 20+ specialized subagents that cross-check each
+// One orchestrator agent directs 20+ specialized subagents that cross-check each
 // other's findings; Amazon Bedrock models power every agent.
 const UH_PARTS = {
-  sandbox: ['Sandbox run', 'Reverser detonates the sample in an instrumented sandbox and records what it does: processes, files, registry and network. It counters evasion such as long sleeps and virtual-machine checks, and pulls the unpacked payload from memory for the agents to analyze.'],
   sample: ['Malware sample', 'Any suspicious file: from incident response, an EDR alert or a phishing email.'],
   orch: ['Orchestrator agent', 'One orchestrator plans the analysis, hands tasks to the subagents, and assembles their findings into one answer.'],
-  swarm: ['20+ subagents', 'More than twenty specialized subagents each take a piece of the work and run in parallel.'],
+  swarm: ['20+ subagents', 'More than twenty specialized subagents each take a piece of the work and run in parallel: running the sample in a sandbox to watch what it does, unpacking and disassembling it, analyzing its functions, matching it to known campaigns and mapping its behaviors.'],
   validate: ['Peer validation', 'Subagents check each other’s findings, so a conclusion is confirmed before it is reported.'],
   bedrock: ['Amazon Bedrock', 'Foundation models on Amazon Bedrock power every agent; the work runs on AWS.'],
   out: ['Countermeasures', 'YARA rules, IOCs, ATT&CK mappings and reports, ready for the tools your analysts already use.'],
@@ -430,14 +429,14 @@ const UH_PARTS = {
   jail: ['Reverser Jailbreak (coming soon)', 'Built for ransomware: it goes after the encryption and works to recover the key, so files can come back without paying, where the encryption can be broken.'],
 };
 const UH_GROUPS = [
-  ['Unpack', 4],
-  ['Disassemble', 5],
+  ['Sandbox run', 4],
+  ['Unpack & disassemble', 5],
   ['Analyze functions', 5],
   ['Match campaigns', 4],
   ['Map behaviors', 4],
 ];
 
-const uh = { part: 'sandbox' };
+const uh = { part: 'orch' };
 
 function drawUnderHood(el) {
   const on = (k) => (uh.part === k ? 'on' : '');
@@ -452,12 +451,6 @@ function drawUnderHood(el) {
       <div class="uh-box">
         <div class="uh-box-h">${icon('nodes')}<b>Vellox Reverser</b></div>
 
-        <button type="button" class="uh-sandbox ${on('sandbox')}" data-part="sandbox">
-          <span class="uh-sb-ic">${icon('monitor')}</span>
-          <span class="uh-sb-t"><b>Sandbox run</b><small>Detonates the sample and watches what it does · evasion countered</small></span>
-          <span class="uh-sb-feed"><i>Processes</i><i>Files</i><i>Registry</i><i>Network</i></span>
-        </button>
-        <div class="uh-sb-down" aria-hidden="true"><i></i><span>behavior + unpacked payload</span></div>
 
         <button type="button" class="uh-orch ${on('orch')}" data-part="orch">
           <span class="uh-orch-ic">${icon('sparkle')}</span>
@@ -507,7 +500,7 @@ function drawUnderHood(el) {
     </div>
     <p class="rva-tip"><b>${esc(UH_PARTS[uh.part][0])}:</b> ${esc(UH_PARTS[uh.part][1])}</p>
     <details class="rv-sources"><summary>Sources</summary><ul>${SOURCES.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul>
-      <p class="muted small">Public descriptions: Booz Allen’s announcements and press coverage. Booz Allen describes Reverser as fully executing malware to expose its logic, behavior and intent. The architecture (a sandbox run, one orchestrator, 20+ subagents with peer validation, Amazon Bedrock) reflects the product team’s description; subagent role names here are examples. Reverser Flash and Reverser Jailbreak are upcoming add-ons described by the product team; they aren’t in the public announcements yet. Confirm figures and deployment options with the Vellox team.</p></details>`;
+      <p class="muted small">Public descriptions: Booz Allen’s announcements and press coverage. Booz Allen describes Reverser as fully executing malware to expose its logic, behavior and intent. The architecture (one orchestrator, 20+ subagents with peer validation, including a sandbox run, Amazon Bedrock) reflects the product team’s description; subagent role names here are examples. Reverser Flash and Reverser Jailbreak are upcoming add-ons described by the product team; they aren’t in the public announcements yet. Confirm figures and deployment options with the Vellox team.</p></details>`;
   el.querySelectorAll('[data-part]').forEach((b) => (b.onclick = () => ((uh.part = b.dataset.part), drawUnderHood(el))));
 }
 
