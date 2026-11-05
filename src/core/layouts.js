@@ -1,7 +1,7 @@
 // Decks (stored as "layouts"): someone's saved version of a product deck. A deck
 // reorders, hides and retitles slides and rewrites the talk track; anything it
 // leaves out follows the official deck, so official improvements still come through.
-// A deck can be for one account (customer): it then shows that account's branding.
+// A deck can be for one customer (set when it's made, then fixed): it shows their branding.
 // You always open a deck explicitly; nothing switches on by itself.
 // Everyone can see, present and copy every deck. Its owner, an admin, or the
 // account team of the deck's account can change it.
@@ -220,7 +220,11 @@ export async function handleLayoutApi(request, { storage, pathname, method, read
   }
   if (!canEditDeck(existing, me, await accountOf(existing.customer))) return json(403, { error: 'Only the deck’s owner or its account team can change it. Copy it to make your own.' });
   if (method === 'PUT') {
-    const { layout, errors, ok } = validateLayout(await readJson(request), existing);
+    // A deck stays with the customer it was made for: saving never changes it.
+    // To present a deck to someone else, copy it for them.
+    const body = await readJson(request);
+    delete body.customer;
+    const { layout, errors, ok } = validateLayout(body, existing);
     if (!ok) return json(400, { error: 'Some fields are invalid', errors });
     if (!(await checkAccount(layout.customer))) return json(400, { error: 'That account doesn’t exist' });
     layout.updatedBy = me.id;

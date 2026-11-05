@@ -103,6 +103,7 @@ export function newDeckDialog(opts) {
     color: '#2563eb',
     logo: '',
     full: null, // the chosen existing customer, loaded
+    change: false, // changing an existing customer's logo or color (affects all their decks)
     error: '',
     busy: false,
   };
@@ -136,9 +137,14 @@ export function newDeckDialog(opts) {
               ui.cust === ''
                 ? ''
                 : `${isNew ? `<label>Customer name<input id="ndNewName" maxlength="80" value="${esc(ui.newName)}" placeholder="e.g. Department of Example" /></label>` : ''}
-                   <label ${isNew ? '' : 'class="full"'}>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="ndColor" value="${esc(ui.color)}" ${canEditCust ? '' : 'disabled'} /><code>${esc(ui.color)}</code></span></label>
-                   ${canEditCust ? logoField(ui.logo, 'ndLogo', 'on every product’s title slide; PNG, JPEG, SVG or WebP under 150 KB') : `<p class="s-hint full">${ui.logo ? `<img class="nd-logo-ro" src="${esc(ui.logo)}" alt="" /> ` : ''}This customer belongs to ${esc(opts.nameOf?.(ui.full?.owner) || 'someone else')}; its logo and color are theirs to change.</p>`}
-                   ${!isNew && ui.full ? `<p class="s-hint full">Changes to the logo or color apply to every deck for ${esc(ui.full.name)}.</p>` : ''}`
+                   ${
+                     isNew || ui.change
+                       ? `<label ${isNew ? '' : 'class="full"'}>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="ndColor" value="${esc(ui.color)}" /><code>${esc(ui.color)}</code></span></label>
+                          ${logoField(ui.logo, 'ndLogo', 'on every product’s title slide; PNG, JPEG, SVG or WebP under 150 KB')}
+                          ${isNew ? '' : `<p class="s-locked full">This changes the logo and color on <b>every deck</b> for ${esc(ui.full?.name || 'this customer')}.</p>`}`
+                       : `<div class="nd-cust full">${ui.logo ? `<img src="${esc(ui.logo)}" alt="" />` : `<i style="background:${esc(ui.color)}"></i>`}<span><b>${esc(ui.full?.name || '')}</b><small>${ui.logo ? 'Their logo goes on every product.' : 'No logo yet.'}</small></span>
+                            ${canEditCust && ui.full ? `<button type="button" class="link-btn" id="ndChange">${ui.logo ? 'Change logo or color' : 'Add a logo'}</button>` : `<small class="muted">Set up by ${esc(opts.nameOf?.(ui.full?.owner) || 'someone else')}</small>`}</div>`
+                   }`
             }
             <label class="full">Deck name <span class="muted">(so you can tell your decks apart)</span><input id="ndName" maxlength="60" value="${esc(ui.name)}" /></label>
           </div>
@@ -159,8 +165,10 @@ export function newDeckDialog(opts) {
         </div>
       </form>`;
     const q = (s) => dlg.querySelector(s);
+    q('#ndChange')?.addEventListener('click', () => ((ui.change = true), draw()));
     q('#ndCust').onchange = async (e) => {
       ui.cust = e.target.value;
+      ui.change = false;
       ui.error = '';
       if (ui.cust === 'new') {
         ui.logo = '';
@@ -193,7 +201,7 @@ export function newDeckDialog(opts) {
         if (customer === 'new') {
           if (!ui.newName.trim()) throw new Error('Enter the customer’s name');
           customer = (await call('/api/profiles', 'POST', { name: ui.newName.trim(), color: ui.color, pitch: ui.logo ? { logo: ui.logo } : {} })).id;
-        } else if (customer && ui.full && ui.full.canEdit !== false && ((ui.full.pitch?.logo || '') !== ui.logo || (ui.full.color || '#2563eb') !== ui.color)) {
+        } else if (customer && ui.change && ui.full && ui.full.canEdit !== false && ((ui.full.pitch?.logo || '') !== ui.logo || (ui.full.color || '#2563eb') !== ui.color)) {
           // A new logo or color for an existing customer: saved on the customer.
           await call(`/api/profiles/${customer}`, 'PUT', { ...ui.full, color: ui.color, pitch: { ...(ui.full.pitch || {}), logo: ui.logo || undefined } });
         }
@@ -319,3 +327,86 @@ export async function accountDialog(opts) {
   if (!ro) dlg.querySelector('#acName').focus();
 }
 export const customerDialog = accountDialog;
+
+// ---------- Deck settings ----------
+// Rename, copy for someone else, share, delete. The customer can't be changed here
+// (or anywhere): a deck stays with the customer it was made for.
+// opts: { deck (summary or full), customer (summary or null), product (page), onRenamed(deck), onCopy(), onDeleted() }
+export function deckSettingsDialog(opts) {
+  const dlg = dialog('dset');
+  const d = opts.deck;
+  const c = opts.customer;
+  const ui = { name: d.name, error: '', copied: false };
+  const link = shareUrl(opts.product ? `${d.id}/${opts.product}` : d.id);
+  const draw = () => {
+    const ro = d.canEdit === false;
+    dlg.innerHTML = `
+      <form novalidate>
+        <div class="s-head"><h2>Deck settings</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
+        <div class="s-body">
+          <div class="grid2">
+            <label class="full">Deck name<input id="dsName" maxlength="60" value="${esc(ui.name)}" ${ro ? 'disabled' : ''} /></label>
+          </div>
+          <div class="s-section-title">Who it’s for</div>
+          <div class="nd-cust">${c ? (c.hasLogo ? `<img src="/api/profiles/${esc(c.id)}/logo?v=${encodeURIComponent(c.updatedAt || '')}" alt="" />` : `<i style="${c.color ? `background:${esc(c.color)}` : ''}"></i>`) : '<i></i>'}
+            <span><b>${c ? esc(c.name) : 'No one in particular'}</b><small>A deck stays with the customer it was made for. To present it to someone else, make a copy for them.</small></span></div>
+          <p><button type="button" class="secondary small" id="dsCopy">⧉ Make a copy…</button> <span class="muted small">for another customer, or your own version for this one</span></p>
+          <div class="s-section-title">Share</div>
+          <div class="ds-link"><input readonly value="${esc(link)}" aria-label="Deck link" /><button type="button" class="secondary small" id="dsLink">${ui.copied ? '✓ Copied' : 'Copy link'}</button></div>
+          ${ro ? '<p class="s-hint">You can open and copy this deck; its owner (and the people they share the customer with) can change it.</p>' : `<div class="s-section-title">Delete</div><p><button type="button" class="link-btn danger" id="dsDelete">Delete this deck…</button> <span class="muted small">for every product; this can’t be undone</span></p>`}
+          <p class="err">${esc(ui.error)}</p>
+        </div>
+        <div class="s-foot"><span class="spacer"></span>
+          <button type="button" class="secondary" data-close>Close</button>
+          ${ro ? '' : '<button type="submit" class="save" id="dsSave" disabled>Save name</button>'}
+        </div>
+      </form>`;
+    const q = (s) => dlg.querySelector(s);
+    q('#dsName').oninput = (e) => {
+      ui.name = e.target.value;
+      if (q('#dsSave')) q('#dsSave').disabled = !ui.name.trim() || ui.name.trim() === d.name;
+    };
+    q('#dsCopy').onclick = () => {
+      dlg.close();
+      opts.onCopy?.();
+    };
+    q('#dsLink').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(link);
+      } catch {
+        q('.ds-link input').select();
+      }
+      ui.copied = true;
+      draw();
+    };
+    q('#dsDelete')?.addEventListener('click', async () => {
+      const typed = prompt(`Delete “${d.name}” for every product? Its link stops working and this can’t be undone.\n\nType the deck name to confirm:`);
+      if (typed == null) return;
+      if (typed.trim() !== d.name.trim()) {
+        ui.error = 'The name didn’t match, so nothing was deleted.';
+        return draw();
+      }
+      try {
+        await call(`/api/layouts/${d.id}`, 'DELETE');
+        dlg.close();
+        opts.onDeleted?.();
+      } catch (err) {
+        ui.error = err.message;
+        draw();
+      }
+    });
+    q('form').onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const saved = await call(`/api/layouts/${d.id}`, 'PUT', { name: ui.name.trim() });
+        dlg.close();
+        opts.onRenamed?.(saved);
+      } catch (err) {
+        ui.error = err.message;
+        draw();
+      }
+    };
+  };
+  draw();
+  dlg.showModal();
+}

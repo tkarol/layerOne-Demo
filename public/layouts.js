@@ -63,6 +63,7 @@ export function openLayoutEditor(opts) {
     }),
     error: '',
   };
+  ui.initial = snapshot(ui);
   dlg?.remove();
   dlg = document.createElement('dialog');
   dlg.className = 'settings layout-ed';
@@ -111,34 +112,34 @@ function draw(ui) {
           : ''
       }
     </li>`;
+  const forCust = (ui.customers || []).find((c) => c.id === ui.customer);
   dlg.innerHTML = `
     <form novalidate>
-      <div class="s-head"><h2>${ui.layout?.id ? esc(ui.layout.name) : 'New deck'} <span class="muted">· ${esc(ui.deck.label)} slides</span></h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
+      <div class="s-head"><h2>Edit ${esc(ui.deck.label)} slides</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
       <div class="s-body">
-        <div class="le-headrow">
-          <label class="le-name">Deck name<input id="leName" value="${esc(ui.name)}" maxlength="60" /></label>
-          <label class="le-name">Customer<select id="leCust"><option value="">No customer (general deck)</option>${(ui.customers || []).map((c) => `<option value="${esc(c.id)}" ${c.id === ui.customer ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
-        </div>
-        <p class="s-hint">One deck covers all five products. Here you change the <b>${esc(ui.deck.label)}</b> slides: drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change follows the official slides. The <b>customer</b>’s name, logo and color are on every product. Everyone can open and copy this deck; you, admins and the people you share the customer with can change it.</p>
+        <div class="le-for">${forCust ? `${forCust.hasLogo ? `<img src="/api/profiles/${esc(forCust.id)}/logo?v=${encodeURIComponent(forCust.updatedAt || '')}" alt="" />` : `<i style="${forCust.color ? `background:${esc(forCust.color)}` : ''}"></i>`}` : '<i></i>'}
+          <span><b>${esc(ui.name)}</b><small>${forCust && forCust.name !== ui.name ? `for ${esc(forCust.name)} · ` : !forCust ? 'general deck · ' : ''}only the ${esc(ui.deck.label)} slides change here</small></span></div>
+        <p class="s-hint">Drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change follows the official slides. The other products in this deck aren’t affected.</p>
         <ol class="le-list">${ui.rows.map(row).join('')}</ol>
         <p class="err">${esc(ui.error)}</p>
       </div>
       <div class="s-foot">
-        ${ui.layout?.id ? '<button type="button" class="link-btn danger" id="leDelete">Delete deck</button>' : ''}
-        ${ui.layout?.id && ui.hasPart ? `<button type="button" class="link-btn" id="leReset">Reset ${esc(ui.deck.label)} slides to official</button>` : ''}
+        ${ui.layout?.id && ui.hasPart ? `<button type="button" class="link-btn" id="leReset">Go back to the official ${esc(ui.deck.label)} slides</button>` : ''}
         <span class="spacer"></span>
         <button type="button" class="secondary" data-close>Cancel</button>
-        <button type="submit" class="save">Save deck</button>
+        <button type="submit" class="save">Save ${esc(ui.deck.label)} slides</button>
       </div>
     </form>`;
   wire(ui);
 }
 
+// Unsaved changes: what's on screen differs from what the editor opened with.
+const snapshot = (ui) => JSON.stringify(ui.rows.map(({ official, open, ...r }) => r));
+const dirty = (ui) => snapshot(ui) !== ui.initial;
+
 // Copy the visible inputs into the working copy.
 function collect(ui) {
   const q = (sel) => dlg.querySelectorAll(sel);
-  ui.name = dlg.querySelector('#leName').value;
-  ui.customer = dlg.querySelector('#leCust').value;
   q('[data-show]').forEach((el) => (ui.rows[el.dataset.show].show = el.checked));
   q('[data-title]').forEach((el) => (ui.rows[el.dataset.title].title = el.value.trim()));
   q('[data-f]').forEach((el) => (ui.rows[el.dataset.r][el.dataset.f] = el.value));
@@ -149,7 +150,15 @@ const swap = (a, i, j) => ([a[i], a[j]] = [a[j], a[i]]);
 
 function wire(ui) {
   const on = (sel, fn) => dlg.querySelectorAll(sel).forEach((el) => (el.onclick = () => (collect(ui), fn(el), draw(ui))));
-  dlg.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => dlg.close()));
+  // Closing with unsaved changes asks first, so nothing is lost by a stray click or Esc.
+  const leave = () => {
+    collect(ui);
+    return !dirty(ui) || confirm(`Discard your changes to the ${ui.deck.label} slides?`);
+  };
+  dlg.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => leave() && dlg.close()));
+  dlg.oncancel = (e) => {
+    if (!leave()) e.preventDefault();
+  };
   on('[data-up]', (b) => swap(ui.rows, +b.dataset.up, +b.dataset.up - 1));
   on('[data-down]', (b) => swap(ui.rows, +b.dataset.down, +b.dataset.down + 1));
   on('[data-open]', (b) => (ui.rows[b.dataset.open].open = !ui.rows[b.dataset.open].open));
@@ -191,18 +200,6 @@ function wire(ui) {
     };
   });
 
-  dlg.querySelector('#leDelete')?.addEventListener('click', async () => {
-    if (!confirm(`Delete the deck “${ui.layout.name}”, for every product? Its link stops working, and anyone who has it open goes back to the official decks.`)) return;
-    try {
-      await call(`/api/layouts/${ui.layout.id}`, 'DELETE');
-      dlg.close();
-      ui.onDeleted?.();
-    } catch (err) {
-      ui.error = err.message;
-      draw(ui);
-    }
-  });
-
   dlg.querySelector('#leReset')?.addEventListener('click', async () => {
     if (!confirm(`Put the ${ui.deck.label} slides in “${ui.layout.name}” back to the official slides? The deck’s other products keep their changes.`)) return;
     try {
@@ -225,7 +222,8 @@ function wire(ui) {
     // Only this product's changes; the official order isn't stored.
     const order = ui.rows.map((r) => r.id);
     const part = { order: order.join() === ui.deck.slides.map((s) => s.id).join() ? [] : order, hidden: ui.rows.filter((r) => !r.show).map((r) => r.id), titles: {}, talk: {} };
-    const body = { name: ui.name.trim(), customer: ui.customer || null, products: { [ui.deck.id]: part } };
+    // Only this product's slides: the deck's name and customer aren't touched here.
+    const body = ui.layout?.id ? { products: { [ui.deck.id]: part } } : { name: ui.name.trim(), customer: ui.customer || null, products: { [ui.deck.id]: part } };
     for (const r of ui.rows) {
       const s = r.official.talk;
       if (r.title) part.titles[r.id] = r.title;

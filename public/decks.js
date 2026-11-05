@@ -3,7 +3,7 @@
 // product). The official deck, yours, ones you can edit for your customers, and
 // everyone else's. Search, or filter by person or customer. Opening a deck takes
 // you to a product page with that deck open.
-import { PRODUCTS, esc, deckHref, copyLink, ago, call, newDeckDialog, accountDialog } from './decks-ui.js';
+import { PRODUCTS, esc, deckHref, ago, call, newDeckDialog, accountDialog, deckSettingsDialog } from './decks-ui.js';
 
 const $ = (s) => document.querySelector(s);
 const root = $('#lib');
@@ -54,9 +54,8 @@ function deckCard(d) {
     <p class="lib-meta"><span class="lib-av">${initials(d.owner)}</span>${d.mine ? 'Yours' : esc(nameOf(d.owner))} · updated ${esc(ago(d.updatedAt))}${d.updatedBy && d.updatedBy !== d.owner ? ` by ${esc(nameOf(d.updatedBy))}` : ''}</p>
     <div class="lib-acts">
       <a class="lib-btn lib-primary" href="${deckHref(first, d.id, d.customer)}">Present</a>
-      ${d.canEdit ? `<a class="lib-btn" href="${deckHref(first, d.id, d.customer, { edit: true })}">Edit</a>` : ''}
-      ${d.mine ? '' : `<button type="button" class="lib-btn" data-copy="${esc(d.id)}">Copy</button>`}
-      <button type="button" class="lib-btn icon" data-link="${esc(d.id)}" title="Copy link">🔗</button>
+      ${d.canEdit ? `<a class="lib-btn" href="${deckHref(first, d.id, d.customer, { edit: true })}" title="Edit the slides">Edit slides</a>` : `<button type="button" class="lib-btn" data-copy="${esc(d.id)}" title="Make your own copy">⧉ Copy</button>`}
+      <button type="button" class="lib-btn icon" data-settings="${esc(d.id)}" title="Deck settings: rename, copy, link, delete" aria-label="Deck settings for ${esc(d.name)}">⚙</button>
     </div>
   </article>`;
 }
@@ -152,20 +151,25 @@ function wire() {
     window.scrollTo({ top: 0 });
   };
   root.querySelectorAll('[data-account]').forEach((b) => (b.onclick = () => showAccount(b.dataset.account)));
-  root.querySelectorAll('[data-link]').forEach(
-    (b) =>
-      (b.onclick = async () => {
-        await copyLink(b.dataset.link);
-        b.textContent = '✓';
-        setTimeout(() => (b.textContent = '🔗'), 1500);
-      }),
-  );
   const created = (deck) => (location.href = deckHref(deck.products?.[0] || 'vellox', deck.id, deck.customer));
   root.querySelectorAll('[data-copy]').forEach(
     (b) =>
       (b.onclick = () => {
         const from = st.decks.find((d) => d.id === b.dataset.copy);
         newDeckDialog({ accounts: st.accounts, from, nameOf, onCreated: created });
+      }),
+  );
+  root.querySelectorAll('[data-settings]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        const d = st.decks.find((x) => x.id === b.dataset.settings);
+        deckSettingsDialog({
+          deck: d,
+          customer: acct(d.customer),
+          onRenamed: reload,
+          onCopy: () => newDeckDialog({ accounts: st.accounts, from: d, nameOf, onCreated: created }),
+          onDeleted: reload,
+        });
       }),
   );
   const fresh = () => newDeckDialog({ accounts: st.accounts, account: st.account || undefined, nameOf, onCreated: created });

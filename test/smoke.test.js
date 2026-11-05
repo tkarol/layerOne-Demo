@@ -836,6 +836,8 @@ test('one deck for the whole suite: per-product slides, merged saves, and older 
   assert.deepEqual(Object.keys(saved.products).sort(), ['navigator', 'ranger']);
   assert.equal(saved.name, 'Suite City');
   assert.equal(saved.customer, acct.id);
+  // A deck stays with its customer: saving can't change it (copy it for someone else instead).
+  assert.equal((await api(`/api/layouts/${deck.id}`, 'PUT', { name: 'Renamed', customer: null }, as(tyler))).data.customer, acct.id);
   const listed = (await api('/api/layouts', 'GET', null, as(tyler))).data.layouts.find((l) => l.id === deck.id);
   assert.deepEqual(listed.products, ['ranger', 'navigator']);
   // A deck link opens on the first product it changes, or the one asked for.

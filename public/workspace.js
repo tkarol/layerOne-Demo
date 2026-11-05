@@ -153,10 +153,12 @@
   // (with that product's details); elsewhere, the account dialog.
   async function editAccount() {
     closeMenu();
+    const id = open.customer;
     const btn = document.querySelector('#tailorBtn:not([hidden])');
-    if (btn) return btn.click();
+    if (btn && id === customer) return btn.click();
+    if (!account(id)) return;
     const { accountDialog } = await ui();
-    accountDialog({ account: account(customer), people: state.presenters, me, onSaved: () => location.reload() });
+    accountDialog({ account: account(id), people: state.presenters, me, onSaved: () => location.reload(), onDeleted: () => openDeck({ id: '' }) });
   }
 
   async function refreshAccounts() {
@@ -367,27 +369,36 @@
     const others = list.filter((l) => !l.mine && !onTeam(l));
     openMenu(
       anchor,
-      `<div class="ws-menu-h">Decks <span class="ws-menu-hn">one deck covers all five products</span></div>
+      `${
+         cur
+           ? `<div class="ws-deck-acts">
+                <div class="ws-acts-h">Presenting</div>
+                <div class="ws-acts-name"><b>${esc(cur.name)}</b>${account(cur.customer) ? `<small>for ${esc(account(cur.customer).name)}</small>` : '<small>general deck</small>'}</div>
+                ${d && cur.canEdit ? `<button type="button" class="ws-small primary-act" data-edit>✎ Edit the ${esc(LABELS[PAGE] || '')} slides</button>` : ''}
+                ${d && !cur.canEdit ? '<p class="ws-note">You can present this deck. To change its slides, make your own copy (Deck settings).</p>' : ''}
+                <div class="ws-acts-row">
+                  <button type="button" class="ws-small" data-settings>⚙ Deck settings</button>
+                  ${account(cur.customer) && cur.canEdit ? '<button type="button" class="ws-small" data-acct>Logo &amp; color</button>' : ''}
+                  <button type="button" class="ws-small" data-link>🔗 Link</button>
+                </div>
+              </div>`
+           : `<div class="ws-deck-acts"><div class="ws-acts-h">Presenting</div><div class="ws-acts-name"><b>The official deck</b><small>Booz Allen’s slides, no customer</small></div></div>`
+       }
+       ${note ? `<p class="ws-note">${esc(note)}</p>` : ''}
+       <div class="ws-menu-sub ws-switch">Switch to another deck</div>
        <input class="ws-search" type="search" placeholder="Search decks, customers or people" aria-label="Search decks" />
        <button type="button" class="ws-item ${cur ? '' : 'on'}" data-open="" data-find="official deck"><i class="ws-dot std"></i><span>Official deck</span><small>Booz Allen</small></button>
        ${mine.length ? `<div class="ws-menu-sub">Your decks</div>${mine.map(row).join('')}` : ''}
        ${team.length ? `<div class="ws-menu-sub">Shared with you <span>decks for customers you can edit</span></div>${team.map(row).join('')}` : ''}
        ${others.length ? `<div class="ws-menu-sub">Everyone else’s <span>${me.admin ? 'you can edit these as an admin' : 'open, or copy to change'}</span></div>${others.map(row).join('')}` : ''}
-       ${note ? `<p class="ws-note">${esc(note)}</p>` : ''}
-       <div class="ws-menu-f ws-deck-acts">
-         ${d && cur?.canEdit ? `<button type="button" class="ws-small" data-edit>✎ Edit ${esc(LABELS[PAGE] || '')} slides</button>` : ''}
-         ${customer || (cur?.customer && !PAGE) ? '<button type="button" class="ws-small" data-acct>✎ Customer</button>' : ''}
-         ${cur && !cur.mine ? '<button type="button" class="ws-small" data-copy>Copy to my decks</button>' : ''}
-         <button type="button" class="ws-small" data-new>＋ New deck</button>
-         ${cur ? '<button type="button" class="ws-small" data-link>🔗 Copy link</button>' : ''}
-       </div>
+       <div class="ws-menu-f"><button type="button" class="ws-small" data-new>＋ New deck</button></div>
        <a class="ws-item ws-lib" href="/decks"><span>All decks</span><small>Library →</small></a>`,
       (m) => {
         const search = m.querySelector('.ws-search');
         search.oninput = () => {
           const q = search.value.trim().toLowerCase();
           m.querySelectorAll('[data-find]').forEach((b) => (b.hidden = Boolean(q) && !b.dataset.find.includes(q)));
-          m.querySelectorAll('.ws-menu-sub').forEach((s) => (s.hidden = Boolean(q)));
+          m.querySelectorAll('.ws-menu-sub:not(.ws-switch)').forEach((s) => (s.hidden = Boolean(q)));
         };
         if (list.length > 6) search.focus();
         else search.hidden = true;
@@ -400,15 +411,18 @@
         );
         m.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(d.layout));
         m.querySelector('[data-acct]')?.addEventListener('click', editAccount);
-        m.querySelector('[data-new]').onclick = () => newDeck(cur || null);
-        m.querySelector('[data-copy]')?.addEventListener('click', async () => {
-          try {
-            const copy = await api(`/api/layouts/${cur.id}/copy`, 'POST', {});
-            await openDeck(copy);
-            if (state.deck) openEditor(state.deck.layout);
-          } catch (err) {
-            deckMenu(anchor, err.message);
-          }
+        m.querySelector('[data-new]').onclick = () => newDeck(null);
+        m.querySelector('[data-settings]')?.addEventListener('click', async () => {
+          closeMenu();
+          const { deckSettingsDialog } = await ui();
+          deckSettingsDialog({
+            deck: cur,
+            customer: account(cur.customer),
+            product: PAGE,
+            onRenamed: (saved) => openDeck(saved),
+            onCopy: () => newDeck(cur),
+            onDeleted: () => openDeck({ id: '' }),
+          });
         });
         m.querySelector('[data-link]')?.addEventListener('click', async () => {
           const { copyLink } = await ui();
