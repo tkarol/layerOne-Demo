@@ -621,9 +621,10 @@ test('deck layouts: owner-only edits, shared to view and copy, plain text only',
   }, as(tyler));
   assert.equal(made.status, 200);
   const l = made.data;
-  assert.deepEqual(l.order, ['title', 'speed', 'team']);
-  assert.deepEqual(l.talk.speed.points, ['One', 'Two']);
-  assert.equal(l.talk.speed.objection, '', 'an emptied objection is kept as "leave it out"');
+  const rv = l.products.reverser;
+  assert.deepEqual(rv.order, ['title', 'speed', 'team']);
+  assert.deepEqual(rv.talk.speed.points, ['One', 'Two']);
+  assert.equal(rv.talk.speed.objection, '', 'an emptied objection is kept as "leave it out"');
 
   const seen = (await api('/api/layouts?deck=reverser', 'GET', null, as(chris))).data.layouts.find((x) => x.id === l.id);
   assert.equal(seen.mine, false);
@@ -631,7 +632,7 @@ test('deck layouts: owner-only edits, shared to view and copy, plain text only',
   assert.equal((await api(`/api/layouts/${l.id}`, 'DELETE', null, as(chris))).status, 403);
   const copy = await api(`/api/layouts/${l.id}/copy`, 'POST', {}, as(chris));
   assert.equal(copy.data.owner, 'chris');
-  assert.equal(copy.data.talk.speed.key, 'Speed is **everything**');
+  assert.equal(copy.data.products.reverser.talk.speed.key, 'Speed is **everything**');
   assert.equal((await api(`/api/layouts/${copy.data.id}`, 'PUT', { name: 'Chris version', order: ['team', 'title'] }, as(chris))).status, 200);
 
   for (const [id, who] of [[l.id, tyler], [copy.data.id, chris]]) assert.equal((await api(`/api/layouts/${id}`, 'DELETE', null, as(who))).status, 200);
@@ -750,9 +751,10 @@ test('the AWS re:Invent webinar ships as Tyler’s customer with its own Vellox 
   assert.equal(lays.length, 1);
   assert.equal(lays[0].mine, true);
   const lay = (await api(`/api/layouts/${lays[0].id}`, 'GET', null, as(tyler))).data;
-  assert.equal(lay.titles.start, 'Where to start after today');
-  assert.deepEqual(Object.keys(lay.talk).sort(), ['shift', 'start', 'suite', 'title', 'together', 'why']);
-  assert.match(lay.talk.title.ask, /Poll/);
+  assert.deepEqual(Object.keys(lay.products), ['vellox']);
+  assert.equal(lay.products.vellox.titles.start, 'Where to start after today');
+  assert.deepEqual(Object.keys(lay.products.vellox.talk).sort(), ['shift', 'start', 'suite', 'title', 'together', 'why']);
+  assert.match(lay.products.vellox.talk.title.ask, /Poll/);
   assert.match((await api('/api/pitch', 'GET', null, { 'X-Customer': cust.id })).data.pitch.vellox.next, /working session/);
 });
 
@@ -800,7 +802,8 @@ test('accounts and decks: roles, account teams, deck links, and copying a deck t
   const res = await fetch(`${base}/d/${deck.id}`, { redirect: 'manual' });
   assert.equal(res.status, 302);
   const to = new URL(res.headers.get('location'));
-  assert.equal(to.pathname, '/ranger.html');
+  assert.equal(to.pathname, '/vellox.html', 'a deck that changes no product opens on the suite page');
+  assert.equal(new URL((await fetch(`${base}/d/${deck.id}/ranger`, { redirect: 'manual' })).headers.get('location')).pathname, '/ranger.html');
   assert.equal(to.searchParams.get('deck'), deck.id);
   assert.equal(to.searchParams.get('acct'), acct.id);
   const gone = await fetch(`${base}/d/l_00000000dead`, { redirect: 'manual' });
@@ -818,4 +821,62 @@ test('accounts and decks: roles, account teams, deck links, and copying a deck t
 
   for (const [id, who] of [[deck.id, ethan], [general.id, chris]]) await api(`/api/layouts/${id}`, 'DELETE', null, as(who));
   await api(`/api/presenters/${pat.id}`, 'DELETE', null, as(emilio));
+});
+
+test('one deck for the whole suite: per-product slides, merged saves, and older decks moved over', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const tyler = (await api('/api/presenters/login', 'POST', { id: 'tyler', pin: '2468' })).data.token;
+  const acct = (await api('/api/profiles', 'POST', { name: 'Suite City', pitch: { logo: 'https://example.com/logo.png' } }, as(tyler))).data;
+
+  // One deck, changes for two products.
+  const deck = (await api('/api/layouts', 'POST', { name: 'Suite City', customer: acct.id, products: { reverser: { hidden: ['gap'] }, ranger: { titles: { title: 'Ranger for Suite City' } } } }, as(tyler))).data;
+  assert.deepEqual(Object.keys(deck.products).sort(), ['ranger', 'reverser']);
+  // Saving one product leaves the others alone; null puts a product back to the official slides.
+  const saved = (await api(`/api/layouts/${deck.id}`, 'PUT', { products: { navigator: { hidden: ['title'] }, reverser: null } }, as(tyler))).data;
+  assert.deepEqual(Object.keys(saved.products).sort(), ['navigator', 'ranger']);
+  assert.equal(saved.name, 'Suite City');
+  assert.equal(saved.customer, acct.id);
+  const listed = (await api('/api/layouts', 'GET', null, as(tyler))).data.layouts.find((l) => l.id === deck.id);
+  assert.deepEqual(listed.products, ['ranger', 'navigator']);
+  // A deck link opens on the first product it changes, or the one asked for.
+  const loc = async (path) => new URL((await fetch(`${base}${path}`, { redirect: 'manual' })).headers.get('location'));
+  assert.equal((await loc(`/d/${deck.id}`)).pathname, '/ranger.html');
+  assert.equal((await loc(`/d/${deck.id}/layerone`)).pathname, '/');
+  assert.equal((await loc(`/d/${deck.id}/layerone`)).searchParams.get('acct'), acct.id);
+  // The account's logo reaches every product page.
+  for (const product of ['vellox', 'layerone', 'reverser']) {
+    const pitch = (await api('/api/pitch', 'GET', null, { ...as(tyler), 'X-Customer': acct.id })).data;
+    assert.equal(pitch.pitch.logo, 'https://example.com/logo.png', product);
+  }
+  await api(`/api/layouts/${deck.id}`, 'DELETE', null, as(tyler));
+  await api(`/api/profiles/${acct.id}`, 'DELETE', null, as(tyler));
+});
+
+test('moving to suite decks merges one person’s per-product decks for an account', async () => {
+  const { migrateSuiteDecks, getDeck } = await import('../src/core/layouts.js');
+  const kv = new Map();
+  const storage = {
+    getKV: async (k) => kv.get(k) ?? null,
+    putKV: async (k, v) => void kv.set(k, structuredClone(v)),
+    deleteKV: async (k) => void kv.delete(k),
+    listKV: async (pre) => [...kv.entries()].filter(([k]) => k.startsWith(pre)).sort().map(([, v]) => v),
+  };
+  kv.set('profile:p_aa', { id: 'p_aa', name: 'Merge County' });
+  const old = (id, deck, owner, customer, at, extra = {}) => kv.set(`layout:${id}`, { id, deck, name: `${deck} deck`, owner, customer, order: [], hidden: ['title'], titles: {}, talk: {}, updatedAt: at, ...extra });
+  old('l_01', 'ranger', 'chris', 'p_aa', '2026-01-01');
+  old('l_02', 'navigator', 'chris', 'p_aa', '2026-01-02');
+  old('l_03', 'ranger', 'chris', 'p_aa', '2026-01-03'); // same product again: stays its own deck
+  old('l_04', 'reverser', 'ethan', 'p_aa', '2026-01-04'); // someone else's: stays
+  old('l_05', 'vellox', 'chris', null, '2026-01-05'); // general: stays
+  await migrateSuiteDecks(storage);
+  await migrateSuiteDecks(storage); // only once
+  const decks = (await storage.listKV('layout:l_')).map((l) => [l.id, Object.keys(l.products).sort().join('+'), l.name]);
+  assert.deepEqual(decks, [
+    ['l_01', 'navigator+ranger', 'ranger deck'],
+    ['l_03', 'ranger', 'ranger deck'],
+    ['l_04', 'reverser', 'reverser deck'],
+    ['l_05', 'vellox', 'vellox deck'],
+  ]);
+  assert.ok((await storage.listKV('layout:l_')).every((l) => !('deck' in l) && !('order' in l)));
+  assert.equal((await getDeck(storage, 'l_02')).id, 'l_01', 'the merged deck’s old id still opens it');
 });

@@ -4,9 +4,10 @@
 // Two ideas only:
 //   Account: who you present to (a customer, an opportunity, an event).
 //            Name, color, logo, details, and its team.
-//   Deck:    a saved version of one product deck, optionally for one account.
-//            Which slides, their order, titles and the talk track.
-// You always open a deck. The account it's for brands the page.
+//   Deck:    your presentation across the whole suite (Vellox, LayerOne,
+//            Reverser, Ranger, Navigator), optionally for one account. For each
+//            product: which slides, their order, titles and the talk track.
+// You open a deck once; its account's logo and name are on every product page.
 
 export const PRODUCTS = [
   { id: 'vellox', name: 'Vellox', label: 'Vellox suite', page: '/vellox.html', rgb: '250 204 21' },
@@ -67,29 +68,23 @@ function dialog(cls) {
 }
 
 // ---------- New deck ----------
-// opts: { product (fixed, or null to choose), accounts, account (preselected id),
-//         from (a deck summary to copy, optional), onCreated(deck) }
+// opts: { accounts, account (preselected id), from (a deck to copy, optional), onCreated(deck) }
 export function newDeckDialog(opts) {
   const dlg = dialog('nd');
-  const ui = { product: opts.product || opts.from?.deck || 'vellox', account: opts.account ?? opts.from?.customer ?? '', start: opts.from ? 'copy' : 'official', name: '', named: false, newName: '', newColor: '#2563eb', error: '' };
+  const ui = { account: opts.account ?? opts.from?.customer ?? '', start: opts.from ? 'copy' : 'official', name: '', named: false, newName: '', newColor: '#2563eb', error: '' };
   const accounts = [...(opts.accounts || [])].sort((a, b) => a.name.localeCompare(b.name));
   const acctName = (id) => accounts.find((a) => a.id === id)?.name || '';
-  const suggest = () => {
-    const a = ui.account === 'new' ? ui.newName.trim() : acctName(ui.account);
-    return a ? `${a} · ${productOf(ui.product).name}` : `My ${productOf(ui.product).name} deck`;
-  };
+  const suggest = () => (ui.account === 'new' ? ui.newName.trim() : acctName(ui.account)) || 'My deck';
   const draw = () => {
     if (!ui.named) ui.name = suggest();
-    const copyable = opts.from && opts.from.deck === ui.product;
-    if (!copyable) ui.start = 'official';
+    const copyable = Boolean(opts.from);
     dlg.innerHTML = `
       <form novalidate>
         <div class="s-head"><h2>New deck</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
         <div class="s-body">
-          <p class="s-hint">A deck is your version of a product deck: which slides, in what order, and what you say. Pick an account to show its name, logo and color.</p>
+          <p class="s-hint">A deck is your presentation across the whole suite: Vellox, LayerOne, Reverser, Ranger and Navigator. Pick an account and its name, logo and color show on every product. Change any product’s slides later with <b>✎ Edit slides</b>.</p>
           <div class="grid2">
-            <label>Product<select id="ndProduct" ${opts.product ? 'disabled' : ''}>${PRODUCTS.map((p) => `<option value="${p.id}" ${p.id === ui.product ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
-            <label>Account<select id="ndAccount">
+            <label class="full">Account <span class="muted">(who you’re presenting to)</span><select id="ndAccount">
               <option value="">No account (general deck)</option>
               ${accounts.map((a) => `<option value="${esc(a.id)}" ${a.id === ui.account ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
               <option value="new" ${ui.account === 'new' ? 'selected' : ''}>＋ New account…</option>
@@ -104,18 +99,17 @@ export function newDeckDialog(opts) {
           </div>
           <div class="s-section-title">Start from</div>
           <div class="nd-start">
-            <label class="check"><input type="radio" name="ndStart" value="official" ${ui.start === 'official' ? 'checked' : ''} /> The official ${esc(productOf(ui.product).name)} deck</label>
+            <label class="check"><input type="radio" name="ndStart" value="official" ${ui.start === 'official' ? 'checked' : ''} /> The official slides, for every product</label>
             ${copyable ? `<label class="check"><input type="radio" name="ndStart" value="copy" ${ui.start === 'copy' ? 'checked' : ''} /> A copy of “${esc(opts.from.name)}”</label>` : ''}
           </div>
           <p class="err">${esc(ui.error)}</p>
         </div>
         <div class="s-foot"><span class="spacer"></span>
           <button type="button" class="secondary" data-close>Cancel</button>
-          <button type="submit" class="save">Create and edit slides</button>
+          <button type="submit" class="save">Create deck</button>
         </div>
       </form>`;
     const q = (s) => dlg.querySelector(s);
-    q('#ndProduct').onchange = (e) => ((ui.product = e.target.value), draw());
     q('#ndAccount').onchange = (e) => {
       ui.account = e.target.value;
       draw();
@@ -140,7 +134,7 @@ export function newDeckDialog(opts) {
         const deck =
           ui.start === 'copy'
             ? await call(`/api/layouts/${opts.from.id}/copy`, 'POST', { name: ui.name.trim(), customer: account || null })
-            : await call('/api/layouts', 'POST', { deck: ui.product, name: ui.name.trim(), customer: account || null });
+            : await call('/api/layouts', 'POST', { name: ui.name.trim(), customer: account || null, products: {} });
         dlg.close();
         opts.onCreated?.(deck);
       } catch (err) {
@@ -159,7 +153,7 @@ export function newDeckDialog(opts) {
 export async function accountDialog(opts) {
   const dlg = dialog('acct');
   const full = opts.account ? await call(`/api/profiles/${opts.account.id}`) : { name: '', color: '#2563eb', team: [], canEdit: true };
-  const ui = { a: { ...full, team: [...(full.team || [])] }, useColor: Boolean(full.color) || !opts.account, error: '' };
+  const ui = { a: { ...full, team: [...(full.team || [])], pitch: { ...(full.pitch || {}) } }, useColor: Boolean(full.color) || !opts.account, error: '' };
   const ro = full.canEdit === false;
   const owner = full.owner || (opts.account ? 'tyler' : opts.me.id);
   const nameOf = (id) => opts.people.find((p) => p.id === id)?.name || id;
@@ -176,11 +170,15 @@ export async function accountDialog(opts) {
               <label class="full">Account name<input id="acName" maxlength="80" value="${esc(ui.a.name)}" placeholder="e.g. Department of Example" /></label>
               <label>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="acColor" value="${esc(ui.a.color || '#2563eb')}" /><code>${esc(ui.useColor ? ui.a.color || '#2563eb' : 'none')}</code></span></label>
               <label class="check"><input type="checkbox" id="acUseColor" ${ui.useColor ? 'checked' : ''} /> Use the brand color</label>
+              <label class="full">Logo <span class="muted">(on the title slide of every product; PNG, JPEG, SVG or WebP under 150 KB)</span>
+                <span class="logo-row">${ui.a.pitch.logo ? `<img src="${esc(ui.a.pitch.logo)}" alt="" />` : ''}<input type="file" id="acLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" />${ui.a.pitch.logo ? '<button type="button" class="link-btn" id="acLogoClear">Remove</button>' : ''}</span>
+                <input id="acLogo" value="${esc(ui.a.pitch.logo?.startsWith('data:') ? '' : ui.a.pitch.logo || '')}" placeholder="…or an https:// image URL" /></label>
+              <label class="check full"><input type="checkbox" id="acPrepared" ${ui.a.pitch.hidePrepared ? '' : 'checked'} /> Show “Prepared for ${esc(ui.a.name || 'the account')}” on title slides</label>
             </div>
             <div class="s-section-title">Account team <span class="dim-note">owner: ${esc(nameOf(owner))}</span></div>
             <div class="ac-team">${teamable.map((p) => `<label class="check"><input type="checkbox" data-team="${esc(p.id)}" ${ui.a.team.includes(p.id) ? 'checked' : ''} /> ${esc(p.name)} <span class="ac-role">${p.role === 'ae' ? 'AE' : 'SE'}</span></label>`).join('')}</div>
           </fieldset>
-          ${opts.account ? '<p class="s-hint">Logo, “Prepared for” and product details: open one of the account’s decks and use <b>✎ Account</b> in the top bar.</p>' : ''}
+          ${opts.account ? '<p class="s-hint">Product details (their environment, tools and next steps) are on each product page: open one of the account’s decks and use <b>✎ Account</b> there.</p>' : ''}
           <p class="err">${esc(ui.error)}</p>
         </div>
         <div class="s-foot">
@@ -197,6 +195,37 @@ export async function accountDialog(opts) {
       q('#acUseColor').checked = true;
       e.target.nextElementSibling.textContent = e.target.value;
     };
+    // Keep what's typed when the form redraws (a logo upload redraws it).
+    const keep = () => {
+      ui.a.name = q('#acName').value;
+      ui.useColor = q('#acUseColor').checked;
+      ui.a.team = [...dlg.querySelectorAll('[data-team]:checked')].map((x) => x.dataset.team);
+      ui.a.pitch.hidePrepared = !q('#acPrepared').checked;
+      const url = q('#acLogo').value.trim();
+      if (url) ui.a.pitch.logo = url;
+      else if (!ui.a.pitch.logo?.startsWith('data:')) delete ui.a.pitch.logo;
+    };
+    q('#acLogoFile')?.addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      keep();
+      if (f.size > 150 * 1024) {
+        ui.error = 'That image is over 150 KB; use a smaller file or an https:// URL.';
+        return draw();
+      }
+      const r = new FileReader();
+      r.onload = () => {
+        ui.a.pitch.logo = r.result;
+        ui.error = '';
+        draw();
+      };
+      r.readAsDataURL(f);
+    });
+    q('#acLogoClear')?.addEventListener('click', () => {
+      keep();
+      delete ui.a.pitch.logo;
+      draw();
+    });
     q('#acDelete')?.addEventListener('click', async () => {
       if (!confirm(`Delete the account “${full.name}”? Its decks stay, as general decks.`)) return;
       try {
@@ -210,9 +239,8 @@ export async function accountDialog(opts) {
     });
     q('form').onsubmit = async (e) => {
       e.preventDefault();
-      ui.a.name = q('#acName').value.trim();
-      ui.useColor = q('#acUseColor').checked;
-      ui.a.team = [...dlg.querySelectorAll('[data-team]:checked')].map((x) => x.dataset.team);
+      keep();
+      ui.a.name = ui.a.name.trim();
       try {
         if (!ui.a.name) throw new Error('Enter the account name');
         const body = { ...ui.a, color: ui.useColor ? ui.a.color || '#2563eb' : '' };

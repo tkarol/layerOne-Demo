@@ -1,9 +1,10 @@
 // The deck library (/decks): every deck and account in one place.
-//   Decks:    the official decks, yours, your accounts' (you're on the team),
-//             and everyone else's. Search and filter by product, person or account.
+//   Decks:    a deck is one presentation across the whole suite. The official
+//             deck, yours, your accounts' (you're on the team), and everyone
+//             else's. Search and filter by person or account.
 //   Accounts: who you present to, with their team and their decks.
 // Opening a deck takes you to its product page with that deck open.
-import { PRODUCTS, productOf, esc, deckHref, copyLink, ago, call, newDeckDialog, accountDialog } from './decks-ui.js';
+import { PRODUCTS, esc, deckHref, copyLink, ago, call, newDeckDialog, accountDialog } from './decks-ui.js';
 
 const $ = (s) => document.querySelector(s);
 const root = $('#lib');
@@ -11,7 +12,6 @@ const qs = new URLSearchParams(location.search);
 const st = {
   view: location.hash === '#accounts' ? 'accounts' : 'decks',
   q: '',
-  product: '',
   who: qs.get('mine') ? 'mine' : '',
   account: qs.get('account') || '',
   me: null,
@@ -42,25 +42,28 @@ async function load() {
 // ---------- decks ----------
 const matches = (text) => !st.q || text.toLowerCase().includes(st.q);
 function deckCard(d) {
-  const p = productOf(d.deck);
   const a = acct(d.customer);
-  return `<article class="lib-card" style="--p:${p.rgb}">
-    <div class="lib-card-top"><span class="lib-prod">${esc(p.name)}</span>${a ? `<button type="button" class="lib-acct" data-account="${esc(a.id)}" title="Show ${esc(a.name)}’s decks"><i style="${a.color ? `background:${esc(a.color)}` : ''}"></i>${esc(a.name)}</button>` : '<span class="lib-acct gen">General</span>'}</div>
-    <h3><a href="${deckHref(d.deck, d.id, d.customer)}">${esc(d.name)}</a></h3>
+  const first = d.products?.[0] || 'vellox';
+  return `<article class="lib-card" style="${a?.color ? `--acc:${esc(a.color)}` : ''}">
+    <div class="lib-card-top"><span class="lib-prod">Deck</span>${a ? `<button type="button" class="lib-acct" data-account="${esc(a.id)}" title="Show ${esc(a.name)}’s decks"><i style="${a.color ? `background:${esc(a.color)}` : ''}"></i>${esc(a.name)}</button>` : '<span class="lib-acct gen">General</span>'}</div>
+    <h3><a href="${deckHref(first, d.id, d.customer)}">${esc(d.name)}</a></h3>
+    <div class="lib-prods" aria-label="Open on a product">${PRODUCTS.map((p) => `<a href="${deckHref(p.id, d.id, d.customer)}" class="${d.products?.includes(p.id) ? 'changed' : ''}" style="--p:${p.rgb}" title="${d.products?.includes(p.id) ? `Your ${esc(p.name)} slides` : `Official ${esc(p.name)} slides`}">${esc(p.name)}</a>`).join('')}</div>
     <p class="lib-meta"><span class="lib-av">${initials(d.owner)}</span>${d.mine ? 'Yours' : esc(nameOf(d.owner))} · updated ${esc(ago(d.updatedAt))}${d.updatedBy && d.updatedBy !== d.owner ? ` by ${esc(nameOf(d.updatedBy))}` : ''}</p>
     <div class="lib-acts">
-      <a class="lib-btn lib-primary" href="${deckHref(d.deck, d.id, d.customer)}">Open</a>
-      ${d.canEdit ? `<a class="lib-btn" href="${deckHref(d.deck, d.id, d.customer, { edit: true })}">Edit</a>` : ''}
+      <a class="lib-btn lib-primary" href="${deckHref(first, d.id, d.customer)}">Present</a>
+      ${d.canEdit ? `<a class="lib-btn" href="${deckHref(first, d.id, d.customer, { edit: true })}">Edit</a>` : ''}
       ${d.mine ? '' : `<button type="button" class="lib-btn" data-copy="${esc(d.id)}">Copy</button>`}
       <button type="button" class="lib-btn icon" data-link="${esc(d.id)}" title="Copy link">🔗</button>
     </div>
   </article>`;
 }
-function officialCard(p) {
-  return `<article class="lib-card official" style="--p:${p.rgb}">
-    <div class="lib-card-top"><span class="lib-prod">${esc(p.name)}</span><span class="lib-acct gen">Official</span></div>
-    <h3><a href="${deckHref(p.id, '')}">${esc(p.label)}</a></h3>
-    <div class="lib-acts"><a class="lib-btn lib-primary" href="${deckHref(p.id, '')}">Open</a>${st.me.guest ? '' : `<button type="button" class="lib-btn" data-new="${p.id}" title="Make your own deck from the official ${esc(p.name)} deck">＋ Make mine</button>`}</div>
+function officialCard() {
+  return `<article class="lib-card official wide">
+    <div class="lib-card-top"><span class="lib-prod">Booz Allen</span><span class="lib-acct gen">Official</span></div>
+    <h3>The official deck</h3>
+    <p class="lib-meta">Every product as Booz Allen built it. Make your own to add an account’s logo and change any product’s slides.</p>
+    <div class="lib-prods big">${PRODUCTS.map((p) => `<a href="${deckHref(p.id, '')}" style="--p:${p.rgb}" class="changed">${esc(p.label)}</a>`).join('')}</div>
+    ${st.me.guest ? '' : '<div class="lib-acts"><button type="button" class="lib-btn lib-primary" data-new="1">＋ Make my own deck</button></div>'}
   </article>`;
 }
 
@@ -69,10 +72,9 @@ function drawDecks() {
   const filtered = st.decks.filter((d) => {
     const a = acct(d.customer);
     return (
-      (!st.product || d.deck === st.product) &&
       (!st.account || d.customer === st.account) &&
       (!st.who || (st.who === 'mine' ? d.mine : d.owner === st.who)) &&
-      matches(`${d.name} ${a?.name || ''} ${nameOf(d.owner)} ${productOf(d.deck).name}`)
+      matches(`${d.name} ${a?.name || ''} ${nameOf(d.owner)} ${(d.products || []).join(' ')}`)
     );
   });
   const by = (a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '');
@@ -84,31 +86,27 @@ function drawDecks() {
   const mine = filtered.filter((d) => d.mine).sort(by);
   const team = filtered.filter((d) => !d.mine && onTeam(d)).sort(by);
   const others = filtered.filter((d) => !d.mine && !onTeam(d)).sort(by);
-  const officials = PRODUCTS.filter((p) => (!st.product || p.id === st.product) && !st.account && (!st.who || st.who === '') && matches(`${p.label} official`));
+  const showOfficial = !st.account && !st.who && matches('official deck booz allen vellox layerone reverser ranger navigator');
   const owners = [...new Set(st.decks.map((d) => d.owner))].filter((id) => id !== st.me.id).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   const section = (title, hint, list, empty) =>
     list.length || empty ? `<section class="lib-sec"><h3>${title}${hint ? ` <span>${hint}</span>` : ''}</h3>${list.length ? `<div class="lib-grid">${list.map(deckCard).join('')}</div>` : `<p class="lib-empty">${empty}</p>`}</section>` : '';
-  const filtering = st.q || st.product || st.account || st.who;
+  const filtering = st.q || st.account || st.who;
   return `
     ${
       guest
         ? '<p class="lib-note">You’re browsing as a guest: here are the official decks. Sign in to see and make your own.</p>'
         : `<div class="lib-filters">
              <input id="libSearch" type="search" placeholder="Search decks, accounts or people" value="${esc(st.q)}" aria-label="Search decks" />
-             <div class="lib-chips" role="group" aria-label="Product">
-               <button type="button" data-product="" class="${st.product ? '' : 'on'}">All</button>
-               ${PRODUCTS.map((p) => `<button type="button" data-product="${p.id}" class="${st.product === p.id ? 'on' : ''}" style="--p:${p.rgb}">${esc(p.name)}</button>`).join('')}
-             </div>
              <select id="libWho" aria-label="Whose decks"><option value="">Everyone’s</option><option value="mine" ${st.who === 'mine' ? 'selected' : ''}>Mine</option>${owners.map((id) => `<option value="${esc(id)}" ${st.who === id ? 'selected' : ''}>${esc(nameOf(id))}’s</option>`).join('')}</select>
              <select id="libAcct" aria-label="Account"><option value="">Any account</option>${st.accounts.map((a) => `<option value="${esc(a.id)}" ${st.account === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
              ${filtering ? '<button type="button" class="lib-clear" id="libClear">Clear</button>' : ''}
            </div>`
     }
-    ${officials.length ? `<section class="lib-sec"><h3>Official decks <span>start here, or make your own from one</span></h3><div class="lib-grid official">${officials.map(officialCard).join('')}</div></section>` : ''}
-    ${guest ? '' : section('Your decks', '', mine, filtering ? '' : 'You haven’t made a deck yet. Pick an official deck and make your own, or copy one below.')}
+    ${showOfficial ? `<section class="lib-sec"><div class="lib-grid">${officialCard()}</div></section>` : ''}
+    ${guest ? '' : section('Your decks', 'each deck covers all five products', mine, filtering ? '' : 'You haven’t made a deck yet. Make your own from the official deck, or copy one below.')}
     ${guest ? '' : section('Your accounts’ decks', 'you’re on the account team, so you can edit these', team, '')}
     ${guest ? '' : section('Everyone else’s', st.me.admin ? 'open, copy, or edit as an admin' : 'open to present, or copy to make your own', others, '')}
-    ${!guest && filtering && !mine.length && !team.length && !others.length && !officials.length ? '<p class="lib-empty">Nothing matches. Try another search or clear the filters.</p>' : ''}`;
+    ${!guest && filtering && !mine.length && !team.length && !others.length && !showOfficial ? '<p class="lib-empty">Nothing matches. Try another search or clear the filters.</p>' : ''}`;
 }
 
 // ---------- accounts ----------
@@ -117,12 +115,12 @@ function drawAccounts() {
   const mine = (a) => (a.owner || 'tyler') === st.me.id || (a.team || []).includes(st.me.id);
   const card = (a) => {
     const decks = st.decks.filter((d) => d.customer === a.id);
-    const counts = PRODUCTS.map((p) => [p, decks.filter((d) => d.deck === p.id).length]).filter(([, n]) => n);
+    const counts = [];
     const team = [a.owner || 'tyler', ...(a.team || [])];
     return `<article class="lib-card lib-acct-card" style="--c:${esc(a.color || '#71717a')}">
       <div class="lib-card-top"><span class="lib-prod">Owner · ${esc(nameOf(a.owner || 'tyler'))}</span><span class="lib-team">${team.map((id, i) => `<span class="lib-av ${i ? '' : 'own'}" title="${esc(nameOf(id))}${i ? '' : ' (owner)'}">${initials(id)}</span>`).join('')}</span></div>
       <h3><button type="button" class="lib-link" data-show="${esc(a.id)}">${esc(a.name)}</button></h3>
-      <p class="lib-meta">${counts.length ? counts.map(([p, n]) => `<span class="lib-count" style="--p:${p.rgb}">${esc(p.name)} ${n}</span>`).join('') : 'No decks yet'}</p>
+      <p class="lib-meta">${decks.length ? decks.map((d) => `<span class="lib-count">${esc(d.name)}</span>`).join('') : 'No decks yet'}${counts.join('')}</p>
       <div class="lib-acts">
         <button type="button" class="lib-btn lib-primary" data-show="${esc(a.id)}">${decks.length ? `See ${decks.length} deck${decks.length === 1 ? '' : 's'}` : 'See decks'}</button>
         <button type="button" class="lib-btn" data-newfor="${esc(a.id)}">＋ Deck</button>
@@ -151,7 +149,7 @@ function draw() {
   root.innerHTML = `
     <div class="lib-head">
       <div><h2>${view === 'decks' ? (guest ? 'Official decks' : `Decks${st.account && acct(st.account) ? ` for ${esc(acct(st.account).name)}` : ''}`) : 'Accounts'}</h2>
-        <p class="muted">${view === 'decks' ? 'A deck is your version of a product deck: which slides, in what order, and what you say. Open one to present it.' : 'An account is who you present to: a customer, an opportunity or an event. Its decks show its name and color.'}</p></div>
+        <p class="muted">${view === 'decks' ? 'A deck is your presentation across the whole suite: Vellox, LayerOne, Reverser, Ranger and Navigator. Its account’s logo and name show on every product, and you can change any product’s slides.' : 'An account is who you present to: a customer, an opportunity or an event. Its logo, name and color show on every product in its decks.'}</p></div>
       ${guest ? '' : `<div class="lib-new"><button type="button" class="lib-btn lib-primary big" id="libNewDeck">＋ New deck</button><button type="button" class="lib-btn big" id="libNewAcct">＋ New account</button></div>`}
     </div>
     ${st.note ? `<p class="lib-note">${esc(st.note)}</p>` : ''}
@@ -171,15 +169,14 @@ function wire() {
       s.setSelectionRange(pos, pos);
     };
   }
-  root.querySelectorAll('[data-product]').forEach((b) => (b.onclick = () => ((st.product = b.dataset.product), draw())));
   $('#libWho')?.addEventListener('change', (e) => ((st.who = e.target.value), draw()));
   $('#libAcct')?.addEventListener('change', (e) => ((st.account = e.target.value), draw()));
   $('#libClear')?.addEventListener('click', () => {
-    Object.assign(st, { q: '', product: '', who: '', account: '' });
+    Object.assign(st, { q: '', who: '', account: '' });
     draw();
   });
   const showAccount = (id) => {
-    Object.assign(st, { view: 'decks', account: id, q: '', product: '', who: '' });
+    Object.assign(st, { view: 'decks', account: id, q: '', who: '' });
     history.replaceState(null, '', '#decks');
     draw();
     window.scrollTo({ top: 0 });
@@ -193,7 +190,7 @@ function wire() {
         setTimeout(() => (b.textContent = '🔗'), 1500);
       }),
   );
-  const created = (deck) => (location.href = deckHref(deck.deck, deck.id, deck.customer, { edit: true }));
+  const created = (deck) => (location.href = deckHref(deck.products?.[0] || 'vellox', deck.id, deck.customer));
   root.querySelectorAll('[data-copy]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -201,9 +198,9 @@ function wire() {
         newDeckDialog({ accounts: st.accounts, from, onCreated: created });
       }),
   );
-  root.querySelectorAll('[data-new]').forEach((b) => (b.onclick = () => newDeckDialog({ product: b.dataset.new, accounts: st.accounts, account: st.account, onCreated: created })));
+  root.querySelectorAll('[data-new]').forEach((b) => (b.onclick = () => newDeckDialog({ accounts: st.accounts, account: st.account, onCreated: created })));
   root.querySelectorAll('[data-newfor]').forEach((b) => (b.onclick = () => newDeckDialog({ accounts: st.accounts, account: b.dataset.newfor, onCreated: created })));
-  $('#libNewDeck')?.addEventListener('click', () => newDeckDialog({ product: st.product || null, accounts: st.accounts, account: st.account, onCreated: created }));
+  $('#libNewDeck')?.addEventListener('click', () => newDeckDialog({ accounts: st.accounts, account: st.account, onCreated: created }));
   const reload = async () => {
     await load();
     draw();

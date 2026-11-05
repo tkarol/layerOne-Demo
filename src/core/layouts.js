@@ -18,20 +18,16 @@ const MAX = { name: 60, title: 160, key: 600, point: 900, points: 15, ask: 600, 
 const TALK = ['key', 'ask', 'objection', 'next', 'notes'];
 const str = (v) => (typeof v === 'string' ? v.replace(/\r\n/g, '\n').trim() : '');
 
-export function validateLayout(input, existing) {
-  const errors = {};
-  const deck = existing?.deck || input.deck;
-  if (!DECKS.includes(deck)) errors.deck = 'Unknown deck';
-  const name = str(input.name);
-  if (!name) errors.name = 'Name your layout';
-  else if (name.length > MAX.name) errors.name = 'Too long';
+// One product's changes inside a deck: slide order, hidden slides, titles, talk track.
+// Returns null when nothing is changed (the product shows its official slides).
+function validatePart(input, errors, pre) {
   const ids = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, MAX.slides) : []);
   const order = ids(input.order);
   const hidden = ids(input.hidden);
   const titles = {};
   for (const [id, t] of Object.entries(input.titles || {})) {
     if (!ID_RE.test(id) || !str(t)) continue;
-    if (str(t).length > MAX.title) errors[`title.${id}`] = 'Too long';
+    if (str(t).length > MAX.title) errors[`${pre}title.${id}`] = 'Too long';
     titles[id] = str(t);
   }
   const talk = {};
@@ -43,41 +39,106 @@ export function validateLayout(input, existing) {
       // An emptied question, objection or lead-in means "leave it out".
       if (!v && typeof t[k] === 'string' && ['ask', 'objection', 'next'].includes(k)) out[k] = '';
       if (!v) continue;
-      if (v.length > MAX[k]) errors[`talk.${id}.${k}`] = 'Too long';
+      if (v.length > MAX[k]) errors[`${pre}talk.${id}.${k}`] = 'Too long';
       out[k] = v;
     }
     if (Array.isArray(t.points)) {
       const pts = t.points.map(str).filter(Boolean);
-      if (pts.length > MAX.points) errors[`talk.${id}.points`] = `At most ${MAX.points} points`;
-      if (pts.some((p) => p.length > MAX.point)) errors[`talk.${id}.points`] = 'A point is too long';
+      if (pts.length > MAX.points) errors[`${pre}talk.${id}.points`] = `At most ${MAX.points} points`;
+      if (pts.some((p) => p.length > MAX.point)) errors[`${pre}talk.${id}.points`] = 'A point is too long';
       out.points = pts.slice(0, MAX.points);
     }
     // A fingerprint of the official talk track this override was written against (to flag updates later).
     if (typeof t.base === 'string' && /^[0-9a-f]{1,16}$/.test(t.base)) out.base = t.base;
     if (Object.keys(out).some((k) => k !== 'base')) talk[id] = out;
   }
+  const part = { order, hidden, titles, talk };
+  const changed = order.length || hidden.length || Object.keys(titles).length || Object.keys(talk).length;
+  return changed ? part : null;
+}
+
+// A deck covers the whole suite: { name, customer, products: { vellox: part, reverser: part, … } }.
+// Saving merges by product: a product you send replaces that product's part (null clears
+// it back to the official slides); products you leave out keep what they had.
+// The older one-product shape ({ deck, order, hidden, titles, talk }) is still accepted.
+export function validateLayout(input, existing) {
+  const errors = {};
+  const name = str(input.name ?? existing?.name);
+  if (!name) errors.name = 'Name your deck';
+  else if (name.length > MAX.name) errors.name = 'Too long';
+  const products = { ...(existing?.products || {}) };
+  const incoming = input.products && typeof input.products === 'object' ? input.products : DECKS.includes(input.deck) ? { [input.deck]: input } : {};
+  for (const [pid, part] of Object.entries(incoming)) {
+    if (!DECKS.includes(pid)) continue;
+    const p = part && typeof part === 'object' ? validatePart(part, errors, `${pid}.`) : null;
+    if (p) products[pid] = p;
+    else delete products[pid];
+  }
   // Leaving the account out keeps the deck's account; null or '' makes it a general deck.
   const given = 'customer' in input ? input.customer : existing?.customer;
   const customer = typeof given === 'string' && /^p_[0-9a-f]+$/.test(given) ? given : null;
   const layout = {
     id: existing?.id || `l_${randomHex(6)}`,
-    deck,
     name,
     customer,
-    order,
-    hidden,
-    titles,
-    talk,
+    products,
     owner: existing?.owner,
     updatedAt: new Date().toISOString(),
   };
   return { layout, errors, ok: Object.keys(errors).length === 0 };
 }
 
+// The product page a deck opens on: the one named, else the first it changes, else the suite.
+export const deckPage = (layout, product) => DECK_PAGES[DECKS.includes(product) ? product : DECKS.find((d) => layout?.products?.[d]) || 'vellox'];
+
+// One-time move to suite-wide decks: each one-product deck becomes a suite deck with that
+// product's changes. One person's decks for the same account (changing different products)
+// are merged into their oldest deck, which keeps its name; old ids keep working as aliases.
+export async function migrateSuiteDecks(storage) {
+  if (await storage.getKV('migrated:suite-decks')) return;
+  const all = (await storage.listKV('layout:l_')).filter(Boolean);
+  const converted = [];
+  for (const l of all) {
+    if (l.products) {
+      converted.push(l);
+      continue;
+    }
+    const { deck, order, hidden, titles, talk, ...rest } = l;
+    const part = validatePart({ order, hidden, titles, talk }, {}, '');
+    const next = { ...rest, products: DECKS.includes(deck) && part ? { [deck]: part } : {} };
+    await storage.putKV(`layout:${l.id}`, next);
+    converted.push(next);
+  }
+  const groups = new Map();
+  for (const l of converted) {
+    if (!l.customer) continue;
+    const k = `${l.owner}|${l.customer}`;
+    groups.set(k, [...(groups.get(k) || []), l]);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''));
+    const keep = list[0];
+    for (const other of list.slice(1)) {
+      if (Object.keys(other.products).some((p) => keep.products[p])) continue; // both change the same product: keep both
+      Object.assign(keep.products, other.products);
+      await storage.deleteKV(`layout:${other.id}`);
+      await storage.putKV(`deck-alias:${other.id}`, keep.id);
+    }
+    await storage.putKV(`layout:${keep.id}`, keep);
+  }
+  await storage.putKV('migrated:suite-decks', new Date().toISOString());
+}
+
+// A deck by id, following the alias of a deck that was merged into another.
+export async function getDeck(storage, id) {
+  return (await storage.getKV(`layout:${id}`)) || ((await storage.getKV(`deck-alias:${id}`)) ? storage.getKV(`layout:${await storage.getKV(`deck-alias:${id}`)}`) : null);
+}
+
 const summary = (l, me, accounts) => ({
   id: l.id,
-  deck: l.deck,
   name: l.name,
+  products: DECKS.filter((d) => l.products?.[d]),
   customer: l.customer || null,
   owner: l.owner,
   updatedAt: l.updatedAt,
@@ -93,19 +154,23 @@ export async function migrateCustomerSlides(storage) {
   if (await storage.getKV('migrated:customer-slides')) return;
   for (const profile of (await storage.listKV('profile:p_')).filter(Boolean)) {
     let changed = false;
+    const products = {};
     for (const deck of DECKS) {
       const p = profile.pitch?.[deck];
       if (!p || !(p.hide?.length || p.titles || p.notes)) continue;
       const talk = Object.fromEntries(Object.entries(p.notes || {}).map(([id, notes]) => [id, { notes }]));
-      const { layout, ok } = validateLayout({ deck, name: profile.name, customer: profile.id, hidden: p.hide || [], titles: p.titles || {}, talk });
-      if (ok) {
-        layout.owner = profile.owner || LEGACY_OWNER;
-        await storage.putKV(`layout:${layout.id}`, layout);
-      }
+      products[deck] = { hidden: p.hide || [], titles: p.titles || {}, talk };
       delete p.hide;
       delete p.titles;
       delete p.notes;
       changed = true;
+    }
+    if (changed) {
+      const { layout, ok } = validateLayout({ name: profile.name, customer: profile.id, products });
+      if (ok) {
+        layout.owner = profile.owner || LEGACY_OWNER;
+        await storage.putKV(`layout:${layout.id}`, layout);
+      }
     }
     if (changed) await storage.putKV(`profile:${profile.id}`, profile);
   }
@@ -115,17 +180,15 @@ export async function migrateCustomerSlides(storage) {
 // /api/layouts/*
 export async function handleLayoutApi(request, { storage, pathname, method, readJson, me, url }) {
   if (!me) return json(401, { error: 'Sign in to use decks' });
-  await migrateCustomerSlides(storage);
   const [, , , id, action] = pathname.split('/');
 
   if (method === 'GET' && !id) {
-    const deck = url.searchParams.get('deck');
     const customer = url.searchParams.get('customer');
     const accounts = await accountsById(storage);
-    const all = (await storage.listKV('layout:l_')).filter((l) => l && (!deck || l.deck === deck) && (!customer || l.customer === customer));
+    const all = (await storage.listKV('layout:l_')).filter((l) => l && (!customer || l.customer === customer));
     return json(200, { layouts: all.map((l) => summary(l, me, accounts)).sort((a, b) => Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name)) });
   }
-  const existing = id ? await storage.getKV(`layout:${id}`) : null;
+  const existing = id ? await getDeck(storage, id) : null;
   if (id && !existing) return json(404, { error: 'Deck not found' });
   const accountOf = async (cid) => (cid ? storage.getKV(`profile:${cid}`) : null);
   const out = async (l) => ({ ...l, mine: l.owner === me.id, canEdit: canEditDeck(l, me, await accountOf(l.customer)) });
@@ -165,7 +228,7 @@ export async function handleLayoutApi(request, { storage, pathname, method, read
     return json(200, await out(layout));
   }
   if (method === 'DELETE') {
-    await storage.deleteKV(`layout:${id}`);
+    await storage.deleteKV(`layout:${existing.id}`);
     return json(200, { ok: true });
   }
   return json(404, { error: 'Not found' });

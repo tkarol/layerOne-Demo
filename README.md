@@ -89,9 +89,9 @@ The site is shared by sales engineers (SEs) and account executives (AEs). Everyt
 | | What it is | What it holds |
 |---|---|---|
 | **Account** | Who you present to: a customer, an opportunity or an event | Name, brand color, logo, "Prepared for", product details, sample-app branding, and its **team** |
-| **Deck** | Your version of one product deck, optionally **for one account** | Which slides, their order, titles, the talk track and notes |
+| **Deck** | Your presentation across the **whole suite** (Vellox, LayerOne, Reverser, Ranger, Navigator), optionally **for one account** | For each product you change: which slides, their order, titles, the talk track and notes. Products you don't change use the official slides |
 
-**You always open a deck.** A deck for an account shows that account's branding; nothing switches on by itself, so there's never a question of which one wins. The **official decks** are always there, and every other deck starts from one.
+**You open a deck once, and it follows you.** Move between Vellox, LayerOne, Reverser, Ranger and Navigator and the same deck stays open: the account's logo, name and color are on every product's title slide (and the LayerOne sample apps), with your slide changes for each product. Nothing switches on by itself, so there's never a question of which one wins. The **official deck** is always there.
 
 ### Signing in
 
@@ -113,18 +113,18 @@ From your name menu (top right), admins manage **People**: **add a person** (nam
 
 **⌂ Decks** in the top bar opens the library:
 
-* **Decks tab:** a search box (decks, accounts or people), product chips, *Everyone's / Mine / a person*, and *any account*. Then **Official decks**, **Your decks**, **Your accounts' decks** (accounts you own or are on the team of) and **Everyone else's**. Each card shows the product, the account, who made it and when it last changed, with **Open**, **Edit** (if you can), **Copy** (to your own deck, for any account) and **🔗** (copy its link).
-* **Accounts tab:** your accounts and everyone else's, with the owner and team, and how many decks each product has. **See decks**, **＋ Deck**, and **Edit** (name, color, team).
-* **＋ New deck:** pick the product, an account (or **＋ New account** right there), name it, and start from the official deck or a copy. It opens straight into the slide editor.
+* **Decks tab:** a search box (decks, accounts or people), *Everyone's / Mine / a person*, and *any account*. Then **the official deck** (a link to each product), **Your decks**, **Your accounts' decks** (accounts you own or are on the team of) and **Everyone else's**. Each card shows the account, the five products (the ones the deck changes are highlighted; click any to open the deck there), who made it and when it last changed, with **Present**, **Edit** (if you can), **Copy** (to your own deck, for any account) and **🔗** (copy its link).
+* **Accounts tab:** your accounts and everyone else's, with the owner, team and decks. **See decks**, **＋ Deck**, and **Edit**: name, brand color, **logo** (upload or an https URL), *Prepared for*, and the team.
+* **＋ New deck:** pick an account (or **＋ New account** right there), name it, and start from the official slides or a copy of another deck.
 
 ### On a product page
 
 The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Account** (when the open deck is for an account), and your name.
 
-* **Deck ▾** lists the **Official deck**, **Your decks**, **Your accounts' decks** and **Everyone else's** for this product, with a search box when there are many. Actions: **✎ Edit slides**, **Copy to my decks**, **＋ New deck**, **🔗 Copy link**, and a link to the library. The deck you open is remembered per product, in your browser.
-* **✎ Edit slides:** drag (or ▲▼) to reorder slides, untick to skip one, retitle it, and open **Talk track** to rewrite the key message, talking points, the question to ask the room, the objection and the lead-in, plus **notes** per slide (only in the talking points). Use `**double asterisks**` for bold. The **Account** field changes which account the deck is for. Only what you change is saved; everything else keeps following the official deck, and a slide added to the official deck later appears next to its official neighbor.
-* **✎ Account:** the open deck's account: name, brand color (an accent only), logo, *Prepared for*, and this product's details (see *Account details on Reverser, Ranger and Navigator*). It applies to every deck for that account, and to the sample apps.
-* **Deck links:** `/d/<deck id>` opens that deck on its product page for its account. Share it in a calendar invite or chat; anyone signed in can open it. A deleted deck's link goes to the library with a note.
+* **Deck ▾** (on every page, including the library) lists the **Official deck**, **Your decks**, **Your accounts' decks** and **Everyone else's**, with a search box when there are many. Actions: **✎ Edit &lt;product&gt; slides**, **✎ Account**, **Copy to my decks**, **＋ New deck**, **🔗 Copy link**, and a link to the library. The open deck is remembered per person in your browser, for every product page.
+* **✎ Edit &lt;product&gt; slides:** changes this product's slides in the open deck: drag (or ▲▼) to reorder slides, untick to skip one, retitle it, and open **Talk track** to rewrite the key message, talking points, the question to ask the room, the objection and the lead-in, plus **notes** per slide (only in the talking points). Use `**double asterisks**` for bold. The **Account** field changes which account the whole deck is for. Only what you change is saved; everything else follows the official slides, and a slide added to the official deck later appears next to its official neighbor. **Reset &lt;product&gt; slides to official** clears just that product; **Delete deck** removes the deck for every product.
+* **✎ Account:** the open deck's account: name, brand color (an accent only), logo, *Prepared for*, and this product's details (see *Account details on Reverser, Ranger and Navigator*). It applies to every product and every deck for that account, and to the sample apps.
+* **Deck links:** `/d/<deck id>` opens a deck on the first product it changes (or the suite page); `/d/<deck id>/<product>` opens it on that product (`vellox`, `layerone`, `reverser`, `ranger`, `navigator`). **🔗 Copy link** on a product page copies the link for that product. Share it in a calendar invite or chat; anyone signed in can open it. A deleted deck's link goes to the library with a note.
 * On screens under 1520px wide, the product switch collapses to the current product with a ▾ menu.
 
 ### Who can change what
@@ -132,13 +132,13 @@ The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Account** (when th
 * **Decks:** everyone can open and copy every deck. Its **owner**, an **admin**, or anyone on the **team of the deck's account** can edit or delete it, so an AE and SE pair can work on the same deck.
 * **Accounts:** everyone can see every account and present its decks. Its **owner**, its **team** or an **admin** can change it. Deleting an account keeps its decks, as general decks.
 * **Yours alone:** your settings (Dry run or Live, endpoint, model, API key; until you save your own you get the site-wide ones), your Customer Hub data, and your request history (*Behind the scenes*).
-* Accounts made before workspaces belong to the first admin. Slide edits made with the older *Tailor* were moved into decks for their account automatically.
+* Accounts made before workspaces belong to the first admin. Slide edits made with the older *Tailor* were moved into decks for their account automatically. Decks made when a deck covered one product became suite decks; one person's decks for the same account (changing different products) were merged into their oldest deck, and the merged decks' old links still open it.
 
 ### Ready-made accounts and decks (seeds)
 
 `src/core/seeds.js` adds ready-made accounts and decks to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
 
-* **AWS re:Invent** (Tyler's account, AWS-orange accent, a webinar call to action on the Vellox deck's last slide) and its deck **AWS re:Invent webinar** for the Vellox suite. The deck rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Open it from the library, or from **Deck ▾** on the Vellox page.
+* **AWS re:Invent** (Tyler's account, AWS-orange accent, a webinar call to action on the Vellox deck's last slide) and its deck **AWS re:Invent webinar** for the Vellox suite. The deck rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Open it from the library, or from **Deck ▾** on any page.
 
 ### What's next
 

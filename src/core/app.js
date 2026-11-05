@@ -14,7 +14,7 @@ import { json, safeEqual } from './util.js';
 import { connectInfo, runChecks, sendCustom } from './connect.js';
 import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi, presenterIds } from './workspace.js';
 import { applySeeds } from './seeds.js';
-import { handleLayoutApi, DECK_PAGES } from './layouts.js';
+import { handleLayoutApi, deckPage, migrateSuiteDecks, migrateCustomerSlides, getDeck } from './layouts.js';
 
 const summarize = (t) => ({
   id: t.id,
@@ -126,20 +126,26 @@ export function createApp({ env, storage }) {
       if (method === 'POST' && pathname.startsWith('/mock/model/')) return handleMockModel(request, { storage });
       if (method === 'POST' && pathname.startsWith('/mock/judge/')) return handleMockJudge(request, { storage });
 
-      // Deck links: /d/<deck id> opens that deck on its product page, for its account.
-      const link = pathname.match(/^\/d\/(l_[0-9a-f]{1,24})\/?$/);
-      if (link && method === 'GET') {
-        const deck = await storage.getKV(`layout:${link[1]}`);
+      const link = pathname.match(/^\/d\/(l_[0-9a-f]{1,24})(?:\/([a-z]+))?\/?$/);
+      if (!link && !pathname.startsWith('/api/')) return null;
+
+      // Ready-made accounts and decks (added once), and one-time moves of older data.
+      await applySeeds(storage);
+      await migrateCustomerSlides(storage);
+      await migrateSuiteDecks(storage);
+
+      // Deck links: /d/<deck id>[/<product>] opens that deck (it covers the whole suite)
+      // on a product page, for its account.
+      if (link) {
+        if (method !== 'GET') return json(405, { error: 'Method not allowed' });
+        const deck = await getDeck(storage, link[1]);
         if (!deck) return Response.redirect(`${origin}/decks?missing=1`, 302);
         const qs = new URLSearchParams({ deck: deck.id, ...(deck.customer ? { acct: deck.customer } : {}) });
-        return Response.redirect(`${origin}${DECK_PAGES[deck.deck] || '/'}?${qs}#overview`, 302);
+        return Response.redirect(`${origin}${deckPage(deck, link[2])}?${qs}#overview`, 302);
       }
-
-      if (!pathname.startsWith('/api/')) return null;
 
       // Who's presenting: a signed-in SE gets their own settings, data and history
       // (falling back to the site-wide settings until they save their own).
-      await applySeeds(storage); // ready-made customers and layouts, added once
       const me = await presenterFromRequest(request, storage);
       const mine = me ? scopeStorage(storage, me.scope || me.id) : storage;
       // Guests look around: they can use the demos (in their own sandbox) but change nothing,

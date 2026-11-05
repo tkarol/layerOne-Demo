@@ -31,16 +31,19 @@ const FIELDS = [
 
 let dlg;
 
-// opts: { deck: { id, label, slides }, layout: full layout or null (start from official), customers, onSaved(layout), onDeleted() }
+// opts: { deck: { id, label, slides }, layout: the whole deck (all products) or null for a
+// new one, customers, onSaved(deck), onDeleted() }. This edits one product's slides.
 export function openLayoutEditor(opts) {
-  const { deck, layout } = opts;
+  const { deck } = opts;
+  const layout = opts.layout?.products?.[deck.id] || null; // this product's part of the deck
   const official = Object.fromEntries(deck.slides.map((s) => [s.id, s]));
   // The working copy: every slide, with official text filled in where the layout has none.
   const order = (layout?.order?.length ? [...layout.order.filter((id) => official[id]), ...deck.slides.map((s) => s.id).filter((id) => !layout.order.includes(id))] : deck.slides.map((s) => s.id));
   const ui = {
     ...opts,
-    name: layout?.name || `My ${deck.label.replace(/^Vellox /, '')} deck`,
-    customer: layout?.customer || '',
+    name: opts.layout?.name || 'My deck',
+    customer: opts.layout?.customer || '',
+    hasPart: Boolean(layout),
     rows: order.map((id) => {
       const s = official[id];
       const o = layout?.talk?.[id] || {};
@@ -110,18 +113,19 @@ function draw(ui) {
     </li>`;
   dlg.innerHTML = `
     <form novalidate>
-      <div class="s-head"><h2>${ui.layout?.id ? 'Edit deck' : 'New deck'} · ${esc(ui.deck.label)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
+      <div class="s-head"><h2>${ui.layout?.id ? esc(ui.layout.name) : 'New deck'} <span class="muted">· ${esc(ui.deck.label)} slides</span></h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
       <div class="s-body">
         <div class="le-headrow">
           <label class="le-name">Deck name<input id="leName" value="${esc(ui.name)}" maxlength="60" /></label>
           <label class="le-name">Account<select id="leCust"><option value="">No account (general deck)</option>${(ui.customers || []).map((c) => `<option value="${esc(c.id)}" ${c.id === ui.customer ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
         </div>
-        <p class="s-hint">Drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change keeps following the official deck. A deck for an <b>account</b> shows that account’s name, logo and color. Everyone can open and copy this deck; its owner and the account’s team can change it.</p>
+        <p class="s-hint">One deck covers all five products. Here you change the <b>${esc(ui.deck.label)}</b> slides: drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change follows the official slides. The <b>account</b> puts its name, logo and color on every product. Everyone can open and copy this deck; its owner and the account’s team can change it.</p>
         <ol class="le-list">${ui.rows.map(row).join('')}</ol>
         <p class="err">${esc(ui.error)}</p>
       </div>
       <div class="s-foot">
         ${ui.layout?.id ? '<button type="button" class="link-btn danger" id="leDelete">Delete deck</button>' : ''}
+        ${ui.layout?.id && ui.hasPart ? `<button type="button" class="link-btn" id="leReset">Reset ${esc(ui.deck.label)} slides to official</button>` : ''}
         <span class="spacer"></span>
         <button type="button" class="secondary" data-close>Cancel</button>
         <button type="submit" class="save">Save deck</button>
@@ -188,11 +192,23 @@ function wire(ui) {
   });
 
   dlg.querySelector('#leDelete')?.addEventListener('click', async () => {
-    if (!confirm(`Delete the deck “${ui.layout.name}”? Its link stops working, and anyone who has it open goes back to the official deck.`)) return;
+    if (!confirm(`Delete the deck “${ui.layout.name}”, for every product? Its link stops working, and anyone who has it open goes back to the official decks.`)) return;
     try {
       await call(`/api/layouts/${ui.layout.id}`, 'DELETE');
       dlg.close();
       ui.onDeleted?.();
+    } catch (err) {
+      ui.error = err.message;
+      draw(ui);
+    }
+  });
+
+  dlg.querySelector('#leReset')?.addEventListener('click', async () => {
+    if (!confirm(`Put the ${ui.deck.label} slides in “${ui.layout.name}” back to the official slides? The deck’s other products keep their changes.`)) return;
+    try {
+      const saved = await call(`/api/layouts/${ui.layout.id}`, 'PUT', { products: { [ui.deck.id]: null } });
+      dlg.close();
+      ui.onSaved?.(saved);
     } catch (err) {
       ui.error = err.message;
       draw(ui);
@@ -206,16 +222,19 @@ function wire(ui) {
       ui.error = 'Show at least one slide.';
       return draw(ui);
     }
-    const body = { deck: ui.deck.id, name: ui.name.trim(), customer: ui.customer || null, order: ui.rows.map((r) => r.id), hidden: ui.rows.filter((r) => !r.show).map((r) => r.id), titles: {}, talk: {} };
+    // Only this product's changes; the official order isn't stored.
+    const order = ui.rows.map((r) => r.id);
+    const part = { order: order.join() === ui.deck.slides.map((s) => s.id).join() ? [] : order, hidden: ui.rows.filter((r) => !r.show).map((r) => r.id), titles: {}, talk: {} };
+    const body = { name: ui.name.trim(), customer: ui.customer || null, products: { [ui.deck.id]: part } };
     for (const r of ui.rows) {
       const s = r.official.talk;
-      if (r.title) body.titles[r.id] = r.title;
+      if (r.title) part.titles[r.id] = r.title;
       const t = {};
       for (const [k] of FIELDS) if (norm(r[k]) !== norm(toText(s[k]))) t[k] = r[k].trim();
       const pts = r.points.map((p) => p.trim()).filter(Boolean);
       if (JSON.stringify(pts.map(norm)) !== JSON.stringify(s.points.map((p) => norm(toText(p))))) t.points = pts;
       if (r.notes.trim()) t.notes = r.notes.trim();
-      if (Object.keys(t).length) body.talk[r.id] = { ...t, base: talkHash(s) };
+      if (Object.keys(t).length) part.talk[r.id] = { ...t, base: talkHash(s) };
     }
     try {
       const saved = ui.layout?.id ? await call(`/api/layouts/${ui.layout.id}`, 'PUT', body) : await call('/api/layouts', 'POST', body);

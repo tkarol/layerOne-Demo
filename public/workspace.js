@@ -7,9 +7,11 @@
 //  3. add the top bar: ⌂ Decks (the library), the deck picker for this page,
 //     and your name menu.
 //
-// One rule: you open a deck. A deck can be for an account (a customer, an
-// opportunity, an event); that account brands the page. Nothing switches on by
-// itself. The open deck is remembered per person and product, in this browser.
+// One rule: you open a deck. A deck covers the whole suite (Vellox, LayerOne,
+// Reverser, Ranger, Navigator) and can be for an account (a customer, an
+// opportunity, an event); that account's name, logo and color are on every
+// product page. Nothing switches on by itself. The open deck is remembered per
+// person, in this browser, so it follows you from product to product.
 (() => {
   const read = (k) => {
     try {
@@ -36,6 +38,7 @@
   const markRoles = () => {
     document.documentElement.classList.toggle('ws-guest', isGuest());
     document.documentElement.classList.toggle('ws-ae', isAe());
+    document.documentElement.classList.toggle('ws-in', signedIn());
   };
   markRoles();
 
@@ -46,10 +49,10 @@
   })();
   const LABELS = { vellox: 'Vellox', layerone: 'LayerOne', reverser: 'Reverser', ranger: 'Ranger', navigator: 'Navigator' };
 
-  // The deck open on this page: { id ('' = official), customer, name }.
-  const openKey = () => `ws-open:${me?.id}:${PAGE}`;
+  // The open deck, for every product page: { id ('' = official), customer, name }.
+  const openKey = () => `ws-open:${me?.id}`;
   let open = { id: '', customer: '', name: '' };
-  if (signedIn() && PAGE) {
+  if (signedIn()) {
     try {
       open = { ...open, ...JSON.parse(read(openKey()) || '{}') };
     } catch {}
@@ -92,19 +95,21 @@
     return data;
   };
 
-  const state = { presenters: [], former: [], setupPasswordRequired: false, customers: [], deck: null };
+  const state = { presenters: [], former: [], setupPasswordRequired: false, customers: [], deck: null, open: null };
   const nameOf = (id) => [...state.presenters, ...state.former].find((p) => p.id === id)?.name || id;
   const account = (id) => state.customers.find((c) => c.id === id);
   const ui = () => import('./decks-ui.js');
 
   function openDeck(d) {
-    if (!signedIn() || !PAGE) return;
-    const next = { id: d.id || '', customer: d.id ? d.customer || '' : '', name: d.name || '' };
+    if (!signedIn()) return;
+    const next = { id: d.id || '', customer: d.id ? d.customer || '' : '', name: d.id ? d.name || '' : '' };
     write(openKey(), JSON.stringify(next));
-    // A different account rebrands the whole page (and the sample apps): reload.
-    if (next.customer !== customer) return location.reload();
     open = next;
-    return state.deck?.reload().then(() => drawBar());
+    state.open = d.id ? d : null;
+    // A different account rebrands a product page (and the sample apps): reload.
+    if (PAGE && next.customer !== customer) return location.reload();
+    if (state.deck) return state.deck.reload().then(() => drawBar());
+    drawBar();
   }
 
   async function openEditor(layout) {
@@ -138,9 +143,19 @@
           return openDeck(deck);
         }
         await openDeck(deck);
-        openEditor(state.deck?.layout);
+        if (state.deck) openEditor(state.deck.layout);
       },
     });
+  }
+
+  // The open deck's account: name, logo, color. Product pages have their own ✎ Account
+  // (with that product's details); elsewhere, the account dialog.
+  async function editAccount() {
+    closeMenu();
+    const btn = document.querySelector('#tailorBtn:not([hidden])');
+    if (btn) return btn.click();
+    const { accountDialog } = await ui();
+    accountDialog({ account: account(customer), people: state.presenters, me, onSaved: () => location.reload() });
   }
 
   async function refreshAccounts() {
@@ -171,7 +186,7 @@
     },
     page: PAGE,
     presenterName: nameOf,
-    layoutId: (deckId) => (signedIn() && deckId === PAGE ? open.id : ''),
+    layoutId: () => (signedIn() ? open.id : ''),
     openDeck,
     newDeck,
     editDeck: () => state.deck?.layout && openEditor(state.deck.layout),
@@ -327,16 +342,17 @@
   }
 
   // The deck picker: official, yours, your accounts', everyone else's; search; actions.
+  // A deck covers every product, so this is the same list on every page.
   async function deckMenu(anchor, note = '') {
     const d = state.deck;
-    const cur = d.layout;
     let list = [];
     try {
-      list = (await api(`/api/layouts?deck=${encodeURIComponent(d.id)}`)).layouts;
+      list = (await api('/api/layouts')).layouts;
     } catch {}
+    const cur = open.id ? list.find((l) => l.id === open.id) || state.open : null;
     const row = (l) => {
       const a = account(l.customer);
-      return `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-open="${esc(l.id)}" data-cust="${esc(l.customer || '')}" data-find="${esc(`${l.name} ${a?.name || ''} ${nameOf(l.owner)}`.toLowerCase())}">
+      return `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-open="${esc(l.id)}" data-cust="${esc(l.customer || '')}" data-name="${esc(l.name)}" data-find="${esc(`${l.name} ${a?.name || ''} ${nameOf(l.owner)} ${(l.products || []).join(' ')}`.toLowerCase())}">
         <i class="ws-dot ${a ? '' : 'gen'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i>
         <span>${esc(l.name)}${a ? ` <em>· ${esc(a.name)}</em>` : ''}</span><small>${l.mine ? 'Yours' : esc(nameOf(l.owner))}</small></button>`;
     };
@@ -350,7 +366,7 @@
     const others = list.filter((l) => !l.mine && !onTeam(l));
     openMenu(
       anchor,
-      `<div class="ws-menu-h">${esc(LABELS[d.id] || d.label)} decks</div>
+      `<div class="ws-menu-h">Decks <span class="ws-menu-hn">one deck covers all five products</span></div>
        <input class="ws-search" type="search" placeholder="Search decks, accounts or people" aria-label="Search decks" />
        <button type="button" class="ws-item ${cur ? '' : 'on'}" data-open="" data-find="official deck"><i class="ws-dot std"></i><span>Official deck</span><small>Booz Allen</small></button>
        ${mine.length ? `<div class="ws-menu-sub">Your decks</div>${mine.map(row).join('')}` : ''}
@@ -358,7 +374,8 @@
        ${others.length ? `<div class="ws-menu-sub">Everyone else’s <span>${me.admin ? 'you can edit these as an admin' : 'open, or copy to change'}</span></div>${others.map(row).join('')}` : ''}
        ${note ? `<p class="ws-note">${esc(note)}</p>` : ''}
        <div class="ws-menu-f ws-deck-acts">
-         ${cur?.canEdit ? '<button type="button" class="ws-small" data-edit>✎ Edit slides</button>' : ''}
+         ${d && cur?.canEdit ? `<button type="button" class="ws-small" data-edit>✎ Edit ${esc(LABELS[PAGE] || '')} slides</button>` : ''}
+         ${customer || (cur?.customer && !PAGE) ? '<button type="button" class="ws-small" data-acct>✎ Account</button>' : ''}
          ${cur && !cur.mine ? '<button type="button" class="ws-small" data-copy>Copy to my decks</button>' : ''}
          <button type="button" class="ws-small" data-new>＋ New deck</button>
          ${cur ? '<button type="button" class="ws-small" data-link>🔗 Copy link</button>' : ''}
@@ -377,23 +394,24 @@
           (b) =>
             (b.onclick = () => {
               closeMenu();
-              openDeck({ id: b.dataset.open, customer: b.dataset.cust || '' });
+              openDeck({ id: b.dataset.open, customer: b.dataset.cust || '', name: b.dataset.name || '' });
             }),
         );
-        m.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(cur));
-        m.querySelector('[data-new]').onclick = () => newDeck(cur ? list.find((l) => l.id === cur.id) || cur : null);
+        m.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(d.layout));
+        m.querySelector('[data-acct]')?.addEventListener('click', editAccount);
+        m.querySelector('[data-new]').onclick = () => newDeck(cur || null);
         m.querySelector('[data-copy]')?.addEventListener('click', async () => {
           try {
             const copy = await api(`/api/layouts/${cur.id}/copy`, 'POST', {});
             await openDeck(copy);
-            openEditor(state.deck.layout);
+            if (state.deck) openEditor(state.deck.layout);
           } catch (err) {
             deckMenu(anchor, err.message);
           }
         });
         m.querySelector('[data-link]')?.addEventListener('click', async () => {
           const { copyLink } = await ui();
-          await copyLink(cur.id);
+          await copyLink(PAGE ? `${cur.id}/${PAGE}` : cur.id);
           deckMenu(anchor, `Link copied: anyone signed in can open “${cur.name}” with it.`);
         });
       },
@@ -529,12 +547,10 @@
       bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : guestMenu(e.currentTarget));
       return;
     }
-    const d = state.deck;
-    const a = account(customer);
-    if (a?.color) document.documentElement.style.setProperty('--cust', a.color);
-    const deckChip = d
-      ? `<button type="button" class="ws-deck" title="The deck open on this page: click to switch, edit, copy or share"><i class="ws-dot ${d.layout ? (a ? '' : 'gen') : 'std'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i><span class="ws-lbl">Deck</span><b>${esc(d.layout?.name || 'Official')}</b>${a ? `<small>${esc(a.name)}</small>` : ''}<span class="ws-caret">▾</span></button>`
-      : '';
+    const a = account(open.customer);
+    if (a?.color && PAGE) document.documentElement.style.setProperty('--cust', a.color);
+    const name = open.id ? state.deck?.layout?.name || state.open?.name || open.name || 'Deck' : 'Official';
+    const deckChip = `<button type="button" class="ws-deck" title="The deck you’re presenting, on every product: click to switch, edit, copy or share"><i class="ws-dot ${open.id ? (a ? '' : 'gen') : 'std'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i><span class="ws-lbl">Deck</span><b>${esc(name)}</b>${a && a.name !== name ? `<small>${esc(a.name)}</small>` : ''}<span class="ws-caret">▾</span></button>`;
     bar.innerHTML = `${home}${deckChip}<button type="button" class="ws-me" title="Signed in as ${esc(me.name)}"><span class="ws-av">${esc(me.name[0])}</span><span class="ws-me-n">${esc(me.name)}</span><span class="ws-caret">▾</span></button>`;
     host.prepend(bar);
     bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : meMenu(e.currentTarget));
@@ -579,10 +595,11 @@
       // Signed in on the server but not when this page started (another tab): start again.
       if (!wasSignedIn && signedIn()) return location.reload();
       await refreshAccounts();
-      // The open deck's account must still be its account (a deck can be moved or deleted).
-      if (signedIn() && PAGE && open.id) {
+      // The open deck's account must still be its account (a deck can be moved, merged or deleted).
+      if (signedIn() && open.id) {
         const deck = await api(`/api/layouts/${encodeURIComponent(open.id)}`).catch((err) => (err.status === 404 ? null : undefined));
-        if (deck && (deck.customer || '') !== customer) return openDeck(deck);
+        if (deck && (deck.id !== open.id || (deck.customer || '') !== (open.customer || ''))) return openDeck(deck);
+        if (deck) state.open = deck;
         if (deck === null) await openDeck({ id: '' });
       }
       drawBar();

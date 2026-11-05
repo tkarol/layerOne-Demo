@@ -3,6 +3,7 @@
 //
 // Claims stay within what LayerOne's docs and this demo show.
 import { createDeck, icon, outcome, goCard as go, esc } from './deck-core.js';
+import { loadTailoring } from './tailor.js';
 
 // One request moving through the architecture picture (slides 2 and 3). `kind` sets its path:
 // go / back (straight through, no checkpoint), pass, redact, block, hold (through LayerOne).
@@ -18,7 +19,7 @@ const SLIDES = [
         <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
         <h1>LayerOne</h1>
         <p class="d-lead">Govern every AI request your organization makes, <span>in one place.</span></p>
-        ${ctx.customer ? `<div class="d-for">Prepared for <b>${esc(ctx.customer)}</b></div>` : ''}
+        ${ctx.logo ? `<img class="d-cust-logo" src="${esc(ctx.logo)}" alt="" />` : ''}${ctx.prepared ? `<div class="d-for">Prepared for <b>${esc(ctx.prepared)}</b></div>` : ''}
       </div>
       <div class="d-orbit" aria-hidden="true"><div><i class="orb-dot"></i></div><div><i class="orb-dot"></i><i class="orb-dot b"></i></div><div></div></div>`,
     talk: {
@@ -157,7 +158,8 @@ const deck = createDeck({
   slides: SLIDES,
   label: 'LayerOne',
   storageKey: 'l1',
-  context: async () => ({ customer: (await fetch('/api/apps').then((r) => r.json())).customer?.name || null }),
+  // The open deck's account: its name ("Prepared for") and logo, as on every product.
+  context: () => loadTailoring('layerone'),
   onGoto(to) {
     const [view, app] = to.split(':');
     window.dispatchEvent(new CustomEvent('l1:view', { detail: view }));

@@ -2175,3 +2175,16 @@ button.lib-acct { cursor: pointer; }
 .ws-people .ws-role { display: inline-block; line-height: 1.5; }
 .lib-card.official .lib-btn { white-space: nowrap; padding: 6px 8px; }
 .acct .link-btn.danger, .acct #acDelete { color: var(--bad, #dc2626); }
+/* Suite-wide decks */
+.lib-card::before { background: var(--acc, rgb(var(--p, 161 161 170))); }
+.lib-card.official.wide { grid-column: 1 / -1; background: linear-gradient(120deg, rgb(250 204 21 / 10%), var(--panel) 55%); }
+.lib-card.official.wide::before { background: linear-gradient(90deg, #facc15, #4ade80, #22d3ee, #a78bfa, #60a5fa); }
+.lib-prods { display: flex; flex-wrap: wrap; gap: 5px; }
+.lib-prods a { padding: 2px 9px; border-radius: 99px; border: 1px dashed var(--border); color: var(--muted); font-size: 12px; font-weight: 600; text-decoration: none; }
+.lib-prods a.changed { border-style: solid; border-color: rgb(var(--p) / 55%); background: rgb(var(--p) / 13%); color: var(--text); }
+.lib-prods a:hover { border-color: rgb(var(--p)); color: var(--text); }
+.lib-prods.big a { padding: 7px 14px; font-size: 14px; }
+.lib-acct-card .lib-meta .lib-count { background: var(--panel-2); border-color: var(--border); }
+.ws-menu-hn { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.lib-card.official.wide .lib-acts .lib-btn { flex: none; }
+.ws-in #customerChip { display: none !important; } /* the Deck chip shows the account */

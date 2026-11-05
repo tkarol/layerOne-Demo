@@ -81,9 +81,11 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
   const deckId = DECK_IDS[storageKey] || storageKey;
   let slides = allSlides;
   // A layout reorders and hides slides, and a customer can hide more; never all of them.
+  // The open deck covers the whole suite; this product's changes are one part of it.
+  const part = () => st.layout?.products?.[deckId] || null;
   const pick = () => {
-    const hide = new Set(st.layout?.hidden || []);
-    const ordered = layoutOrder(allSlides, st.layout);
+    const hide = new Set(part()?.hidden || []);
+    const ordered = layoutOrder(allSlides, part());
     const shown = ordered.filter((x) => !hide.has(x.id));
     slides = shown.length ? shown : ordered;
     st.i = Math.min(st.i, slides.length - 1);
@@ -102,7 +104,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
   }
   // The talk track for a slide: official, with this layout's rewrites on top.
   const talkFor = (s) => {
-    const o = st.layout?.talk?.[s.id];
+    const o = part()?.talk?.[s.id];
     if (!o) return s.talk;
     return {
       key: o.key ? fmtText(o.key) : s.talk.key,
@@ -112,7 +114,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
       next: 'next' in o ? fmtText(o.next) : s.talk.next,
     };
   };
-  const titleFor = (s) => (st.layout?.titles?.[s.id] ? esc(st.layout.titles[s.id]) : s.title);
+  const titleFor = (s) => (part()?.titles?.[s.id] ? esc(part().titles[s.id]) : s.title);
   try {
     st.i = Math.min(Number(sessionStorage.getItem(`${storageKey}-slide`)) || 0, allSlides.length - 1);
     st.notes = sessionStorage.getItem(`${storageKey}-notes`) !== '0';
@@ -157,7 +159,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     const notes = $('.deck-notes', root);
     notes.hidden = !st.notes;
     const t = talkFor(s);
-    const mine = st.layout?.talk?.[s.id]?.notes;
+    const mine = part()?.talk?.[s.id]?.notes;
     notes.innerHTML = `
       <div class="tp-head"><span class="tp-label">Talking points${st.layout ? ` <em class="tp-layout">${esc(st.layout.name)}</em>` : ''}</span><span class="muted small">Slide ${st.i + 1} of ${slides.length} · not shown when presenting</span></div>
       <p class="tp-key">${t.key}</p>
