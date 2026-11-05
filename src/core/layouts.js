@@ -130,6 +130,15 @@ export async function migrateSuiteDecks(storage) {
   await storage.putKV('migrated:suite-decks', new Date().toISOString());
 }
 
+// Version history: each save keeps the version it replaced (the last HISTORY of them),
+// so a deck can be put back the way it was.
+const HISTORY = 25;
+async function keepVersion(storage, deck) {
+  const list = (await storage.getKV(`deck-history:${deck.id}`)) || [];
+  list.push({ at: deck.updatedAt, by: deck.updatedBy || deck.owner, name: deck.name, products: deck.products || {} });
+  await storage.putKV(`deck-history:${deck.id}`, list.slice(-HISTORY));
+}
+
 // A deck by id, following the alias of a deck that was merged into another.
 export async function getDeck(storage, id) {
   return (await storage.getKV(`layout:${id}`)) || ((await storage.getKV(`deck-alias:${id}`)) ? storage.getKV(`layout:${await storage.getKV(`deck-alias:${id}`)}`) : null);
@@ -192,6 +201,10 @@ export async function handleLayoutApi(request, { storage, pathname, method, read
   if (id && !existing) return json(404, { error: 'Deck not found' });
   const accountOf = async (cid) => (cid ? storage.getKV(`profile:${cid}`) : null);
   const out = async (l) => ({ ...l, mine: l.owner === me.id, canEdit: canEditDeck(l, me, await accountOf(l.customer)) });
+  if (method === 'GET' && action === 'history') {
+    const list = (await storage.getKV(`deck-history:${existing.id}`)) || [];
+    return json(200, { versions: list.map((v) => ({ at: v.at, by: v.by, name: v.name, products: DECKS.filter((d) => v.products?.[d]) })).reverse() });
+  }
   if (method === 'GET') return json(200, await out(existing));
   if (me.guest) return json(403, { error: 'Guests can look around, but can’t change anything.' });
   // The account a new or changed deck is for must exist.
@@ -227,11 +240,24 @@ export async function handleLayoutApi(request, { storage, pathname, method, read
     const { layout, errors, ok } = validateLayout(body, existing);
     if (!ok) return json(400, { error: 'Some fields are invalid', errors });
     if (!(await checkAccount(layout.customer))) return json(400, { error: 'That account doesn’t exist' });
+    await keepVersion(storage, existing);
     layout.updatedBy = me.id;
     await storage.putKV(`layout:${layout.id}`, layout);
     return json(200, await out(layout));
   }
+  // Put back an earlier version (the current one is kept in the history too). The deck's
+  // customer stays as it is.
+  if (method === 'POST' && action === 'restore') {
+    const { at } = await readJson(request);
+    const v = ((await storage.getKV(`deck-history:${existing.id}`)) || []).find((x) => x.at === at);
+    if (!v) return json(404, { error: 'That version isn’t in the history anymore' });
+    await keepVersion(storage, existing);
+    const restored = { ...existing, name: v.name, products: v.products, updatedAt: new Date().toISOString(), updatedBy: me.id };
+    await storage.putKV(`layout:${existing.id}`, restored);
+    return json(200, await out(restored));
+  }
   if (method === 'DELETE') {
+    await storage.deleteKV(`deck-history:${existing.id}`);
     await storage.deleteKV(`layout:${existing.id}`);
     return json(200, { ok: true });
   }

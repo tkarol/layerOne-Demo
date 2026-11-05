@@ -14,7 +14,7 @@ import { json, safeEqual } from './util.js';
 import { connectInfo, runChecks, sendCustom } from './connect.js';
 import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi, presenterIds } from './workspace.js';
 import { applySeeds } from './seeds.js';
-import { handleLayoutApi, deckPage, migrateSuiteDecks, migrateCustomerSlides, getDeck } from './layouts.js';
+import { handleLayoutApi, deckPage, migrateSuiteDecks, migrateCustomerSlides, getDeck, DECKS } from './layouts.js';
 
 const summarize = (t) => ({
   id: t.id,
@@ -171,6 +171,21 @@ export function createApp({ env, storage }) {
         return /^p_[0-9a-f]+$/.test(h) ? storage.getKV(`profile:${h}`) : null;
       };
 
+      // Recently presented (the deck library): who presented which deck on which product, when.
+      if (pathname === '/api/presented') {
+        if (!me || me.guest) return method === 'GET' ? json(200, { presented: [] }) : json(200, { ok: true });
+        const LOG = 'presented:log';
+        if (method === 'POST') {
+          const { deck, product } = await readJson(request);
+          if (!DECKS.includes(product)) return json(400, { error: 'Unknown product' });
+          const d = typeof deck === 'string' && deck ? await getDeck(storage, deck) : null;
+          const log = (await storage.getKV(LOG)) || [];
+          log.push({ at: new Date().toISOString(), by: me.id, deck: d?.id || '', product, customer: d?.customer || null });
+          await storage.putKV(LOG, log.slice(-300));
+          return json(200, { ok: true });
+        }
+        if (method === 'GET') return json(200, { presented: ((await storage.getKV(LOG)) || []).slice(-60).reverse() });
+      }
       if (pathname === '/api/layouts' || pathname.startsWith('/api/layouts/')) return handleLayoutApi(request, { storage, pathname, method, readJson, me, url });
       if (pathname === '/api/presenters' || pathname.startsWith('/api/presenters/')) {
         return handlePresenterApi(request, { storage, pathname, method, readJson, me, cfg: await configNow() });

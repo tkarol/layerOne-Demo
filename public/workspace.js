@@ -52,7 +52,14 @@
   // The open deck, for every product page: { id ('' = official), customer, name }.
   const openKey = () => `ws-open:${me?.id}`;
   let open = { id: '', customer: '', name: '' };
-  if (signedIn()) {
+  // The leave-behind PDF page loads product pages with ?print=1&deck=…: show that deck,
+  // but don't change the deck you have open, and leave the URL alone.
+  const PRINTING = new URLSearchParams(location.search).has('print');
+  if (PRINTING) {
+    const qs = new URLSearchParams(location.search);
+    const id = qs.get('deck') === 'official' ? '' : qs.get('deck') || '';
+    if (signedIn()) open = { id, customer: id ? qs.get('acct') || '' : '', color: qs.get('color') || '', name: '' };
+  } else if (signedIn()) {
     try {
       open = { ...open, ...JSON.parse(read(openKey()) || '{}') };
     } catch {}
@@ -72,6 +79,39 @@
     }
   }
   const customer = signedIn() && open.id ? open.customer || '' : '';
+
+  // Brand color: Booz Allen's by default (styles.css); on a product page with a deck for a
+  // customer, the customer's color, in two shades that stay readable: a bright one for the
+  // dark slides and diagrams, and a deeper one for text on light pages.
+  function brandShades(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    const lum = (c) => c.map((v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const contrast = (a, b) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    const mix = (c, to, w) => c.map((v, i) => Math.round(v + (to[i] - v) * w));
+    let bright = rgb;
+    for (let w = 0.05; contrast(bright, [11, 11, 13]) < 4.5 && w <= 1; w += 0.05) bright = mix(rgb, [255, 255, 255], w);
+    let ink = rgb;
+    for (let w = 0.05; contrast(ink, [255, 255, 255]) < 4.5 && w <= 1; w += 0.05) ink = mix(rgb, [0, 0, 0], w);
+    return { bright: bright.join(' '), ink: `rgb(${ink.join(' ')})` };
+  }
+  function applyBrand(hex) {
+    const st = document.documentElement.style;
+    const b = PAGE ? brandShades(hex) : null;
+    if (b) {
+      st.setProperty('--brand-rgb', b.bright);
+      st.setProperty('--brand-ink', b.ink);
+      st.setProperty('--cust', hex);
+    } else {
+      ['--brand-rgb', '--brand-ink', '--cust'].forEach((k) => st.removeProperty(k));
+    }
+  }
+  applyBrand(customer ? open.color : '');
 
   // 1. Every /api/ call carries who's signed in and which account the page is for.
   const nativeFetch = window.fetch.bind(window);
@@ -101,8 +141,10 @@
   const ui = () => import('./decks-ui.js');
 
   function openDeck(d) {
-    if (!signedIn()) return;
+    if (!signedIn() || PRINTING) return;
     const next = { id: d.id || '', customer: d.id ? d.customer || '' : '', name: d.id ? d.name || '' : '' };
+    next.color = next.customer ? account(next.customer)?.color || '' : '';
+    applyBrand(next.color);
     write(openKey(), JSON.stringify(next));
     open = next;
     state.open = d.id ? d : null;
@@ -380,9 +422,10 @@
                   <button type="button" class="ws-small" data-settings>⚙ Deck settings</button>
                   ${account(cur.customer) && cur.canEdit ? '<button type="button" class="ws-small" data-acct>Logo &amp; color</button>' : ''}
                   <button type="button" class="ws-small" data-link>🔗 Link</button>
+                  <button type="button" class="ws-small" data-pdf title="A PDF of the slides to send after the meeting">⬇ PDF</button>
                 </div>
               </div>`
-           : `<div class="ws-deck-acts"><div class="ws-acts-h">Presenting</div><div class="ws-acts-name"><b>The official deck</b><small>Booz Allen’s slides, no customer</small></div></div>`
+           : `<div class="ws-deck-acts"><div class="ws-acts-h">Presenting</div><div class="ws-acts-name"><b>The official deck</b><small>Booz Allen’s slides, no customer</small></div><div class="ws-acts-row"><button type="button" class="ws-small" data-pdf>⬇ PDF</button></div></div>`
        }
        ${note ? `<p class="ws-note">${esc(note)}</p>` : ''}
        <div class="ws-menu-sub ws-switch">Switch to another deck</div>
@@ -419,10 +462,16 @@
             deck: cur,
             customer: account(cur.customer),
             product: PAGE,
+            nameOf,
             onRenamed: (saved) => openDeck(saved),
             onCopy: () => newDeck(cur),
             onDeleted: () => openDeck({ id: '' }),
           });
+        });
+        m.querySelector('[data-pdf]')?.addEventListener('click', async () => {
+          closeMenu();
+          const { pdfHref } = await ui();
+          window.open(pdfHref({ id: cur?.id, customer: cur?.customer, color: account(cur?.customer)?.color || '', name: cur?.name || '', products: PAGE ? [PAGE] : [] }), '_blank', 'noopener');
         });
         m.querySelector('[data-link]')?.addEventListener('click', async () => {
           const { copyLink } = await ui();
@@ -445,6 +494,7 @@
       anchor,
       `<div class="ws-menu-h">${esc(me.name)} · ${isAe() ? 'Account executive' : 'Sales engineer'}</div>
        <a class="ws-item" href="/decks?mine=1"><span>My decks</span><small>Library →</small></a>
+       <button type="button" class="ws-item" data-tour><span>Take the quick tour</span><small>1 minute</small></button>
        <form class="ws-chpin"><div class="ws-menu-sub">Change your PIN</div>
          <input type="password" inputmode="numeric" maxlength="8" placeholder="Current PIN" data-old />
          <input type="password" inputmode="numeric" maxlength="8" placeholder="New PIN (4–8 digits)" data-new />
@@ -518,6 +568,10 @@
               }
             }),
         );
+        m.querySelector('[data-tour]').onclick = () => {
+          closeMenu();
+          tour(0);
+        };
         m.querySelector('[data-signout]').onclick = async () => {
           await api('/api/presenters/logout', 'POST').catch(() => {});
           signOut();
@@ -539,6 +593,41 @@
         };
       },
     );
+  }
+
+  // A short first-time tour, anchored to what's on this page. Replay it from your name menu.
+  const TOUR = [
+    ['.ws-home', 'Every deck lives here', 'The deck library: yours, ones shared with you, everyone else’s, and the official deck. Start here to make a deck for a customer, with their logo.'],
+    ['.ws-deck', 'What you’re presenting', 'One deck covers all five products and follows you from page to page, with the customer’s logo and colors. Click it to edit this product’s slides, switch decks, or get a PDF to send afterwards.'],
+    ['[data-full]', 'Present', 'Full screen for the room. 🗔 Presenter view (next to it) keeps your talking points, the next slide and a timer on your laptop.'],
+    ['.ws-me', 'That’s it', 'Your name menu has your PIN and this tour, if you want it again.'],
+  ];
+  const tourKey = () => `ws-tour:${me?.id}`;
+  function tour(i = 0) {
+    document.querySelector('.ws-tour')?.remove();
+    document.querySelector('.ws-tour-on')?.classList.remove('ws-tour-on');
+    const steps = TOUR.filter(([sel]) => document.querySelector(sel)?.getClientRects().length);
+    const step = steps[i];
+    if (!step) return write(tourKey(), '1');
+    const el = document.querySelector(step[0]);
+    el.classList.add('ws-tour-on');
+    const pop = document.createElement('div');
+    pop.className = 'ws-tour';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Quick tour');
+    pop.innerHTML = `<div class="ws-tour-n">${i + 1} of ${steps.length}</div><b>${esc(step[1])}</b><p>${esc(step[2])}</p>
+      <div class="ws-tour-f"><button type="button" class="ws-link" data-skip>${i === steps.length - 1 ? '' : 'Skip the tour'}</button><span>
+        ${i ? '<button type="button" class="ws-small" data-back>Back</button>' : ''}<button type="button" class="ws-small primary-act" data-next>${i === steps.length - 1 ? 'Done' : 'Next'}</button></span></div>`;
+    document.body.append(pop);
+    const r = el.getBoundingClientRect();
+    const below = r.bottom + pop.offsetHeight + 16 < innerHeight;
+    pop.style.top = `${(below ? r.bottom + 12 : r.top - pop.offsetHeight - 12) + scrollY}px`;
+    pop.style.left = `${Math.max(12, Math.min(r.left + r.width / 2 - pop.offsetWidth / 2, innerWidth - pop.offsetWidth - 12))}px`;
+    pop.classList.toggle('above', !below);
+    pop.querySelector('[data-next]').onclick = () => tour(i + 1);
+    pop.querySelector('[data-back]')?.addEventListener('click', () => tour(i - 1));
+    pop.querySelector('[data-skip]').onclick = () => tour(99);
+    pop.querySelector('[data-next]').focus();
   }
 
   function signOut() {
@@ -563,7 +652,12 @@
       return;
     }
     const a = account(open.customer);
-    if (a?.color && PAGE) document.documentElement.style.setProperty('--cust', a.color);
+    // Keep the remembered brand color in step with the customer (it may have changed).
+    if (open.id && (a?.color || '') !== (open.color || '')) {
+      open.color = a?.color || '';
+      write(openKey(), JSON.stringify(open));
+    }
+    applyBrand(open.id ? open.color : '');
     const name = open.id ? state.deck?.layout?.name || state.open?.name || open.name || 'Deck' : 'Official';
     const deckChip = `<button type="button" class="ws-deck" title="The deck you’re presenting, on every product: click to switch, edit, copy or share"><i class="ws-dot ${open.id ? (a ? '' : 'gen') : 'std'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i><span class="ws-lbl">Deck</span><b>${esc(name)}</b>${a && a.name !== name ? `<small>${esc(a.name)}</small>` : ''}<span class="ws-caret">▾</span></button>`;
     bar.innerHTML = `${home}${deckChip}<button type="button" class="ws-me" title="Signed in as ${esc(me.name)}"><span class="ws-av">${esc(me.name[0])}</span><span class="ws-me-n">${esc(me.name)}</span><span class="ws-caret">▾</span></button>`;
@@ -610,6 +704,7 @@
       // Signed in on the server but not when this page started (another tab): start again.
       if (!wasSignedIn && signedIn()) return location.reload();
       await refreshAccounts();
+      if (PRINTING) return; // the PDF page only needs the slides
       // The open deck's account must still be its account (a deck can be moved, merged or deleted).
       if (signedIn() && open.id) {
         const deck = await api(`/api/layouts/${encodeURIComponent(open.id)}`).catch((err) => (err.status === 404 ? null : undefined));
@@ -619,6 +714,8 @@
       }
       drawBar();
       document.dispatchEvent(new CustomEvent('ws:ready'));
+      // First time here: a short tour (once the page has drawn its deck).
+      if (signedIn() && !read(tourKey()) && !matchMedia('(max-width: 700px)').matches) setTimeout(() => !document.querySelector('dialog[open], .ws-gate') && tour(0), 1200);
     } catch {
       // The page still works signed out if the server can't be reached.
     }

@@ -17,6 +17,7 @@ const st = {
   former: [],
   decks: [],
   accounts: [],
+  presented: [],
   note: qs.get('missing') ? 'That deck link doesn’t work anymore: the deck was deleted. Here’s everything else.' : '',
 };
 const nameOf = (id) => [...st.people, ...st.former].find((p) => p.id === id)?.name || id;
@@ -31,9 +32,10 @@ async function load() {
   st.former = people.former || [];
   if (!me) return false;
   if (!me.guest) {
-    const [decks, accounts] = await Promise.all([call('/api/layouts'), call('/api/profiles')]);
+    const [decks, accounts, presented] = await Promise.all([call('/api/layouts'), call('/api/profiles'), call('/api/presented').catch(() => ({ presented: [] }))]);
     st.decks = decks.layouts;
     st.accounts = accounts.profiles;
+    st.presented = presented.presented;
   }
   return true;
 }
@@ -51,13 +53,37 @@ function deckCard(d) {
     }</div>
     <h3><a href="${deckHref(first, d.id, d.customer)}">${esc(d.name)}</a></h3>
     <div class="lib-prods" aria-label="Open on a product">${PRODUCTS.map((p) => `<a href="${deckHref(p.id, d.id, d.customer)}" class="${d.products?.includes(p.id) ? 'changed' : ''}" style="--p:${p.rgb}" title="${d.products?.includes(p.id) ? `Your ${esc(p.name)} slides` : `Official ${esc(p.name)} slides`}">${esc(p.name)}</a>`).join('')}</div>
-    <p class="lib-meta"><span class="lib-av">${initials(d.owner)}</span>${d.mine ? 'Yours' : esc(nameOf(d.owner))} · updated ${esc(ago(d.updatedAt))}${d.updatedBy && d.updatedBy !== d.owner ? ` by ${esc(nameOf(d.updatedBy))}` : ''}</p>
+    <p class="lib-meta"><span class="lib-av">${initials(d.owner)}</span>${d.mine ? 'Yours' : esc(nameOf(d.owner))} · updated ${esc(ago(d.updatedAt))}${d.updatedBy && d.updatedBy !== d.owner ? ` by ${esc(nameOf(d.updatedBy))}` : ''}${(() => {
+      const p = st.presented.find((x) => x.deck === d.id);
+      return p ? `<br />Presented ${esc(ago(p.at))} by ${esc(p.by === st.me.id ? 'you' : nameOf(p.by))}` : '';
+    })()}</p>
     <div class="lib-acts">
       <a class="lib-btn lib-primary" href="${deckHref(first, d.id, d.customer)}">Present</a>
       ${d.canEdit ? `<a class="lib-btn" href="${deckHref(first, d.id, d.customer, { edit: true })}" title="Edit the slides">Edit slides</a>` : `<button type="button" class="lib-btn" data-copy="${esc(d.id)}" title="Make your own copy">⧉ Copy</button>`}
       <button type="button" class="lib-btn icon" data-settings="${esc(d.id)}" title="Deck settings: rename, copy, link, delete" aria-label="Deck settings for ${esc(d.name)}">⚙</button>
     </div>
   </article>`;
+}
+// The last few things presented (deck and product), newest first, one line each.
+function recent() {
+  const seen = new Set();
+  const rows = st.presented
+    .filter((p) => {
+      const k = `${p.deck}|${p.product}`;
+      if (seen.has(k) || (p.deck && !st.decks.some((d) => d.id === p.deck))) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, 6);
+  if (!rows.length) return '';
+  return `<section class="lib-sec"><h3>Recently presented</h3><ul class="lib-recent">${rows
+    .map((p) => {
+      const d = st.decks.find((x) => x.id === p.deck);
+      const a = acct(d?.customer);
+      const prod = PRODUCTS.find((x) => x.id === p.product);
+      return `<li><a href="${deckHref(p.product, p.deck, d?.customer)}">${logoImg(a, 'lib-recent-logo') || `<i style="${a?.color ? `background:${esc(a.color)}` : ''}"></i>`}<span><b>${esc(d?.name || 'Official deck')}</b> · ${esc(prod?.name || p.product)}</span><small>${esc(p.by === st.me.id ? 'You' : nameOf(p.by))}, ${esc(ago(p.at))}</small></a></li>`;
+    })
+    .join('')}</ul></section>`;
 }
 function officialCard() {
   return `<article class="lib-card official wide">
@@ -104,6 +130,7 @@ function drawDecks() {
              ${filtering ? '<button type="button" class="lib-clear" id="libClear">Clear</button>' : ''}
            </div>`
     }
+    ${!guest && !filtering ? recent() : ''}
     ${showOfficial ? `<section class="lib-sec"><div class="lib-grid">${officialCard()}</div></section>` : ''}
     ${guest ? '' : section('Your decks', 'each deck covers all five products', mine, filtering ? '' : 'You haven’t made a deck yet. Make your own from the official deck, or copy one below.')}
     ${guest ? '' : section('Shared with you', 'decks for customers you can edit', team, '')}
@@ -166,6 +193,7 @@ function wire() {
         deckSettingsDialog({
           deck: d,
           customer: acct(d.customer),
+          nameOf,
           onRenamed: reload,
           onCopy: () => newDeckDialog({ accounts: st.accounts, from: d, nameOf, onCreated: created }),
           onDeleted: reload,

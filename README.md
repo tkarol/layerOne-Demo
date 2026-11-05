@@ -25,6 +25,7 @@ The demo shell (header, tabs, buttons, Settings) uses a monochrome Booz Allen lo
 
 * **Official logo:** save the white (reversed) Booz Allen logo as `public/brand/logo.svg`. It replaces the text wordmark automatically; until then, the text is shown. Use the approved file from Booz Allen's brand team rather than a recreation.
 * **Colors:** the tokens at the top of `public/styles.css` (`--chrome`, `--accent`, and the rest) control the whole shell, with separate values for dark mode.
+* **Brand color:** every product uses one brand color instead of a color per product. By default it's **Booz Allen's teal**, taken from boozallen.com's own stylesheet: `--brand-rgb: 35 210 215` (#23D2D7, their accent on dark backgrounds, `--bah-theme-accent-color`) for the slides, diagrams and top bar, and `--brand-ink: #00636d` (their teal for text and links on light backgrounds) for text on light pages. When the open deck is for a customer with a brand color, that color replaces both on every product page, adjusted automatically so it stays readable (at least 4.5:1 contrast) on dark slides and light pages. Products are told apart by their icons and names. Colors that carry meaning stay as they are: green for allowed/done/generally available, amber for redacted/limited preview/never ran, red for blocked/threats.
 
 ## Deploy to Cloudflare
 
@@ -143,9 +144,26 @@ The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Customer** (when t
 
 * **AWS re:Invent** (Tyler's customer, AWS-orange accent, a webinar call to action on the Vellox deck's last slide) and its deck **AWS re:Invent webinar** for the Vellox suite. The deck rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Open it from the library, or from **Deck ▾** on any page.
 
+### Presenting
+
+* **⛶ Present** (or **F**): full screen for the room.
+* **🗔 Presenter view** (or **P**): a second window for your laptop with the current slide, the next one, the talking points, a timer (pause, reset) and **Next / Back**, while the slides are on the shared screen. It follows the deck tab, and its buttons and arrow keys move the deck.
+* **⬇ PDF** (in **Deck ▾** and **⚙ Deck settings**): a **leave-behind PDF** to send after the meeting. It opens a page where you tick the products to include (it starts with the one you're on, or all five from the library) and a cover page with the customer's logo, then **Save as PDF**. Every slide is in its finished state, one per landscape page, with the deck's slide changes and the customer's name, logo and color, and no talking points. Making a PDF never changes the deck you have open.
+* **Official talking points changed:** when Booz Allen changes the official talk track for a slide that a deck rewrote, the talking points say so (with the new official version one click away), and the slide editor marks the slide **official updated** with **Use the new official version**; saving keeps yours and clears the note.
+
+### Safety nets
+
+* **Earlier versions:** every save of a deck keeps the version it replaced (the last 25). **⚙ Deck settings → Earlier versions** lists them (when, who, what changed) with **Restore**; restoring keeps the current version in the history too, so it can be undone.
+* **Recently presented:** going full screen or opening the presenter view notes who presented which deck on which product (at most once every 30 minutes). The library shows **Recently presented** at the top, and each card says when it was last presented and by whom.
+* **Quick tour:** the first time someone signs in, a four-step tour points out the library, **Deck ▾**, **Present** and the name menu. **Take the quick tour** in the name menu replays it.
+
 ### What's next
 
-Storage is a key/value store that reads every customer and deck to list them: fine into the hundreds. Next steps when it grows: move customers and decks to a database (Cloudflare D1) with search and paging, add version history on decks, an "official deck updated · review" flag on copies, and company sign-in (SSO) instead of PINs. The Oracle page is outside all of this.
+Storage is a key/value store that reads every customer and deck to list them: fine into the hundreds. When it grows: move customers, decks and the history to a database (Cloudflare D1) with search and paging; that needs a D1 database created in the Cloudflare account (`wrangler d1 create`) and its id added to `wrangler.jsonc`. Company sign-in (SSO) can replace PINs later. The Oracle page is outside all of this.
+
+## Tests and CI
+
+`npm test` runs the smoke tests (Node's built-in test runner; no dependencies). GitHub Actions runs them on every push and pull request (`.github/workflows/test.yml`).
 
 ## Vellox: the suite overview page
 
@@ -487,7 +505,9 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `public/navigator.html`, `public/navigator.js` | The separate Vellox Navigator page: deck and architecture explainer |
 | `public/tailor.js` | **✎ Customer** on the product pages: the open deck's customer (name, color, logo, product details) |
 | `public/decks.html`, `public/decks.js` | The deck library (`/decks`): every deck, search and filters, customer logos |
-| `public/decks-ui.js` | Shared by the top bar and the library: products, deck links, the New deck and Customer dialogs |
+| `public/decks-ui.js` | Shared by the top bar and the library: products, deck links, the New deck, Customer and Deck settings dialogs (with history), logo colors |
+| `public/presenter.html`, `public/presenter.js` | The presenter view (second window: current and next slide, talking points, timer) |
+| `public/print.html`, `public/print.js` | The leave-behind PDF page |
 | `public/workspace.js` | Sign-in (find your name, PIN, guest), the top bar (⌂ Decks, Deck ▾, your name) and People for admins |
 | `public/layouts.js` | The deck editor (slides, order, titles, talk track, notes, customer) |
 | `src/core/workspace.js` | People, roles (SE/AE), PINs and sessions, guests, and who can edit customers and decks |

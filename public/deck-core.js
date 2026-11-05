@@ -58,6 +58,20 @@ export const icon = (name) => `<svg class="d-svg" viewBox="0 0 24 24" fill="none
 export const outcome = (tone, t, d) => `<div class="d-out ${tone}"><span class="d-led"></span><b>${t}</b><small>${d}</small></div>`;
 export const goCard = (to, ic, t, d) => `<button type="button" class="d-go" data-goto="${to}"><span class="d-ic">${icon(ic)}</span><span class="d-go-t"><b>${t}</b><small>${d}</small></span><span class="d-go-arrow">${icon('arrow')}</span></button>`;
 
+// A short fingerprint of a slide's official talk track, saved with any rewrite of it, so a
+// deck can tell when Booz Allen has since changed the official talk track.
+export function talkHash(talk) {
+  const str = JSON.stringify([talk.key, talk.points, talk.ask, talk.objection, talk.next]);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 0x01000193) >>> 0;
+  return h.toString(16);
+}
+// Rewrites of this slide's talk track made before the official one last changed.
+export const talkStale = (s, override) => Boolean(override?.base && override.base !== talkHash(s.talk));
+
+// Print mode (?print=1, from the leave-behind PDF page): every slide, finished, no controls.
+const PRINT = typeof location !== 'undefined' && new URLSearchParams(location.search).has('print');
+
 // Personal layouts (layouts.js): text an SE writes is plain text with **bold**; escape it.
 export const fmtText = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br />');
 const DECK_IDS = { vx: 'vellox', l1: 'layerone', rv: 'reverser', rg: 'ranger', nv: 'navigator' };
@@ -120,6 +134,69 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     st.notes = sessionStorage.getItem(`${storageKey}-notes`) !== '0';
   } catch {}
   let root;
+  // One slide's HTML: the title, the slide, and its footer.
+  const markup = (n) => {
+    const s = slides[n];
+    const title = titleFor(s);
+    return `${title ? `<h2 class="d-h">${title}</h2>` : ''}${s.html(st.ctx)}<div class="d-foot"><span>${esc(label)}</span><span>${n + 1} / ${slides.length}</span></div>`;
+  };
+  // The talking points for a slide (the panel under the slide, and the presenter view).
+  const notesHTML = (n) => {
+    const s = slides[n];
+    const t = talkFor(s);
+    const mine = part()?.talk?.[s.id]?.notes;
+    const stale = talkStale(s, part()?.talk?.[s.id]);
+    return `
+      <p class="tp-key">${t.key}</p>
+      ${stale ? `<details class="tp-stale"><summary>Booz Allen updated the official talking points for this slide after this deck rewrote them. <span>See the official version</span></summary><p class="tp-key">${s.talk.key}</p><ul class="tp-list">${s.talk.points.map((p) => `<li>${p}</li>`).join('')}</ul></details>` : ''}
+      ${mine ? `<p class="tp-mine"><span>${st.layout.customer && st.ctx.customer ? `Notes for ${esc(st.ctx.customer)}` : 'Deck notes'}</span>${fmtText(mine)}</p>` : ''}
+      <ul class="tp-list">${t.points.map((p) => `<li>${p}</li>`).join('')}</ul>
+      ${t.ask ? `<p class="tp-ask"><span>Ask the room</span>${t.ask}</p>` : ''}
+      ${t.objection ? `<p class="tp-obj"><span>If they say…</span>${t.objection}</p>` : ''}
+      ${t.next ? `<p class="tp-next"><span>Lead-in to the next slide</span>${t.next}</p>` : ''}`;
+  };
+  // Where this deck sits on the page (its classes carry the product's slide styles).
+  const scope = () => ({ main: root?.closest('main')?.className || '', body: document.body.className, brand: getComputedStyle(document.documentElement).getPropertyValue('--brand-rgb').trim() });
+
+  // Presenter view (presenter.html in another window): it gets the current and next
+  // slide and the talking points; it sends back next / back / go-to.
+  const channel = !PRINT && 'BroadcastChannel' in window ? new BroadcastChannel(`deck-${storageKey}`) : null;
+  const sendState = () =>
+    channel?.postMessage({
+      type: 'state',
+      label,
+      deck: st.layout?.name || 'Official deck',
+      customer: st.ctx.customer || null,
+      i: st.i,
+      n: slides.length,
+      titles: slides.map((x) => String(titleFor(x) || 'Title slide').replace(/<[^>]+>/g, ' ')),
+      current: markup(st.i),
+      next: st.i < slides.length - 1 ? markup(st.i + 1) : null,
+      notes: notesHTML(st.i),
+      ...scope(),
+    });
+  if (channel)
+    channel.onmessage = (e) => {
+      const m = e.data || {};
+      if (m.type === 'hello') sendState();
+      else if (m.type === 'move') move(Number(m.d) || 0);
+      else if (m.type === 'go') go(Number(m.n) || 0);
+    };
+
+  // "Recently presented" (deck library): noted when you go full screen or open the
+  // presenter view, at most once every 30 minutes per deck and product.
+  function notePresented() {
+    const key = `presented:${st.layout?.id || 'official'}:${deckId}`;
+    try {
+      if (Date.now() - Number(sessionStorage.getItem(key) || 0) < 30 * 60e3) return;
+      sessionStorage.setItem(key, String(Date.now()));
+    } catch {}
+    if (window.ws?.signedIn) fetch('/api/presented', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deck: st.layout?.id || '', product: deckId }) }).catch(() => {});
+  }
+  function openPresenter() {
+    window.open(`/presenter.html?k=${encodeURIComponent(storageKey)}`, `presenter-${storageKey}`, 'width=1180,height=760');
+    notePresented();
+  }
 
   // The stage is built once, so presenting full screen survives slide changes;
   // only the slide, the controls and the talking points are redrawn.
@@ -141,8 +218,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     const s = slides[st.i];
     const slide = $('.slide', root);
     slide.dataset.slide = s.id;
-    const title = titleFor(s);
-    slide.innerHTML = `${title ? `<h2 class="d-h">${title}</h2>` : ''}${s.html(st.ctx)}<div class="d-foot"><span>${esc(label)}</span><span>${st.i + 1} / ${slides.length}</span></div>`;
+    slide.innerHTML = markup(st.i);
     slide.classList.remove('in');
     void slide.offsetWidth; // restart the entrance animation
     slide.classList.add('in');
@@ -154,20 +230,14 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
       <button type="button" class="secondary" data-move="1" ${st.i === slides.length - 1 ? 'disabled' : ''}>Next →</button>
       <span class="deck-tools">
         <button type="button" class="secondary" data-notes aria-pressed="${st.notes}">${st.notes ? 'Hide talking points' : 'Talking points'}</button>
+        <button type="button" class="secondary" data-presenter title="Notes, next slide and a timer in a second window: keep it on your laptop while the slides are on the shared screen">🗔 Presenter view</button>
         <button type="button" class="con-go" data-full>⛶ Present</button>
       </span>`;
     const notes = $('.deck-notes', root);
     notes.hidden = !st.notes;
-    const t = talkFor(s);
-    const mine = part()?.talk?.[s.id]?.notes;
     notes.innerHTML = `
       <div class="tp-head"><span class="tp-label">Talking points${st.layout ? ` <em class="tp-layout">${esc(st.layout.name)}</em>` : ''}</span><span class="muted small">Slide ${st.i + 1} of ${slides.length} · not shown when presenting</span></div>
-      <p class="tp-key">${t.key}</p>
-      ${mine ? `<p class="tp-mine"><span>${st.layout.customer && st.ctx.customer ? `Notes for ${esc(st.ctx.customer)}` : 'Deck notes'}</span>${fmtText(mine)}</p>` : ''}
-      <ul class="tp-list">${t.points.map((p) => `<li>${p}</li>`).join('')}</ul>
-      ${t.ask ? `<p class="tp-ask"><span>Ask the room</span>${t.ask}</p>` : ''}
-      ${t.objection ? `<p class="tp-obj"><span>If they say…</span>${t.objection}</p>` : ''}
-      ${t.next ? `<p class="tp-next"><span>Lead-in to the next slide</span>${t.next}</p>` : ''}`;
+      ${notesHTML(st.i)}`;
     root.querySelectorAll('.deck-bar [data-move]').forEach((b) => (b.onclick = () => move(Number(b.dataset.move))));
     root.querySelectorAll('[data-to]').forEach((b) => (b.onclick = () => go(Number(b.dataset.to))));
     root.querySelectorAll('[data-goto]').forEach((b) => (b.onclick = () => {
@@ -176,6 +246,8 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     }));
     $('[data-notes]', root).onclick = toggleNotes;
     $('[data-full]', root).onclick = toggleFull;
+    $('[data-presenter]', root).onclick = openPresenter;
+    sendState();
   }
 
   function go(n) {
@@ -197,7 +269,10 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
 
   function toggleFull() {
     if (document.fullscreenElement) document.exitFullscreen();
-    else $('.deck-stage', root)?.requestFullscreen?.().catch(() => {});
+    else {
+      $('.deck-stage', root)?.requestFullscreen?.().catch(() => {});
+      notePresented();
+    }
   }
 
   function onKey(e) {
@@ -210,8 +285,17 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     else if (k === 'End') go(slides.length - 1);
     else if (k === 'f' || k === 'F') toggleFull();
     else if (k === 'n' || k === 'N') toggleNotes();
+    else if (k === 'p' || k === 'P') openPresenter();
     else return;
     e.preventDefault();
+  }
+
+  // Print mode: every slide in its finished state, handed to the PDF page that framed us.
+  function printAll() {
+    const sheets = slides.map((_, n) => `<section class="print-sheet"><div class="deck-stage"><div class="slide in" data-slide="${esc(slides[n].id)}">${markup(n)}</div></div></section>`);
+    root.innerHTML = `<div class="print-sheets">${sheets.join('')}</div>`;
+    const msg = { type: 'deck-print', product: deckId, label, sheets, ctx: { customer: st.ctx.customer || null, prepared: st.ctx.prepared || null, logo: st.ctx.logo || null }, deck: st.layout?.name || null, ...scope() };
+    if (window.parent !== window) window.parent.postMessage(msg, location.origin);
   }
 
   const api = {
@@ -222,6 +306,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
       } catch {}
       await loadLayout();
       pick();
+      if (PRINT) return printAll();
       draw();
       document.addEventListener('keydown', onKey);
       // Let the top bar offer this deck's layouts.

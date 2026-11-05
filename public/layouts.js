@@ -2,7 +2,7 @@
 // retitle slides, and rewrite the talk track. Only what differs from the
 // official deck is saved, so official improvements still reach every layout
 // for the parts nobody changed. Opened from the top bar (workspace.js).
-import { esc } from './deck-core.js';
+import { esc, talkHash, talkStale } from './deck-core.js';
 
 // Official talk text is HTML (<b>, entities); the editor works in plain text with **bold**.
 const toText = (html) => {
@@ -15,13 +15,7 @@ const toText = (html) => {
 };
 const plainTitle = (t) => toText(t).replace(/\*\*/g, '');
 const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-// A short fingerprint of a slide's official talk track, saved with any rewrite of it.
-export function talkHash(talk) {
-  const str = JSON.stringify([talk.key, talk.points, talk.ask, talk.objection, talk.next]);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 0x01000193) >>> 0;
-  return h.toString(16);
-}
+export { talkHash };
 const FIELDS = [
   ['key', 'Key message', 2],
   ['ask', 'Ask the room', 2],
@@ -58,6 +52,8 @@ export function openLayoutEditor(opts) {
         objection: o.objection ?? toText(s.talk.objection),
         next: o.next ?? toText(s.talk.next),
         notes: o.notes || '',
+        // Booz Allen changed the official talk track after this deck rewrote it.
+        stale: talkStale(s, layout?.talk?.[id]),
         open: false,
       };
     }),
@@ -95,11 +91,13 @@ function draw(ui) {
         <span class="le-n">${n + 1}</span>
         <input class="le-title" data-title="${n}" value="${esc(r.title)}" placeholder="${esc(plainTitle(r.official.title || 'Title slide'))}" aria-label="Slide title" />
         ${edited(r) ? '<span class="le-edited">edited</span>' : ''}
+        ${r.stale ? '<span class="le-stale" title="Booz Allen updated the official talk track for this slide after it was rewritten here">official updated</span>' : ''}
         <button type="button" class="le-open" data-open="${n}" aria-expanded="${r.open}">${r.open ? 'Close' : 'Talk track'} ${r.open ? '▴' : '▾'}</button>
       </div>
       ${
         r.open
           ? `<div class="le-body">
+              ${r.stale ? `<div class="le-stale-box"><b>Booz Allen updated the official talk track for this slide</b> after it was rewritten here. Official key message now: <i>${esc(toText(r.official.talk.key))}</i><br /><button type="button" class="link-btn" data-reset="${n}">Use the new official version</button> or save to keep yours (this note then goes away).</div>` : ''}
               ${FIELDS.slice(0, 1).map(([k, label, rows]) => `<label>${label}<textarea data-f="${k}" data-r="${n}" rows="${rows}">${esc(r[k])}</textarea></label>`).join('')}
               <div class="le-points"><span class="le-lbl">Talking points</span>
                 ${r.points.map((p, j) => `<div class="le-point"><textarea data-p="${j}" data-r="${n}" rows="2">${esc(p)}</textarea><span class="le-pbtn"><button type="button" data-pup="${j}" data-r="${n}" ${j === 0 ? 'disabled' : ''} aria-label="Move point up">▲</button><button type="button" data-pdown="${j}" data-r="${n}" ${j === r.points.length - 1 ? 'disabled' : ''} aria-label="Move point down">▼</button><button type="button" data-pdel="${j}" data-r="${n}" aria-label="Remove point">✕</button></span></div>`).join('')}
@@ -134,7 +132,7 @@ function draw(ui) {
 }
 
 // Unsaved changes: what's on screen differs from what the editor opened with.
-const snapshot = (ui) => JSON.stringify(ui.rows.map(({ official, open, ...r }) => r));
+const snapshot = (ui) => JSON.stringify(ui.rows.map(({ official, open, stale, ...r }) => r));
 const dirty = (ui) => snapshot(ui) !== ui.initial;
 
 // Copy the visible inputs into the working copy.
@@ -169,7 +167,7 @@ function wire(ui) {
   on('[data-reset]', (b) => {
     const r = ui.rows[b.dataset.reset];
     const t = r.official.talk;
-    Object.assign(r, { title: '', key: toText(t.key), points: t.points.map(toText), ask: toText(t.ask), objection: toText(t.objection), next: toText(t.next), notes: '' });
+    Object.assign(r, { title: '', key: toText(t.key), points: t.points.map(toText), ask: toText(t.ask), objection: toText(t.objection), next: toText(t.next), notes: '', stale: false });
   });
   dlg.querySelectorAll('[data-show]').forEach((el) => (el.onchange = () => (collect(ui), draw(ui))));
 

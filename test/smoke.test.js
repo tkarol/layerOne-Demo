@@ -904,3 +904,43 @@ test('customer logos are served as images for the deck library', async () => {
   assert.equal((await fetch(`${base}/api/profiles/${c.id}/logo`, { headers: as(tyler) })).status, 404);
   for (const p of [a, b, c]) await api(`/api/profiles/${p.id}`, 'DELETE', null, as(tyler));
 });
+
+test('deck history: every save keeps the old version, and one can be put back', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const tyler = (await api('/api/presenters/login', 'POST', { id: 'tyler', pin: '2468' })).data.token;
+  const chris = (await api('/api/presenters/login', 'POST', { id: 'chris', pin: '1357' })).data.token;
+  const deck = (await api('/api/layouts', 'POST', { name: 'History v1', products: { ranger: { hidden: ['title'] } } }, as(tyler))).data;
+  await api(`/api/layouts/${deck.id}`, 'PUT', { name: 'History v2', products: { ranger: null, reverser: { hidden: ['gap'] } } }, as(tyler));
+  await api(`/api/layouts/${deck.id}`, 'PUT', { name: 'History v3' }, as(tyler));
+  const { versions } = (await api(`/api/layouts/${deck.id}/history`, 'GET', null, as(tyler))).data;
+  assert.deepEqual(versions.map((v) => v.name), ['History v2', 'History v1'], 'newest first');
+  assert.deepEqual(versions[1].products, ['ranger']);
+  assert.equal(versions[0].by, 'tyler');
+  // Only people who can change the deck can put a version back.
+  assert.equal((await api(`/api/layouts/${deck.id}/restore`, 'POST', { at: versions[1].at }, as(chris))).status, 403);
+  const back = (await api(`/api/layouts/${deck.id}/restore`, 'POST', { at: versions[1].at }, as(tyler))).data;
+  assert.equal(back.name, 'History v1');
+  assert.deepEqual(Object.keys(back.products), ['ranger']);
+  // The version that was replaced is kept too, so a restore can be undone.
+  assert.equal((await api(`/api/layouts/${deck.id}/history`, 'GET', null, as(tyler))).data.versions[0].name, 'History v3');
+  assert.equal((await api(`/api/layouts/${deck.id}/restore`, 'POST', { at: 'nope' }, as(tyler))).status, 404);
+  await api(`/api/layouts/${deck.id}`, 'DELETE', null, as(tyler));
+});
+
+test('recently presented: who presented which deck on which product', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const tyler = (await api('/api/presenters/login', 'POST', { id: 'tyler', pin: '2468' })).data.token;
+  const guest = (await api('/api/presenters/guest', 'POST')).data.token;
+  const deck = (await api('/api/layouts', 'POST', { name: 'Presented deck' }, as(tyler))).data;
+  assert.equal((await api('/api/presented', 'POST', { deck: deck.id, product: 'ranger' }, as(tyler))).status, 200);
+  assert.equal((await api('/api/presented', 'POST', { deck: '', product: 'vellox' }, as(tyler))).status, 200);
+  assert.equal((await api('/api/presented', 'POST', { deck: deck.id, product: 'nope' }, as(tyler))).status, 400);
+  const log = (await api('/api/presented', 'GET', null, as(tyler))).data.presented;
+  assert.deepEqual([log[0].deck, log[0].product, log[0].by], ['', 'vellox', 'tyler']);
+  assert.deepEqual([log[1].deck, log[1].product], [deck.id, 'ranger']);
+  // Guests aren't recorded and see nothing.
+  await api('/api/presented', 'POST', { deck: deck.id, product: 'ranger' }, as(guest));
+  assert.deepEqual((await api('/api/presented', 'GET', null, as(guest))).data.presented, []);
+  assert.equal((await api('/api/presented', 'GET', null, as(tyler))).data.presented.length, log.length);
+  await api(`/api/layouts/${deck.id}`, 'DELETE', null, as(tyler));
+});

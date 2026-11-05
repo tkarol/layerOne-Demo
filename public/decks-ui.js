@@ -9,11 +9,11 @@
 // "profile"), so its logo and its team (who can edit) are set once.
 
 export const PRODUCTS = [
-  { id: 'vellox', name: 'Vellox', label: 'Vellox suite', page: '/vellox.html', rgb: '250 204 21' },
-  { id: 'layerone', name: 'LayerOne', label: 'Vellox LayerOne', page: '/', rgb: '74 222 128' },
-  { id: 'reverser', name: 'Reverser', label: 'Vellox Reverser', page: '/reverser.html', rgb: '34 211 238' },
-  { id: 'ranger', name: 'Ranger', label: 'Vellox Ranger', page: '/ranger.html', rgb: '167 139 250' },
-  { id: 'navigator', name: 'Navigator', label: 'Vellox Navigator', page: '/navigator.html', rgb: '96 165 250' },
+  { id: 'vellox', name: 'Vellox', label: 'Vellox suite', page: '/vellox.html', rgb: 'var(--brand-rgb)' },
+  { id: 'layerone', name: 'LayerOne', label: 'Vellox LayerOne', page: '/', rgb: 'var(--brand-rgb)' },
+  { id: 'reverser', name: 'Reverser', label: 'Vellox Reverser', page: '/reverser.html', rgb: 'var(--brand-rgb)' },
+  { id: 'ranger', name: 'Ranger', label: 'Vellox Ranger', page: '/ranger.html', rgb: 'var(--brand-rgb)' },
+  { id: 'navigator', name: 'Navigator', label: 'Vellox Navigator', page: '/navigator.html', rgb: 'var(--brand-rgb)' },
 ];
 export const productOf = (id) => PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
 
@@ -25,6 +25,15 @@ export function deckHref(product, id, account, { edit = false } = {}) {
   if (id && account) qs.set('acct', account);
   if (edit) qs.set('edit', '1');
   return `${productOf(product).page}?${qs}#overview`;
+}
+// The leave-behind PDF page for a deck (or the official deck), for some or all products.
+export function pdfHref({ id = '', customer = '', color = '', name = '', products = [] } = {}) {
+  const qs = new URLSearchParams({ deck: id || 'official' });
+  if (id && customer) qs.set('acct', customer);
+  if (id && color) qs.set('color', color);
+  if (name) qs.set('name', name);
+  if (products.length) qs.set('products', products.join(','));
+  return `/print.html?${qs}`;
 }
 // The short link to share: /d/<id> always opens the deck as it is now.
 export const shareUrl = (id) => `${location.origin}/d/${id}`;
@@ -66,6 +75,47 @@ function dialog(cls) {
   return dlg;
 }
 
+// ---------- the brand color in a logo ----------
+// The logo's most common clearly-colored pixel (ignoring white, black, grey and
+// transparent), as #rrggbb; null when it has no clear color or can't be read.
+export function colorFromLogo(src) {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const size = 64;
+        const c = Object.assign(document.createElement('canvas'), { width: size, height: size });
+        const g = c.getContext('2d', { willReadFrequently: true });
+        g.drawImage(img, 0, 0, size, size);
+        const px = g.getImageData(0, 0, size, size).data;
+        const buckets = new Map();
+        for (let i = 0; i < px.length; i += 4) {
+          const [r, gr, b, a] = [px[i], px[i + 1], px[i + 2], px[i + 3]];
+          const hi = Math.max(r, gr, b);
+          const lo = Math.min(r, gr, b);
+          if (a < 128 || hi - lo < 40 || hi < 40 || lo > 225) continue;
+          const k = ((r >> 4) << 8) | ((gr >> 4) << 4) | (b >> 4);
+          const e = buckets.get(k) || { n: 0, c: 0, r: 0, g: 0, b: 0 };
+          e.n += 1 + (hi - lo) / 255; // more colorful pixels count a little more
+          e.c += 1;
+          e.r += r;
+          e.g += gr;
+          e.b += b;
+          buckets.set(k, e);
+        }
+        const best = [...buckets.values()].sort((x, y) => y.n - x.n)[0];
+        if (!best) return resolve(null);
+        resolve(`#${[best.r, best.g, best.b].map((v) => Math.round(v / best.c).toString(16).padStart(2, '0')).join('')}`);
+      } catch {
+        resolve(null); // e.g. an https logo from another site can't be read
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 // ---------- logo input (upload or https URL) ----------
 const MAX_LOGO = 150 * 1024;
 const logoField = (logo, id, hint) => `
@@ -101,6 +151,8 @@ export function newDeckDialog(opts) {
     named: false,
     newName: '',
     color: '#2563eb',
+    colorTouched: false,
+    picked: false, // the color came from the logo
     logo: '',
     full: null, // the chosen existing customer, loaded
     change: false, // changing an existing customer's logo or color (affects all their decks)
@@ -139,7 +191,7 @@ export function newDeckDialog(opts) {
                 : `${isNew ? `<label>Customer name<input id="ndNewName" maxlength="80" value="${esc(ui.newName)}" placeholder="e.g. Department of Example" /></label>` : ''}
                    ${
                      isNew || ui.change
-                       ? `<label ${isNew ? '' : 'class="full"'}>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="ndColor" value="${esc(ui.color)}" /><code>${esc(ui.color)}</code></span></label>
+                       ? `<label ${isNew ? '' : 'class="full"'}>Brand color <span class="muted">${ui.picked ? '(picked from the logo; change it if you like)' : '(colors every product while you present)'}</span><span class="color-row"><input type="color" id="ndColor" value="${esc(ui.color)}" /><code>${esc(ui.color)}</code></span></label>
                           ${logoField(ui.logo, 'ndLogo', 'on every product’s title slide; PNG, JPEG, SVG or WebP under 150 KB')}
                           ${isNew ? '' : `<p class="s-locked full">This changes the logo and color on <b>every deck</b> for ${esc(ui.full?.name || 'this customer')}.</p>`}`
                        : `<div class="nd-cust full">${ui.logo ? `<img src="${esc(ui.logo)}" alt="" />` : `<i style="background:${esc(ui.color)}"></i>`}<span><b>${esc(ui.full?.name || '')}</b><small>${ui.logo ? 'Their logo goes on every product.' : 'No logo yet.'}</small></span>
@@ -182,12 +234,25 @@ export function newDeckDialog(opts) {
       ui.newName = e.target.value;
       if (!ui.named) q('#ndName').value = ui.name = custName() || 'My deck';
     });
-    q('#ndColor')?.addEventListener('input', (e) => ((ui.color = e.target.value), (e.target.nextElementSibling.textContent = e.target.value)));
+    q('#ndColor')?.addEventListener('input', (e) => {
+      ui.color = e.target.value;
+      ui.colorTouched = true;
+      ui.picked = false;
+      e.target.nextElementSibling.textContent = e.target.value;
+    });
     wireLogo(
       dlg,
       'ndLogo',
       () => ui.logo,
-      (v) => ((ui.logo = v), (ui.error = ''), draw()),
+      async (v) => {
+        ui.logo = v;
+        ui.error = '';
+        if (v && !ui.colorTouched) {
+          const c = await colorFromLogo(v);
+          if (c) Object.assign(ui, { color: c, picked: true });
+        }
+        draw();
+      },
       (m) => ((ui.error = m), draw()),
     );
     q('#ndName').oninput = (e) => ((ui.name = e.target.value), (ui.named = true));
@@ -248,7 +313,7 @@ export async function accountDialog(opts) {
             <div class="grid2">
               <label class="full">Customer name<input id="acName" maxlength="80" value="${esc(ui.a.name)}" /></label>
               ${logoField(ui.a.pitch.logo, 'acLogo', 'on every product’s title slide; PNG, JPEG, SVG or WebP under 150 KB')}
-              <label>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="acColor" value="${esc(ui.a.color || '#2563eb')}" /><code>${esc(ui.useColor ? ui.a.color || '#2563eb' : 'none')}</code></span></label>
+              <label>Brand color <span class="muted">(colors every product while you present)</span><span class="color-row"><input type="color" id="acColor" value="${esc(ui.a.color || '#2563eb')}" /><code>${esc(ui.useColor ? ui.a.color || '#2563eb' : 'none')}</code>${ui.logoColor && ui.logoColor !== ui.a.color ? `<button type="button" class="link-btn" id="acUseLogo" style="--sw:${esc(ui.logoColor)}"><i class="sw"></i>Use the logo’s color</button>` : ''}</span></label>
               <label class="check"><input type="checkbox" id="acUseColor" ${ui.useColor ? 'checked' : ''} /> Use the brand color</label>
               <label class="check full"><input type="checkbox" id="acPrepared" ${ui.a.pitch.hidePrepared ? '' : 'checked'} /> Show “Prepared for ${esc(ui.a.name || 'the customer')}” on title slides</label>
             </div>
@@ -273,6 +338,12 @@ export async function accountDialog(opts) {
       ui.a.team = [...dlg.querySelectorAll('[data-team]:checked')].map((x) => x.dataset.team);
       ui.a.pitch.hidePrepared = !q('#acPrepared').checked;
     };
+    q('#acUseLogo')?.addEventListener('click', () => {
+      keep();
+      ui.a.color = ui.logoColor;
+      ui.useColor = true;
+      draw();
+    });
     q('#acColor').oninput = (e) => {
       ui.a.color = e.target.value;
       ui.useColor = true;
@@ -283,11 +354,12 @@ export async function accountDialog(opts) {
       dlg,
       'acLogo',
       () => ui.a.pitch.logo,
-      (v) => {
+      async (v) => {
         keep();
         if (v) ui.a.pitch.logo = v;
         else delete ui.a.pitch.logo;
         ui.error = '';
+        ui.logoColor = v ? await colorFromLogo(v) : null;
         draw();
       },
       (m) => {
@@ -336,8 +408,16 @@ export function deckSettingsDialog(opts) {
   const dlg = dialog('dset');
   const d = opts.deck;
   const c = opts.customer;
-  const ui = { name: d.name, error: '', copied: false };
+  const ui = { name: d.name, error: '', copied: false, versions: null, all: false };
   const link = shareUrl(opts.product ? `${d.id}/${opts.product}` : d.id);
+  const when = (iso) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  if (d.canEdit !== false)
+    call(`/api/layouts/${d.id}/history`)
+      .then((h) => {
+        ui.versions = h.versions;
+        if (dlg.open) draw();
+      })
+      .catch(() => {});
   const draw = () => {
     const ro = d.canEdit === false;
     dlg.innerHTML = `
@@ -353,6 +433,16 @@ export function deckSettingsDialog(opts) {
           <p><button type="button" class="secondary small" id="dsCopy">⧉ Make a copy…</button> <span class="muted small">for another customer, or your own version for this one</span></p>
           <div class="s-section-title">Share</div>
           <div class="ds-link"><input readonly value="${esc(link)}" aria-label="Deck link" /><button type="button" class="secondary small" id="dsLink">${ui.copied ? '✓ Copied' : 'Copy link'}</button></div>
+          <p><a class="secondary small ds-pdf" href="${esc(pdfHref({ id: d.id, customer: d.customer, color: c?.color || '', name: d.name, products: opts.product ? [opts.product] : [] }))}" target="_blank" rel="noopener">⬇ Leave-behind PDF</a> <span class="muted small">for the customer after the meeting</span></p>
+          ${
+            ro || !ui.versions?.length
+              ? ''
+              : `<div class="s-section-title">Earlier versions <span class="dim-note">every save is kept; put one back if something went wrong</span></div>
+                 <ul class="ds-hist">${(ui.all ? ui.versions : ui.versions.slice(0, 5))
+                   .map((v) => `<li><span><b>${esc(when(v.at))}</b> · ${esc(opts.nameOf?.(v.by) || v.by)}<small>${esc(v.name)}${v.products.length ? ` · changed ${esc(v.products.map((p) => productOf(p).name).join(', '))}` : ' · official slides'}</small></span><button type="button" class="secondary small" data-restore="${esc(v.at)}">Restore</button></li>`)
+                   .join('')}</ul>
+                 ${ui.versions.length > 5 && !ui.all ? `<button type="button" class="link-btn" id="dsAll">Show all ${ui.versions.length}</button>` : ''}`
+          }
           ${ro ? '<p class="s-hint">You can open and copy this deck; its owner (and the people they share the customer with) can change it.</p>' : `<div class="s-section-title">Delete</div><p><button type="button" class="link-btn danger" id="dsDelete">Delete this deck…</button> <span class="muted small">for every product; this can’t be undone</span></p>`}
           <p class="err">${esc(ui.error)}</p>
         </div>
@@ -379,6 +469,21 @@ export function deckSettingsDialog(opts) {
       ui.copied = true;
       draw();
     };
+    q('#dsAll')?.addEventListener('click', () => ((ui.all = true), draw()));
+    dlg.querySelectorAll('[data-restore]').forEach(
+      (b) =>
+        (b.onclick = async () => {
+          if (!confirm(`Put “${d.name}” back the way it was on ${when(b.dataset.restore)}? The current version is kept in the history, so you can undo this.`)) return;
+          try {
+            const saved = await call(`/api/layouts/${d.id}/restore`, 'POST', { at: b.dataset.restore });
+            dlg.close();
+            opts.onRenamed?.(saved);
+          } catch (err) {
+            ui.error = err.message;
+            draw();
+          }
+        }),
+    );
     q('#dsDelete')?.addEventListener('click', async () => {
       const typed = prompt(`Delete “${d.name}” for every product? Its link stops working and this can’t be undone.\n\nType the deck name to confirm:`);
       if (typed == null) return;

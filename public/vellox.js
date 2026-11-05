@@ -13,12 +13,13 @@ let T = { p: {} };
 const tx = (k, fallback) => (T.p[k] ? esc(T.p[k]) : fallback);
 const prepared = (ctx) => `${ctx.logo ? `<img class="d-cust-logo" src="${esc(ctx.logo)}" alt="" />` : ''}${ctx.prepared ? `<div class="d-for">Prepared for <b>${esc(ctx.prepared)}</b></div>` : ''}`;
 
+// Products share the brand color (Booz Allen, or the customer's); icons and names tell them apart.
 const STATUS = { ga: 'Generally available', preview: 'Limited preview', soon: 'Coming soon' };
 const PRODUCTS = [
-  { k: 'reverser', name: 'Reverser', role: 'Understand the threat', does: 'AI agents take malware apart and explain it, in minutes.', pain: 'Malware piles up faster than experts can reverse it', status: 'ga', href: 'reverser.html', rgb: '34 211 238', icon: 'bug' },
-  { k: 'ranger', name: 'Ranger', role: 'Detect it where it matters', does: 'Detections written for your environment and ranked by real attack paths.', pain: 'Generic detections miss what matters in your network', status: 'ga', href: 'ranger.html', rgb: '167 139 250', icon: 'radar' },
-  { k: 'navigator', name: 'Navigator', role: 'Prove you’re compliant', does: 'Evidence collected and mapped to controls, so the package stays current.', pain: 'Compliance paperwork is out of date the day it’s signed', status: 'ga', href: 'navigator.html', rgb: '96 165 250', icon: 'target' },
-  { k: 'layerone', name: 'LayerOne', role: 'Govern your AI', does: 'Every AI request checked, governed and logged before it reaches a model.', pain: 'AI agents are going into production without guardrails', status: 'preview', href: './#overview', rgb: '74 222 128', icon: 'shield' },
+  { k: 'reverser', name: 'Reverser', role: 'Understand the threat', does: 'AI agents take malware apart and explain it, in minutes.', pain: 'Malware piles up faster than experts can reverse it', status: 'ga', href: 'reverser.html', rgb: 'var(--brand-rgb)', icon: 'bug' },
+  { k: 'ranger', name: 'Ranger', role: 'Detect it where it matters', does: 'Detections written for your environment and ranked by real attack paths.', pain: 'Generic detections miss what matters in your network', status: 'ga', href: 'ranger.html', rgb: 'var(--brand-rgb)', icon: 'radar' },
+  { k: 'navigator', name: 'Navigator', role: 'Prove you’re compliant', does: 'Evidence collected and mapped to controls, so the package stays current.', pain: 'Compliance paperwork is out of date the day it’s signed', status: 'ga', href: 'navigator.html', rgb: 'var(--brand-rgb)', icon: 'target' },
+  { k: 'layerone', name: 'LayerOne', role: 'Govern your AI', does: 'Every AI request checked, governed and logged before it reaches a model.', pain: 'AI agents are going into production without guardrails', status: 'preview', href: './#overview', rgb: 'var(--brand-rgb)', icon: 'shield' },
 ];
 const P = Object.fromEntries(PRODUCTS.map((p) => [p.k, p]));
 const chip = (p) => `<span class="vx-status ${p.status}">${STATUS[p.status]}</span>`;
