@@ -72,14 +72,14 @@ function draw(ui) {
 
   dlg.innerHTML = `
     <form id="custForm" novalidate>
-      <div class="s-head"><h2>${ws() ? (draft ? `Sample apps for ${esc(draft.name)}` : 'Sample apps for an account') : 'Customize for a customer'}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
+      <div class="s-head"><h2>${ws() ? (draft ? `Sample apps for ${esc(draft.name)}` : 'Sample apps for a customer') : 'Customize for a customer'}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
       <div class="s-body">
         ${ui.hint ? `<p class="s-locked">${esc(ui.hint)}</p>` : ''}
         ${locked ? '<p class="s-locked">Customization is locked on this server (ALLOW_UI_SETTINGS=false).</p>' : ''}
         ${
           ws()
-            ? `<p class="s-hint">An account can rename and rebrand the sample apps: organization, product, employee, color and logo. The apps follow the account of the deck you have open (<b>Deck ▾</b> in the top bar).</p>
-               ${draft ? '' : '<p class="s-locked">The open deck isn’t for an account. Open a deck for one, or make a new deck for an account, then come back here.</p><p><button type="button" class="secondary small" id="custNewDeck">＋ New deck for an account</button></p>'}`
+            ? `<p class="s-hint">A customer can rename and rebrand the sample apps: organization, product, employee, color and logo. The apps follow the customer of the deck you have open (<b>Deck ▾</b> in the top bar).</p>
+               ${draft ? '' : '<p class="s-locked">The open deck isn’t for a customer. Open a deck for one, or make a new deck for a customer, then come back here.</p><p><button type="button" class="secondary small" id="custNewDeck">＋ New deck for a customer</button></p>'}`
             : '<p class="s-hint">A customer profile renames and rebrands the sample apps for one customer: organization, product, employee, color and logo. You can also rewrite any step with <b>✏️ Edit step</b>. Profiles are saved on the server, so you can prepare one before the meeting and switch in a click.</p>'
         }
         <div class="profile-row" ${ws() ? 'hidden' : ''}>
@@ -95,10 +95,10 @@ function draw(ui) {
             <input type="file" id="importFile" accept="application/json" hidden />
           </div>
         </div>
-        ${readOnly ? (ws() ? `<p class="s-locked">Owned by <b>${esc(ws().presenterName(draft.owner || 'tyler'))}</b>. Only the owner and the account team can change it.</p>` : `<p class="s-locked">Created by another presenter. You can present to this customer as-is, or <button type="button" class="link-btn" id="custCopy">make a copy</button> to change it.</p>`) : ''}
+        ${readOnly ? (ws() ? `<p class="s-locked">Owned by <b>${esc(ws().presenterName(draft.owner || 'tyler'))}</b>. Only they and the people they added can change it.</p>` : `<p class="s-locked">Created by another presenter. You can present to this customer as-is, or <button type="button" class="link-btn" id="custCopy">make a copy</button> to change it.</p>`) : ''}
         ${
           draft
-            ? `<fieldset class="tl-fields" ${readOnly ? 'disabled' : ''}><div class="grid2"><label class="full">${ws() ? 'Account' : 'Customer'} name <span class="muted">(shown as "Prepared for …")</span><input id="custName" value="${esc(draft.name || '')}" placeholder="e.g. Acme Federal" /></label></div>
+            ? `<fieldset class="tl-fields" ${readOnly ? 'disabled' : ''}><div class="grid2"><label class="full">Customer name <span class="muted">(shown as "Prepared for …")</span><input id="custName" value="${esc(draft.name || '')}" placeholder="e.g. Acme Federal" /></label></div>
                ${list.passwordRequired ? '<div class="grid2"><label class="full">Settings password<input type="password" id="custPw" autocomplete="current-password" placeholder="Required to save on this deployment" /></label></div>' : ''}
                <div class="s-section-title">Sample apps <span class="dim-note">tick the ones to show; leave fields blank to keep the defaults</span></div>
                ${appsFields}

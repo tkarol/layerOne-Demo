@@ -242,6 +242,17 @@ export function createApp({ env, storage }) {
           const profiles = (await listProfiles(storage)).map((p) => ({ ...p, canEdit: canEditCustomer(p, me) }));
           return json(200, { active: (await storage.getKV('profile:active')) || null, profiles, me: me ? { id: me.id, admin: Boolean(me.admin), role: me.role } : null, locked: cfg.settingsLocked, passwordRequired: !me && Boolean(cfg.settingsPassword) });
         }
+        // A customer's logo as an image, so lists can show logos without loading them all.
+        if (method === 'GET' && pathname.split('/')[4] === 'logo') {
+          const logo = (await storage.getKV(`profile:${id}`))?.pitch?.logo || '';
+          const data = logo.match(/^data:(image\/(?:png|jpeg|webp|gif|svg\+xml));base64,([A-Za-z0-9+/=]+)$/);
+          if (data) {
+            const bytes = Uint8Array.from(atob(data[2]), (c) => c.charCodeAt(0));
+            return new Response(bytes, { headers: { 'Content-Type': data[1], 'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" } });
+          }
+          if (/^https:\/\//.test(logo)) return Response.redirect(logo, 302);
+          return json(404, { error: 'No logo' });
+        }
         if (method === 'GET') {
           const profile = await storage.getKV(`profile:${id}`);
           return profile ? json(200, { ...profile, canEdit: canEditCustomer(profile, me) }) : json(404, { error: 'Profile not found' });

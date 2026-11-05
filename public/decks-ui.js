@@ -1,13 +1,12 @@
 // Shared by the top bar (workspace.js) and the deck library (decks.js): the
-// products, deck links, and the "New deck" and "Account" dialogs.
+// products, deck links, and the "New deck" and "Customer" dialogs.
 //
-// Two ideas only:
-//   Account: who you present to (a customer, an opportunity, an event).
-//            Name, color, logo, details, and its team.
-//   Deck:    your presentation across the whole suite (Vellox, LayerOne,
-//            Reverser, Ranger, Navigator), optionally for one account. For each
-//            product: which slides, their order, titles and the talk track.
-// You open a deck once; its account's logo and name are on every product page.
+// People only make decks. A deck is a presentation across the whole suite
+// (Vellox, LayerOne, Reverser, Ranger, Navigator), optionally for a customer
+// (a customer, an opportunity or an event). The customer's name, logo and color
+// are on every product page; for each product the deck can change the slides.
+// Under the hood a customer is shared by every deck for it (stored as a
+// "profile"), so its logo and its team (who can edit) are set once.
 
 export const PRODUCTS = [
   { id: 'vellox', name: 'Vellox', label: 'Vellox suite', page: '/vellox.html', rgb: '250 204 21' },
@@ -67,167 +66,230 @@ function dialog(cls) {
   return dlg;
 }
 
+// ---------- logo input (upload or https URL) ----------
+const MAX_LOGO = 150 * 1024;
+const logoField = (logo, id, hint) => `
+  <label class="full">Logo <span class="muted">(${hint})</span>
+    <span class="logo-row">${logo ? `<img src="${esc(logo)}" alt="" />` : ''}<input type="file" id="${id}File" accept="image/png,image/jpeg,image/svg+xml,image/webp" />${logo ? `<button type="button" class="link-btn" id="${id}Clear">Remove</button>` : ''}</span>
+    <input id="${id}Url" value="${esc(logo?.startsWith('data:') ? '' : logo || '')}" placeholder="…or paste an https:// image link" /></label>`;
+// Wire a logo field: onChange(newLogo) with a data: URL, an https URL or ''.
+function wireLogo(dlg, id, get, onChange, onError) {
+  dlg.querySelector(`#${id}File`)?.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > MAX_LOGO) return onError('That image is over 150 KB; use a smaller file or an https:// link.');
+    const r = new FileReader();
+    r.onload = () => onChange(r.result);
+    r.readAsDataURL(f);
+  });
+  dlg.querySelector(`#${id}Clear`)?.addEventListener('click', () => onChange(''));
+  dlg.querySelector(`#${id}Url`)?.addEventListener('change', (e) => {
+    const v = e.target.value.trim();
+    if (v || !get()?.startsWith('data:')) onChange(v);
+  });
+}
+
 // ---------- New deck ----------
-// opts: { accounts, account (preselected id), from (a deck to copy, optional), onCreated(deck) }
+// opts: { accounts (customers), account (preselected customer id), from (a deck to copy), onCreated(deck) }
 export function newDeckDialog(opts) {
   const dlg = dialog('nd');
-  const ui = { account: opts.account ?? opts.from?.customer ?? '', start: opts.from ? 'copy' : 'official', name: '', named: false, newName: '', newColor: '#2563eb', error: '' };
-  const accounts = [...(opts.accounts || [])].sort((a, b) => a.name.localeCompare(b.name));
-  const acctName = (id) => accounts.find((a) => a.id === id)?.name || '';
-  const suggest = () => (ui.account === 'new' ? ui.newName.trim() : acctName(ui.account)) || 'My deck';
+  const customers = [...(opts.accounts || [])].sort((a, b) => a.name.localeCompare(b.name));
+  const ui = {
+    cust: opts.account ?? opts.from?.customer ?? 'new',
+    start: opts.from ? 'copy' : 'official',
+    name: '',
+    named: false,
+    newName: '',
+    color: '#2563eb',
+    logo: '',
+    full: null, // the chosen existing customer, loaded
+    error: '',
+    busy: false,
+  };
+  const custName = () => (ui.cust === 'new' ? ui.newName.trim() : customers.find((c) => c.id === ui.cust)?.name || '');
+  const load = async () => {
+    ui.full = null;
+    if (ui.cust && ui.cust !== 'new') {
+      try {
+        ui.full = await call(`/api/profiles/${ui.cust}`);
+        ui.logo = ui.full.pitch?.logo || '';
+        ui.color = ui.full.color || '#2563eb';
+      } catch {}
+    } else if (ui.cust === '') ui.logo = '';
+  };
   const draw = () => {
-    if (!ui.named) ui.name = suggest();
-    const copyable = Boolean(opts.from);
+    if (!ui.named) ui.name = custName() || 'My deck';
+    const isNew = ui.cust === 'new';
+    const canEditCust = isNew || ui.full?.canEdit !== false;
     dlg.innerHTML = `
       <form novalidate>
         <div class="s-head"><h2>New deck</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
         <div class="s-body">
-          <p class="s-hint">A deck is your presentation across the whole suite: Vellox, LayerOne, Reverser, Ranger and Navigator. Pick an account and its name, logo and color show on every product. Change any product’s slides later with <b>✎ Edit slides</b>.</p>
+          <p class="s-hint">One deck covers the whole suite: Vellox, LayerOne, Reverser, Ranger and Navigator. The customer’s name and logo go on every product’s title slide. You can change any product’s slides afterwards.</p>
           <div class="grid2">
-            <label class="full">Account <span class="muted">(who you’re presenting to)</span><select id="ndAccount">
-              <option value="">No account (general deck)</option>
-              ${accounts.map((a) => `<option value="${esc(a.id)}" ${a.id === ui.account ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
-              <option value="new" ${ui.account === 'new' ? 'selected' : ''}>＋ New account…</option>
+            <label class="full">Who are you presenting to?<select id="ndCust">
+              <option value="new" ${isNew ? 'selected' : ''}>＋ A new customer</option>
+              ${customers.length ? `<optgroup label="Customers already here">${customers.map((c) => `<option value="${esc(c.id)}" ${c.id === ui.cust ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>` : ''}
+              <option value="" ${ui.cust === '' ? 'selected' : ''}>No one in particular (a general deck)</option>
             </select></label>
             ${
-              ui.account === 'new'
-                ? `<label>New account name<input id="ndNewName" maxlength="80" value="${esc(ui.newName)}" placeholder="e.g. Department of Example" /></label>
-                   <label>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="ndNewColor" value="${esc(ui.newColor)}" /><code>${esc(ui.newColor)}</code></span></label>`
-                : ''
+              ui.cust === ''
+                ? ''
+                : `${isNew ? `<label>Customer name<input id="ndNewName" maxlength="80" value="${esc(ui.newName)}" placeholder="e.g. Department of Example" /></label>` : ''}
+                   <label ${isNew ? '' : 'class="full"'}>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="ndColor" value="${esc(ui.color)}" ${canEditCust ? '' : 'disabled'} /><code>${esc(ui.color)}</code></span></label>
+                   ${canEditCust ? logoField(ui.logo, 'ndLogo', 'on every product’s title slide; PNG, JPEG, SVG or WebP under 150 KB') : `<p class="s-hint full">${ui.logo ? `<img class="nd-logo-ro" src="${esc(ui.logo)}" alt="" /> ` : ''}This customer belongs to ${esc(opts.nameOf?.(ui.full?.owner) || 'someone else')}; its logo and color are theirs to change.</p>`}
+                   ${!isNew && ui.full ? `<p class="s-hint full">Changes to the logo or color apply to every deck for ${esc(ui.full.name)}.</p>` : ''}`
             }
-            <label class="full">Deck name<input id="ndName" maxlength="60" value="${esc(ui.name)}" /></label>
+            <label class="full">Deck name <span class="muted">(so you can tell your decks apart)</span><input id="ndName" maxlength="60" value="${esc(ui.name)}" /></label>
           </div>
-          <div class="s-section-title">Start from</div>
-          <div class="nd-start">
-            <label class="check"><input type="radio" name="ndStart" value="official" ${ui.start === 'official' ? 'checked' : ''} /> The official slides, for every product</label>
-            ${copyable ? `<label class="check"><input type="radio" name="ndStart" value="copy" ${ui.start === 'copy' ? 'checked' : ''} /> A copy of “${esc(opts.from.name)}”</label>` : ''}
-          </div>
+          ${
+            opts.from
+              ? `<div class="s-section-title">Start from</div>
+                 <div class="nd-start">
+                   <label class="check"><input type="radio" name="ndStart" value="official" ${ui.start === 'official' ? 'checked' : ''} /> The official slides</label>
+                   <label class="check"><input type="radio" name="ndStart" value="copy" ${ui.start === 'copy' ? 'checked' : ''} /> A copy of “${esc(opts.from.name)}”</label>
+                 </div>`
+              : ''
+          }
           <p class="err">${esc(ui.error)}</p>
         </div>
         <div class="s-foot"><span class="spacer"></span>
           <button type="button" class="secondary" data-close>Cancel</button>
-          <button type="submit" class="save">Create deck</button>
+          <button type="submit" class="save" ${ui.busy ? 'disabled' : ''}>Create deck</button>
         </div>
       </form>`;
     const q = (s) => dlg.querySelector(s);
-    q('#ndAccount').onchange = (e) => {
-      ui.account = e.target.value;
+    q('#ndCust').onchange = async (e) => {
+      ui.cust = e.target.value;
+      ui.error = '';
+      if (ui.cust === 'new') {
+        ui.logo = '';
+        ui.color = '#2563eb';
+      }
+      await load();
       draw();
       q('#ndNewName')?.focus();
     };
     q('#ndNewName')?.addEventListener('input', (e) => {
       ui.newName = e.target.value;
-      if (!ui.named) q('#ndName').value = ui.name = suggest();
+      if (!ui.named) q('#ndName').value = ui.name = custName() || 'My deck';
     });
-    q('#ndNewColor')?.addEventListener('input', (e) => ((ui.newColor = e.target.value), (e.target.nextElementSibling.textContent = e.target.value)));
+    q('#ndColor')?.addEventListener('input', (e) => ((ui.color = e.target.value), (e.target.nextElementSibling.textContent = e.target.value)));
+    wireLogo(
+      dlg,
+      'ndLogo',
+      () => ui.logo,
+      (v) => ((ui.logo = v), (ui.error = ''), draw()),
+      (m) => ((ui.error = m), draw()),
+    );
     q('#ndName').oninput = (e) => ((ui.name = e.target.value), (ui.named = true));
     dlg.querySelectorAll('[name="ndStart"]').forEach((r) => (r.onchange = () => (ui.start = r.value)));
     q('form').onsubmit = async (e) => {
       e.preventDefault();
       try {
         if (!ui.name.trim()) throw new Error('Name the deck');
-        let account = ui.account;
-        if (account === 'new') {
-          if (!ui.newName.trim()) throw new Error('Enter the account name');
-          account = (await call('/api/profiles', 'POST', { name: ui.newName.trim(), color: ui.newColor })).id;
+        ui.busy = true;
+        let customer = ui.cust;
+        if (customer === 'new') {
+          if (!ui.newName.trim()) throw new Error('Enter the customer’s name');
+          customer = (await call('/api/profiles', 'POST', { name: ui.newName.trim(), color: ui.color, pitch: ui.logo ? { logo: ui.logo } : {} })).id;
+        } else if (customer && ui.full && ui.full.canEdit !== false && ((ui.full.pitch?.logo || '') !== ui.logo || (ui.full.color || '#2563eb') !== ui.color)) {
+          // A new logo or color for an existing customer: saved on the customer.
+          await call(`/api/profiles/${customer}`, 'PUT', { ...ui.full, color: ui.color, pitch: { ...(ui.full.pitch || {}), logo: ui.logo || undefined } });
         }
         const deck =
           ui.start === 'copy'
-            ? await call(`/api/layouts/${opts.from.id}/copy`, 'POST', { name: ui.name.trim(), customer: account || null })
-            : await call('/api/layouts', 'POST', { name: ui.name.trim(), customer: account || null, products: {} });
+            ? await call(`/api/layouts/${opts.from.id}/copy`, 'POST', { name: ui.name.trim(), customer: customer || null })
+            : await call('/api/layouts', 'POST', { name: ui.name.trim(), customer: customer || null, products: {} });
         dlg.close();
         opts.onCreated?.(deck);
       } catch (err) {
+        ui.busy = false;
         ui.error = err.message;
         draw();
       }
     };
   };
-  draw();
   dlg.showModal();
-  dlg.querySelector('#ndAccount').focus();
+  load().then(() => {
+    draw();
+    (dlg.querySelector('#ndNewName') || dlg.querySelector('#ndCust')).focus();
+  });
+  draw();
 }
 
-// ---------- Account ----------
-// opts: { account (summary or null for a new one), people, me, onSaved(account), onDeleted() }
+// ---------- Customer ----------
+// The customer a deck is for: name, logo, color, Prepared for, and who else can edit.
+// opts: { account (summary), people, me, onSaved(customer), onDeleted() }
 export async function accountDialog(opts) {
   const dlg = dialog('acct');
-  const full = opts.account ? await call(`/api/profiles/${opts.account.id}`) : { name: '', color: '#2563eb', team: [], canEdit: true };
-  const ui = { a: { ...full, team: [...(full.team || [])], pitch: { ...(full.pitch || {}) } }, useColor: Boolean(full.color) || !opts.account, error: '' };
+  const full = await call(`/api/profiles/${opts.account.id}`);
+  const ui = { a: { ...full, team: [...(full.team || [])], pitch: { ...(full.pitch || {}) } }, useColor: Boolean(full.color), error: '' };
   const ro = full.canEdit === false;
-  const owner = full.owner || (opts.account ? 'tyler' : opts.me.id);
+  const owner = full.owner || 'tyler';
   const nameOf = (id) => opts.people.find((p) => p.id === id)?.name || id;
   const draw = () => {
     const teamable = opts.people.filter((p) => p.id !== owner);
     dlg.innerHTML = `
       <form novalidate>
-        <div class="s-head"><h2>${opts.account ? esc(full.name) : 'New account'}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
+        <div class="s-head"><h2>${esc(full.name)} <span class="muted">· customer</span></h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
         <div class="s-body">
-          <p class="s-hint">An account is who you present to: a customer, an opportunity or an event. Its decks show its name and color. The owner and the account team can change the account and all of its decks.</p>
-          ${ro ? `<p class="s-locked">Owned by <b>${esc(nameOf(owner))}</b>. Ask them (or an admin) to add you to the team to make changes.</p>` : ''}
+          <p class="s-hint">What every deck for this customer shows, on every product.${opts.deckCount > 1 ? ` <b>${opts.deckCount} decks</b> use it.` : ''}</p>
+          ${ro ? `<p class="s-locked">Set up by <b>${esc(nameOf(owner))}</b>. Ask them (or an admin) to add you below to make changes.</p>` : ''}
           <fieldset ${ro ? 'disabled' : ''} class="tl-fields">
             <div class="grid2">
-              <label class="full">Account name<input id="acName" maxlength="80" value="${esc(ui.a.name)}" placeholder="e.g. Department of Example" /></label>
+              <label class="full">Customer name<input id="acName" maxlength="80" value="${esc(ui.a.name)}" /></label>
+              ${logoField(ui.a.pitch.logo, 'acLogo', 'on every product’s title slide; PNG, JPEG, SVG or WebP under 150 KB')}
               <label>Brand color <span class="muted">(an accent)</span><span class="color-row"><input type="color" id="acColor" value="${esc(ui.a.color || '#2563eb')}" /><code>${esc(ui.useColor ? ui.a.color || '#2563eb' : 'none')}</code></span></label>
               <label class="check"><input type="checkbox" id="acUseColor" ${ui.useColor ? 'checked' : ''} /> Use the brand color</label>
-              <label class="full">Logo <span class="muted">(on the title slide of every product; PNG, JPEG, SVG or WebP under 150 KB)</span>
-                <span class="logo-row">${ui.a.pitch.logo ? `<img src="${esc(ui.a.pitch.logo)}" alt="" />` : ''}<input type="file" id="acLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" />${ui.a.pitch.logo ? '<button type="button" class="link-btn" id="acLogoClear">Remove</button>' : ''}</span>
-                <input id="acLogo" value="${esc(ui.a.pitch.logo?.startsWith('data:') ? '' : ui.a.pitch.logo || '')}" placeholder="…or an https:// image URL" /></label>
-              <label class="check full"><input type="checkbox" id="acPrepared" ${ui.a.pitch.hidePrepared ? '' : 'checked'} /> Show “Prepared for ${esc(ui.a.name || 'the account')}” on title slides</label>
+              <label class="check full"><input type="checkbox" id="acPrepared" ${ui.a.pitch.hidePrepared ? '' : 'checked'} /> Show “Prepared for ${esc(ui.a.name || 'the customer')}” on title slides</label>
             </div>
-            <div class="s-section-title">Account team <span class="dim-note">owner: ${esc(nameOf(owner))}</span></div>
+            <div class="s-section-title">Who else can edit <span class="dim-note">${esc(nameOf(owner))} set it up; these people can change this customer and its decks</span></div>
             <div class="ac-team">${teamable.map((p) => `<label class="check"><input type="checkbox" data-team="${esc(p.id)}" ${ui.a.team.includes(p.id) ? 'checked' : ''} /> ${esc(p.name)} <span class="ac-role">${p.role === 'ae' ? 'AE' : 'SE'}</span></label>`).join('')}</div>
           </fieldset>
-          ${opts.account ? '<p class="s-hint">Product details (their environment, tools and next steps) are on each product page: open one of the account’s decks and use <b>✎ Account</b> there.</p>' : ''}
+          <p class="s-hint">Product details (their environment, tools, next steps) are on each product page under <b>✎ Customer</b>.</p>
           <p class="err">${esc(ui.error)}</p>
         </div>
         <div class="s-foot">
-          ${opts.account && !ro ? '<button type="button" class="link-btn danger" id="acDelete">Delete account</button>' : ''}
+          ${ro ? '' : '<button type="button" class="link-btn danger" id="acDelete">Delete customer</button>'}
           <span class="spacer"></span>
           <button type="button" class="secondary" data-close>${ro ? 'Close' : 'Cancel'}</button>
-          ${ro ? '' : `<button type="submit" class="save">${opts.account ? 'Save' : 'Create account'}</button>`}
+          ${ro ? '' : '<button type="submit" class="save">Save</button>'}
         </div>
       </form>`;
     const q = (s) => dlg.querySelector(s);
-    q('#acColor').oninput = (e) => {
-      ui.a.color = e.target.value;
-      ui.useColor = true;
-      q('#acUseColor').checked = true;
-      e.target.nextElementSibling.textContent = e.target.value;
-    };
     // Keep what's typed when the form redraws (a logo upload redraws it).
     const keep = () => {
       ui.a.name = q('#acName').value;
       ui.useColor = q('#acUseColor').checked;
       ui.a.team = [...dlg.querySelectorAll('[data-team]:checked')].map((x) => x.dataset.team);
       ui.a.pitch.hidePrepared = !q('#acPrepared').checked;
-      const url = q('#acLogo').value.trim();
-      if (url) ui.a.pitch.logo = url;
-      else if (!ui.a.pitch.logo?.startsWith('data:')) delete ui.a.pitch.logo;
     };
-    q('#acLogoFile')?.addEventListener('change', (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      keep();
-      if (f.size > 150 * 1024) {
-        ui.error = 'That image is over 150 KB; use a smaller file or an https:// URL.';
-        return draw();
-      }
-      const r = new FileReader();
-      r.onload = () => {
-        ui.a.pitch.logo = r.result;
+    q('#acColor').oninput = (e) => {
+      ui.a.color = e.target.value;
+      ui.useColor = true;
+      q('#acUseColor').checked = true;
+      e.target.nextElementSibling.textContent = e.target.value;
+    };
+    wireLogo(
+      dlg,
+      'acLogo',
+      () => ui.a.pitch.logo,
+      (v) => {
+        keep();
+        if (v) ui.a.pitch.logo = v;
+        else delete ui.a.pitch.logo;
         ui.error = '';
         draw();
-      };
-      r.readAsDataURL(f);
-    });
-    q('#acLogoClear')?.addEventListener('click', () => {
-      keep();
-      delete ui.a.pitch.logo;
-      draw();
-    });
+      },
+      (m) => {
+        keep();
+        ui.error = m;
+        draw();
+      },
+    );
     q('#acDelete')?.addEventListener('click', async () => {
-      if (!confirm(`Delete the account “${full.name}”? Its decks stay, as general decks.`)) return;
+      if (!confirm(`Delete the customer “${full.name}”? Its decks stay, as general decks without a logo.`)) return;
       try {
         await call(`/api/profiles/${full.id}`, 'DELETE');
         dlg.close();
@@ -242,9 +304,8 @@ export async function accountDialog(opts) {
       keep();
       ui.a.name = ui.a.name.trim();
       try {
-        if (!ui.a.name) throw new Error('Enter the account name');
-        const body = { ...ui.a, color: ui.useColor ? ui.a.color || '#2563eb' : '' };
-        const saved = opts.account ? await call(`/api/profiles/${full.id}`, 'PUT', body) : await call('/api/profiles', 'POST', body);
+        if (!ui.a.name) throw new Error('Enter the customer’s name');
+        const saved = await call(`/api/profiles/${full.id}`, 'PUT', { ...ui.a, color: ui.useColor ? ui.a.color || '#2563eb' : '' });
         dlg.close();
         opts.onSaved?.(saved);
       } catch (err) {
@@ -257,3 +318,4 @@ export async function accountDialog(opts) {
   dlg.showModal();
   if (!ro) dlg.querySelector('#acName').focus();
 }
+export const customerDialog = accountDialog;

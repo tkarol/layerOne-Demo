@@ -117,9 +117,9 @@ function draw(ui) {
       <div class="s-body">
         <div class="le-headrow">
           <label class="le-name">Deck name<input id="leName" value="${esc(ui.name)}" maxlength="60" /></label>
-          <label class="le-name">Account<select id="leCust"><option value="">No account (general deck)</option>${(ui.customers || []).map((c) => `<option value="${esc(c.id)}" ${c.id === ui.customer ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+          <label class="le-name">Customer<select id="leCust"><option value="">No customer (general deck)</option>${(ui.customers || []).map((c) => `<option value="${esc(c.id)}" ${c.id === ui.customer ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
         </div>
-        <p class="s-hint">One deck covers all five products. Here you change the <b>${esc(ui.deck.label)}</b> slides: drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change follows the official slides. The <b>account</b> puts its name, logo and color on every product. Everyone can open and copy this deck; its owner and the account’s team can change it.</p>
+        <p class="s-hint">One deck covers all five products. Here you change the <b>${esc(ui.deck.label)}</b> slides: drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change follows the official slides. The <b>customer</b>’s name, logo and color are on every product. Everyone can open and copy this deck; you, admins and the people you share the customer with can change it.</p>
         <ol class="le-list">${ui.rows.map(row).join('')}</ol>
         <p class="err">${esc(ui.error)}</p>
       </div>

@@ -82,16 +82,17 @@ The **Overview** tab is a 4-slide deck to open a customer demo: the title; **tod
 * With a customer profile active, the title slide says *Prepared for* that customer.
 * Claims stay within the LayerOne docs and what this demo shows. Edit the slides in `public/deck.js`.
 
-## Accounts and decks: who's presenting, to whom, with what
+## Decks: who's presenting, to whom, with what
 
-The site is shared by sales engineers (SEs) and account executives (AEs). Everything people make comes down to two things:
+The site is shared by sales engineers (SEs) and account executives (AEs). There's one thing to make: a **deck**.
 
-| | What it is | What it holds |
-|---|---|---|
-| **Account** | Who you present to: a customer, an opportunity or an event | Name, brand color, logo, "Prepared for", product details, sample-app branding, and its **team** |
-| **Deck** | Your presentation across the **whole suite** (Vellox, LayerOne, Reverser, Ranger, Navigator), optionally **for one account** | For each product you change: which slides, their order, titles, the talk track and notes. Products you don't change use the official slides |
+* A deck is **one presentation across the whole suite**: Vellox, LayerOne, Reverser, Ranger and Navigator.
+* A deck is usually **for a customer** (a customer, an opportunity or an event). You pick or create the customer when you make the deck: **name, logo and brand color**. They go on every product's title slide, the "Prepared for" line and the LayerOne sample apps.
+* For each product, the deck can change **which slides, their order, titles, the talk track and notes**. Products you don't change use the official slides.
 
-**You open a deck once, and it follows you.** Move between Vellox, LayerOne, Reverser, Ranger and Navigator and the same deck stays open: the account's logo, name and color are on every product's title slide (and the LayerOne sample apps), with your slide changes for each product. Nothing switches on by itself, so there's never a question of which one wins. The **official deck** is always there.
+**You open a deck once, and it follows you** from product to product. Nothing switches on by itself. The **official deck** is always there.
+
+Two decks for the same customer (say, a webinar and an executive briefing) share that customer's logo and color, so you set them once. Under the hood a customer is stored separately (in the code and API it's a *profile*); in the app you only ever see it as part of a deck.
 
 ### Signing in
 
@@ -99,50 +100,50 @@ The first visit to any Vellox page shows **Who's presenting?**:
 
 * **Find your name** (type a few letters, Enter when there's one match), then your PIN. People who signed in on this device recently are listed first. Each person shows as **SE** or **AE**.
 * **First sign-in chooses your PIN** (4–8 digits). If the server has a `SETTINGS_PASSWORD`, choosing a first PIN also asks for it (the *team setup password*), so nobody can claim someone else's name. Five wrong PINs lock that name for a minute.
-* **Just looking? Continue as a guest:** no PIN. Guests see the official decks, architecture pages and sample apps and can try the demos (their Customer Hub data and history are a throwaway sandbox for 12 hours). They can't change anything and never see accounts or anyone's decks. The server enforces this.
+* **Just looking? Continue as a guest:** no PIN. Guests see the official decks, architecture pages and sample apps and can try the demos (their Customer Hub data and history are a throwaway sandbox for 12 hours). They can't change anything and never see customers or anyone's decks. The server enforces this.
 * Admins are set in `src/core/workspace.js`; admin status is shown only to admins.
 
 ### People and roles (admins)
 
-From your name menu (top right), admins manage **People**: **add a person** (name, SE or AE, optionally admin), change someone's **role**, **reset a PIN** (they choose a new one next time; their role stays), or **remove** someone they added (signed out for good; their accounts and decks stay, still labelled with their name). Anyone can change their own PIN there.
+From your name menu (top right), admins manage **People**: **add a person** (name, SE or AE, optionally admin), change someone's **role**, **reset a PIN** (they choose a new one next time; their role stays), or **remove** someone they added (signed out for good; their decks and customers stay, still labelled with their name). Anyone can change their own PIN there.
 
 * **SEs** can do everything.
-* **AEs** can make and edit accounts and decks, present, and run the sample apps, but not change the Live/API **Settings**, use **Connect**, or rewrite sample-app steps (**✏️ Edit step**). The server enforces this; those controls are hidden for AEs.
+* **AEs** can make and edit decks and customers, present, and run the sample apps, but not change the Live/API **Settings**, use **Connect**, or rewrite sample-app steps (**✏️ Edit step**). The server enforces this; those controls are hidden for AEs.
 
 ### The deck library (`/decks`)
 
-**⌂ Decks** in the top bar opens the library:
+**⌂ Decks** in the top bar opens the library: one list of decks.
 
-* **Decks tab:** a search box (decks, accounts or people), *Everyone's / Mine / a person*, and *any account*. Then **the official deck** (a link to each product), **Your decks**, **Your accounts' decks** (accounts you own or are on the team of) and **Everyone else's**. Each card shows the account, the five products (the ones the deck changes are highlighted; click any to open the deck there), who made it and when it last changed, with **Present**, **Edit** (if you can), **Copy** (to your own deck, for any account) and **🔗** (copy its link).
-* **Accounts tab:** your accounts and everyone else's, with the owner, team and decks. **See decks**, **＋ Deck**, and **Edit**: name, brand color, **logo** (upload or an https URL), *Prepared for*, and the team.
-* **＋ New deck:** pick an account (or **＋ New account** right there), name it, and start from the official slides or a copy of another deck.
+* A search box (decks, customers or people), *Everyone's / Mine / a person*, and *any customer*. Then **the official deck** (a link to each product), **Your decks**, **Shared with you** (decks for customers you can edit) and **Everyone else's**.
+* Each card shows the **customer's logo** (or a color dot) and name, the five products (the ones the deck changes are highlighted; click any to open the deck there), who made it and when it last changed, with **Present**, **Edit** (if you can), **Copy** (to your own deck, for any customer) and **🔗** (copy its link). Click the customer to see all their decks; **✎** next to it edits the customer: name, logo, color, *Prepared for*, and **who else can edit**.
+* **＋ New deck:** *Who are you presenting to?* (a new customer, one already here, or no one in particular), then the customer's **name, logo** (upload or an https link) **and color**, and a deck name. For a customer already here you can add or change their logo right there; it applies to all their decks. Copying a deck asks the same, plus whether to start from the official slides or the copy.
 
 ### On a product page
 
-The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Account** (when the open deck is for an account), and your name.
+The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Customer** (when the open deck is for a customer), and your name.
 
-* **Deck ▾** (on every page, including the library) lists the **Official deck**, **Your decks**, **Your accounts' decks** and **Everyone else's**, with a search box when there are many. Actions: **✎ Edit &lt;product&gt; slides**, **✎ Account**, **Copy to my decks**, **＋ New deck**, **🔗 Copy link**, and a link to the library. The open deck is remembered per person in your browser, for every product page.
-* **✎ Edit &lt;product&gt; slides:** changes this product's slides in the open deck: drag (or ▲▼) to reorder slides, untick to skip one, retitle it, and open **Talk track** to rewrite the key message, talking points, the question to ask the room, the objection and the lead-in, plus **notes** per slide (only in the talking points). Use `**double asterisks**` for bold. The **Account** field changes which account the whole deck is for. Only what you change is saved; everything else follows the official slides, and a slide added to the official deck later appears next to its official neighbor. **Reset &lt;product&gt; slides to official** clears just that product; **Delete deck** removes the deck for every product.
-* **✎ Account:** the open deck's account: name, brand color (an accent only), logo, *Prepared for*, and this product's details (see *Account details on Reverser, Ranger and Navigator*). It applies to every product and every deck for that account, and to the sample apps.
+* **Deck ▾** (on every page, including the library) lists the **Official deck**, **Your decks**, **Shared with you** and **Everyone else's**, with a search box when there are many. Actions: **✎ Edit &lt;product&gt; slides**, **✎ Customer**, **Copy to my decks**, **＋ New deck**, **🔗 Copy link**, and a link to the library. The open deck is remembered per person in your browser, for every product page.
+* **✎ Edit &lt;product&gt; slides:** changes this product's slides in the open deck: drag (or ▲▼) to reorder slides, untick to skip one, retitle it, and open **Talk track** to rewrite the key message, talking points, the question to ask the room, the objection and the lead-in, plus **notes** per slide (only in the talking points). Use `**double asterisks**` for bold. The **Customer** field changes who the whole deck is for. Only what you change is saved; everything else follows the official slides, and a slide added to the official deck later appears next to its official neighbor. **Reset &lt;product&gt; slides to official** clears just that product; **Delete deck** removes the deck for every product.
+* **✎ Customer:** the open deck's customer: name, brand color (an accent only), logo, *Prepared for*, and this product's details (see *Customer details on Reverser, Ranger and Navigator*). It applies to every product and every deck for that customer, and to the sample apps.
 * **Deck links:** `/d/<deck id>` opens a deck on the first product it changes (or the suite page); `/d/<deck id>/<product>` opens it on that product (`vellox`, `layerone`, `reverser`, `ranger`, `navigator`). **🔗 Copy link** on a product page copies the link for that product. Share it in a calendar invite or chat; anyone signed in can open it. A deleted deck's link goes to the library with a note.
 * On screens under 1520px wide, the product switch collapses to the current product with a ▾ menu.
 
 ### Who can change what
 
-* **Decks:** everyone can open and copy every deck. Its **owner**, an **admin**, or anyone on the **team of the deck's account** can edit or delete it, so an AE and SE pair can work on the same deck.
-* **Accounts:** everyone can see every account and present its decks. Its **owner**, its **team** or an **admin** can change it. Deleting an account keeps its decks, as general decks.
+* **Decks:** everyone can open and copy every deck. Its **owner**, an **admin**, or anyone the customer is **shared with** (*who else can edit*) can edit or delete it, so an AE and SE pair can work on the same deck.
+* **Customers:** whoever set one up, the people they added, and admins can change its name, logo and color. Deleting a customer keeps its decks, as general decks.
 * **Yours alone:** your settings (Dry run or Live, endpoint, model, API key; until you save your own you get the site-wide ones), your Customer Hub data, and your request history (*Behind the scenes*).
-* Accounts made before workspaces belong to the first admin. Slide edits made with the older *Tailor* were moved into decks for their account automatically. Decks made when a deck covered one product became suite decks; one person's decks for the same account (changing different products) were merged into their oldest deck, and the merged decks' old links still open it.
+* Customers made before workspaces belong to the first admin. Slide edits made with the older *Tailor* were moved into decks for their customer automatically. Decks made when a deck covered one product became suite decks; one person's decks for the same customer (changing different products) were merged into their oldest deck, and the merged decks' old links still open it.
 
-### Ready-made accounts and decks (seeds)
+### Ready-made decks (seeds)
 
-`src/core/seeds.js` adds ready-made accounts and decks to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
+`src/core/seeds.js` adds ready-made customers and decks to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
 
-* **AWS re:Invent** (Tyler's account, AWS-orange accent, a webinar call to action on the Vellox deck's last slide) and its deck **AWS re:Invent webinar** for the Vellox suite. The deck rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Open it from the library, or from **Deck ▾** on any page.
+* **AWS re:Invent** (Tyler's customer, AWS-orange accent, a webinar call to action on the Vellox deck's last slide) and its deck **AWS re:Invent webinar** for the Vellox suite. The deck rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Open it from the library, or from **Deck ▾** on any page.
 
 ### What's next
 
-Storage is a key/value store that reads every account and deck to list them: fine into the hundreds. Next steps when it grows: move accounts and decks to a database (Cloudflare D1) with search and paging, add version history on decks, an "official deck updated · review" flag on copies, and company sign-in (SSO) instead of PINs. The Oracle page is outside all of this.
+Storage is a key/value store that reads every customer and deck to list them: fine into the hundreds. Next steps when it grows: move customers and decks to a database (Cloudflare D1) with search and paging, add version history on decks, an "official deck updated · review" flag on copies, and company sign-in (SSO) instead of PINs. The Oracle page is outside all of this.
 
 ## Vellox: the suite overview page
 
@@ -151,7 +152,7 @@ Storage is a key/value store that reads every account and deck to list them: fin
 * **Overview:** a 6-slide deck with talking points: the title (the four products around a Vellox core); *AI changed both sides* (a chart of the growing gap between attackers with AI and defenders today, next to the four places defenders fall behind, each matched to a product); *four products, one mission* (Reverser, Ranger, Navigator and LayerOne around a "human operators + AI agents" hub, each with its role and status: Reverser, Ranger and Navigator generally available, LayerOne limited preview); *when a new threat lands* (Ranger spots it and Reverser takes it apart **at the same time**, then your analysts decide with both answers in hand, while Navigator and LayerOne are always on); *built on adversary tradecraft*; and *start where it hurts most* (each bottleneck links straight to its product page). The slides play once with measured animations, then settle.
 * **Products are separate today:** they don't exchange data with each other, so nothing on this page shows one product feeding another. The talking points say so, and treat "do they work together?" as an objection.
 * **Architecture (“The suite around your environment”):** the four products around *your environment*, each connected only to it. **Explore:** click a product to light it up and get a card with its status and an **Open** button to its page. **Follow one threat:** the same story, step by step (Ranger and Reverser light up together).
-* **✎ Account:** the title tagline and the next step.
+* **✎ Customer:** the title tagline and the next step.
 
 ## Vellox Reverser: a separate product page
 
@@ -198,11 +199,11 @@ Product details come from Booz Allen's announcements and press coverage (listed 
 
 Systems, controls and findings on the slides are examples. Confirm availability, supported control frameworks and integrations with the Vellox team. Edit the page in `public/navigator.js`.
 
-## Account details on Reverser, Ranger and Navigator (optional)
+## Customer details on Reverser, Ranger and Navigator (optional)
 
-All three product pages look exactly as described above until you open a deck for an account. **✎ Account** in the header (shown when the open deck is for an account) edits:
+All three product pages look exactly as described above until you open a deck for a customer. **✎ Customer** in the header (shown when the open deck is for a customer) edits:
 
-* **Title slides:** *Prepared for &lt;account&gt;* (can be turned off), an optional logo, and the brand color (an accent only).
+* **Title slides:** *Prepared for &lt;customer&gt;* (can be turned off), an optional logo, and the brand color (an accent only).
 * **Product details** (blank keeps the standard text):
   * Reverser: the key message on the threat slide, the sample file name (slide 4 and architecture), their tools for detections (architecture) and the next step.
   * Ranger: their crown-jewel system (it replaces *Finance DB* on the network slides and in the example pull request), GitHub or GitLab, their detection tools (architecture) and the next step.
@@ -210,7 +211,7 @@ All three product pages look exactly as described above until you open a deck fo
   * Vellox: the title tagline and the next step.
 * **Slides and talking points:** not here. Use **Deck ▾ → ✎ Edit slides**, so slide changes live in one place: the deck.
 
-Details are saved in the account (`pitch` in the profile), so one account covers every deck for it and the LayerOne sample apps.
+Details are saved on the customer (`pitch` in the profile), so one customer covers every deck for it and the LayerOne sample apps.
 
 ## Sample apps
 
@@ -321,7 +322,7 @@ The table is stored server-side (Durable Object on Cloudflare), so changes persi
 
 *Hidden by default. Turn it on in **⚙ Settings → Sample app features → Customize for a customer**. An active customer profile stays applied when the controls are hidden, so you can brand the demo, then hide the controls before the meeting.*
 
-Signed in, **🎨 Customize** edits the sample-app branding of the **account the open deck is for** (open a deck for an account first; the dialog offers **＋ New deck for an account** if there isn't one). Signed out (on a deployment without the sign-in screen), it manages **customer profiles** directly. Each has:
+Signed in, **🎨 Customize** edits the sample-app branding of the **customer the open deck is for** (open a deck for a customer first; the dialog offers **＋ New deck for a customer** if there isn't one). Signed out (on a deployment without the sign-in screen), it manages **customer profiles** directly. Each has:
 
 * **Customer name:** shown as "Prepared for …" in the page and the browser tab.
 * **Which apps to show:** for example only Healthcare, or Banking and Public sector.
@@ -482,14 +483,14 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `public/reverser.html`, `public/reverser.js` | The separate Vellox Reverser page: deck and architecture explainer |
 | `public/ranger.html`, `public/ranger.js` | The separate Vellox Ranger page: deck and architecture explainer |
 | `public/navigator.html`, `public/navigator.js` | The separate Vellox Navigator page: deck and architecture explainer |
-| `public/tailor.js` | **✎ Account** on the product pages: the open deck's account (name, color, logo, product details) |
-| `public/decks.html`, `public/decks.js` | The deck library (`/decks`): decks and accounts, search and filters |
-| `public/decks-ui.js` | Shared by the top bar and the library: products, deck links, the New deck and Account dialogs |
+| `public/tailor.js` | **✎ Customer** on the product pages: the open deck's customer (name, color, logo, product details) |
+| `public/decks.html`, `public/decks.js` | The deck library (`/decks`): every deck, search and filters, customer logos |
+| `public/decks-ui.js` | Shared by the top bar and the library: products, deck links, the New deck and Customer dialogs |
 | `public/workspace.js` | Sign-in (find your name, PIN, guest), the top bar (⌂ Decks, Deck ▾, your name) and People for admins |
-| `public/layouts.js` | The deck editor (slides, order, titles, talk track, notes, account) |
-| `src/core/workspace.js` | People, roles (SE/AE), PINs and sessions, guests, and who can edit accounts and decks |
+| `public/layouts.js` | The deck editor (slides, order, titles, talk track, notes, customer) |
+| `src/core/workspace.js` | People, roles (SE/AE), PINs and sessions, guests, and who can edit customers and decks |
 | `src/core/layouts.js` | Decks: validation, sharing and permissions (`/api/layouts`), deck pages for `/d/` links |
-| `src/core/seeds.js` | Ready-made accounts and decks, added once |
+| `src/core/seeds.js` | Ready-made customers and decks, added once |
 | `public/oracle-erp.html`, `public/oracle-erp.js`, `public/oracle-erp.css` | A standalone, unlinked proof-of-concept page at **/oracle-erp** (Oracle Fusion Cloud ERP for state and local government: a 6-slide deck, and an architecture view with click-to-explain parts and three step-by-step walkthroughs: a purchase, a federal grant and a tax payment). Unrelated to the Vellox pages: no product switch, no Booz Allen branding, `noindex`. Oracle branding: save the official Oracle logo as `public/brand/oracle-logo.svg` and it replaces the text **ORACLE** wordmark in the header and on the title slide (use the approved file from Oracle's brand or partner resources, not a recreation) |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |

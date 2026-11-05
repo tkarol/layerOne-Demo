@@ -880,3 +880,25 @@ test('moving to suite decks merges one person’s per-product decks for an accou
   assert.ok((await storage.listKV('layout:l_')).every((l) => !('deck' in l) && !('order' in l)));
   assert.equal((await getDeck(storage, 'l_02')).id, 'l_01', 'the merged deck’s old id still opens it');
 });
+
+test('customer logos are served as images for the deck library', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const tyler = (await api('/api/presenters/login', 'POST', { id: 'tyler', pin: '2468' })).data.token;
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>').toString('base64');
+  const a = (await api('/api/profiles', 'POST', { name: 'Logo Town', pitch: { logo: `data:image/svg+xml;base64,${svg}` } }, as(tyler))).data;
+  const b = (await api('/api/profiles', 'POST', { name: 'Linked Logo Town', pitch: { logo: 'https://example.com/l.png' } }, as(tyler))).data;
+  const c = (await api('/api/profiles', 'POST', { name: 'No Logo Town' }, as(tyler))).data;
+  const listed = (await api('/api/profiles', 'GET', null, as(tyler))).data.profiles;
+  assert.equal(listed.find((p) => p.id === a.id).hasLogo, true);
+  assert.equal(listed.find((p) => p.id === c.id).hasLogo, false);
+  const img = await fetch(`${base}/api/profiles/${a.id}/logo`, { headers: as(tyler) });
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get('content-type'), 'image/svg+xml');
+  assert.match(img.headers.get('content-security-policy'), /default-src 'none'/);
+  assert.match(await img.text(), /<rect/);
+  const linked = await fetch(`${base}/api/profiles/${b.id}/logo`, { headers: as(tyler), redirect: 'manual' });
+  assert.equal(linked.status, 302);
+  assert.equal(linked.headers.get('location'), 'https://example.com/l.png');
+  assert.equal((await fetch(`${base}/api/profiles/${c.id}/logo`, { headers: as(tyler) })).status, 404);
+  for (const p of [a, b, c]) await api(`/api/profiles/${p.id}`, 'DELETE', null, as(tyler));
+});

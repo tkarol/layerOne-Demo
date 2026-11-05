@@ -132,6 +132,7 @@
     newDeckDialog({
       product: PAGE,
       accounts: state.customers,
+      nameOf,
       from,
       onCreated: async (deck) => {
         await refreshAccounts();
@@ -148,7 +149,7 @@
     });
   }
 
-  // The open deck's account: name, logo, color. Product pages have their own ✎ Account
+  // The open deck's customer: name, logo, color. Product pages have their own ✎ Customer
   // (with that product's details); elsewhere, the account dialog.
   async function editAccount() {
     closeMenu();
@@ -240,7 +241,7 @@
                ${recentPeople.length ? `<div class="ws-gate-sub">On this device</div><div class="ws-people recent">${recentPeople.map(card).join('')}</div><div class="ws-gate-sub">Everyone</div>` : ''}
                <div class="ws-people all">${everyone.map(card).join('')}</div>
                <p class="ws-none" hidden>No one by that name. An admin can add you.</p>
-               <p class="ws-gate-note">Sales engineers and account executives sign in with their own PIN. Your decks and accounts are yours; everyone can open and copy them.</p>
+               <p class="ws-gate-note">Sales engineers and account executives sign in with their own PIN. Your decks are yours; everyone can open and copy them.</p>
                <div class="ws-guest-opt"><span>Just looking?</span><button type="button" class="ws-link" data-guest>Continue as a guest →</button></div>
                ${step.error ? `<p class="ws-err">${esc(step.error)}</p>` : ''}`
             : `<form class="ws-pin">
@@ -367,20 +368,20 @@
     openMenu(
       anchor,
       `<div class="ws-menu-h">Decks <span class="ws-menu-hn">one deck covers all five products</span></div>
-       <input class="ws-search" type="search" placeholder="Search decks, accounts or people" aria-label="Search decks" />
+       <input class="ws-search" type="search" placeholder="Search decks, customers or people" aria-label="Search decks" />
        <button type="button" class="ws-item ${cur ? '' : 'on'}" data-open="" data-find="official deck"><i class="ws-dot std"></i><span>Official deck</span><small>Booz Allen</small></button>
        ${mine.length ? `<div class="ws-menu-sub">Your decks</div>${mine.map(row).join('')}` : ''}
-       ${team.length ? `<div class="ws-menu-sub">Your accounts’ decks <span>you’re on the account team</span></div>${team.map(row).join('')}` : ''}
+       ${team.length ? `<div class="ws-menu-sub">Shared with you <span>decks for customers you can edit</span></div>${team.map(row).join('')}` : ''}
        ${others.length ? `<div class="ws-menu-sub">Everyone else’s <span>${me.admin ? 'you can edit these as an admin' : 'open, or copy to change'}</span></div>${others.map(row).join('')}` : ''}
        ${note ? `<p class="ws-note">${esc(note)}</p>` : ''}
        <div class="ws-menu-f ws-deck-acts">
          ${d && cur?.canEdit ? `<button type="button" class="ws-small" data-edit>✎ Edit ${esc(LABELS[PAGE] || '')} slides</button>` : ''}
-         ${customer || (cur?.customer && !PAGE) ? '<button type="button" class="ws-small" data-acct>✎ Account</button>' : ''}
+         ${customer || (cur?.customer && !PAGE) ? '<button type="button" class="ws-small" data-acct>✎ Customer</button>' : ''}
          ${cur && !cur.mine ? '<button type="button" class="ws-small" data-copy>Copy to my decks</button>' : ''}
          <button type="button" class="ws-small" data-new>＋ New deck</button>
          ${cur ? '<button type="button" class="ws-small" data-link>🔗 Copy link</button>' : ''}
        </div>
-       <a class="ws-item ws-lib" href="/decks"><span>All decks and accounts</span><small>Library →</small></a>`,
+       <a class="ws-item ws-lib" href="/decks"><span>All decks</span><small>Library →</small></a>`,
       (m) => {
         const search = m.querySelector('.ws-search');
         search.oninput = () => {
@@ -429,7 +430,7 @@
     openMenu(
       anchor,
       `<div class="ws-menu-h">${esc(me.name)} · ${isAe() ? 'Account executive' : 'Sales engineer'}</div>
-       <a class="ws-item" href="/decks?mine=1"><span>My decks and accounts</span><small>Library →</small></a>
+       <a class="ws-item" href="/decks?mine=1"><span>My decks</span><small>Library →</small></a>
        <form class="ws-chpin"><div class="ws-menu-sub">Change your PIN</div>
          <input type="password" inputmode="numeric" maxlength="8" placeholder="Current PIN" data-old />
          <input type="password" inputmode="numeric" maxlength="8" placeholder="New PIN (4–8 digits)" data-new />
@@ -471,7 +472,7 @@
           (b) =>
             (b.onclick = async () => {
               const who = nameOf(b.dataset.remove);
-              if (!confirm(`Remove ${who}? They’re signed out and can’t sign in again. Their accounts and decks stay, still marked as theirs.`)) return;
+              if (!confirm(`Remove ${who}? They’re signed out and can’t sign in again. Their decks and customers stay, still marked as theirs.`)) return;
               try {
                 await api(`/api/presenters/${b.dataset.remove}`, 'DELETE');
                 state.presenters = state.presenters.filter((p) => p.id !== b.dataset.remove);
@@ -540,7 +541,7 @@
     document.querySelector('.ws-bar')?.remove();
     const bar = document.createElement('div');
     bar.className = 'ws-bar';
-    const home = `<a class="ws-home" href="/decks" title="All decks and accounts">⌂<span class="ws-lbl">Decks</span></a>`;
+    const home = `<a class="ws-home" href="/decks" title="All decks">⌂<span class="ws-lbl">Decks</span></a>`;
     if (isGuest()) {
       bar.innerHTML = `${home}<button type="button" class="ws-me ws-guest-chip" title="Browsing as a guest (read-only)"><span class="ws-av">G</span><span class="ws-me-n">Guest</span><span class="ws-caret">▾</span></button>`;
       host.prepend(bar);
