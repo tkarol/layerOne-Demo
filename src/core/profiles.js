@@ -92,7 +92,7 @@ export async function getActiveProfile(storage) {
 
 export async function listProfiles(storage) {
   const all = (await storage.listKV('profile:p_')).filter(Boolean);
-  return all.map((p) => ({ id: p.id, name: p.name, owner: p.owner || null, color: p.color || null, updatedAt: p.updatedAt })).sort((a, b) => a.name.localeCompare(b.name));
+  return all.map((p) => ({ id: p.id, name: p.name, owner: p.owner || null, team: p.team || [], color: p.color || null, updatedAt: p.updatedAt })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ----- tailoring the Vellox Reverser, Ranger and Navigator pages (all optional) -----

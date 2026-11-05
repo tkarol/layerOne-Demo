@@ -1,11 +1,15 @@
-// SE workspaces, in the browser. Loaded first (a classic script) on the Vellox
-// pages so it can:
-//  1. add the signed-in presenter (X-Presenter-Token) and the customer this
-//     browser is presenting to (X-Customer) to every /api/ request;
-//  2. show "Who's presenting?" until someone signs in with their PIN;
-//  3. add the presenter and customer pickers to the top bar.
-// The customer choice is kept per presenter in this browser, so nobody else's
-// choice ever changes what you see.
+// Workspaces, in the browser. Loaded first (a classic script) on every Vellox
+// page and the deck library, so it can:
+//  1. add who's signed in (X-Presenter-Token) and the open deck's account
+//     (X-Customer) to every /api/ request;
+//  2. show "Who's presenting?": find your name, enter your PIN (or look around
+//     as a guest);
+//  3. add the top bar: ⌂ Decks (the library), the deck picker for this page,
+//     and your name menu.
+//
+// One rule: you open a deck. A deck can be for an account (a customer, an
+// opportunity, an event); that account brands the page. Nothing switches on by
+// itself. The open deck is remembered per person and product, in this browser.
 (() => {
   const read = (k) => {
     try {
@@ -26,14 +30,47 @@
   try {
     me = JSON.parse(read('ws-me') || 'null');
   } catch {}
-  const custKey = () => `ws-customer:${me?.id}`;
-  // Guests look around read-only: always the standard, official version, nothing to edit.
   const isGuest = () => Boolean(me?.guest);
-  let customer = me && !isGuest() ? read(custKey()) || '' : '';
-  const markGuest = () => document.documentElement.classList.toggle('ws-guest', isGuest());
-  markGuest();
+  const isAe = () => me?.role === 'ae';
+  const signedIn = () => Boolean(me && !me.guest);
+  const markRoles = () => {
+    document.documentElement.classList.toggle('ws-guest', isGuest());
+    document.documentElement.classList.toggle('ws-ae', isAe());
+  };
+  markRoles();
 
-  // 1. Every /api/ call carries who's presenting and to whom.
+  // Which product deck lives on this page (null on the library).
+  const PAGE = (() => {
+    const f = location.pathname.replace(/\/+$/, '').split('/').pop().replace(/\.html$/, '');
+    return { '': 'layerone', index: 'layerone', vellox: 'vellox', reverser: 'reverser', ranger: 'ranger', navigator: 'navigator' }[f] ?? null;
+  })();
+  const LABELS = { vellox: 'Vellox', layerone: 'LayerOne', reverser: 'Reverser', ranger: 'Ranger', navigator: 'Navigator' };
+
+  // The deck open on this page: { id ('' = official), customer, name }.
+  const openKey = () => `ws-open:${me?.id}:${PAGE}`;
+  let open = { id: '', customer: '', name: '' };
+  if (signedIn() && PAGE) {
+    try {
+      open = { ...open, ...JSON.parse(read(openKey()) || '{}') };
+    } catch {}
+    // A deck link (/d/<id>, or ?deck=…&acct=… from the library) opens that deck here.
+    const qs = new URLSearchParams(location.search);
+    if (qs.has('deck')) {
+      const id = qs.get('deck') === 'official' ? '' : qs.get('deck');
+      open = { id, customer: id ? qs.get('acct') || '' : '', name: '' };
+      write(openKey(), JSON.stringify(open));
+      if (qs.get('edit')) {
+        try {
+          sessionStorage.setItem('ws-edit-now', id);
+        } catch {}
+      }
+      ['deck', 'acct', 'edit'].forEach((k) => qs.delete(k));
+      history.replaceState(null, '', `${location.pathname}${qs.toString() ? `?${qs}` : ''}${location.hash}`);
+    }
+  }
+  const customer = signedIn() && open.id ? open.customer || '' : '';
+
+  // 1. Every /api/ call carries who's signed in and which account the page is for.
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     try {
@@ -55,16 +92,66 @@
     return data;
   };
 
-  const state = { presenters: [], setupPasswordRequired: false, customers: [], deck: null };
-  // Your layout choice is remembered per deck and per customer you present to.
-  const layoutKey = (deckId) => `ws-layout:${me?.id}:${deckId}:${customer || 'none'}`;
-  const nameOf = (id) => [...state.presenters, ...(state.former || [])].find((p) => p.id === id)?.name || id;
+  const state = { presenters: [], former: [], setupPasswordRequired: false, customers: [], deck: null };
+  const nameOf = (id) => [...state.presenters, ...state.former].find((p) => p.id === id)?.name || id;
+  const account = (id) => state.customers.find((c) => c.id === id);
+  const ui = () => import('./decks-ui.js');
 
-  // Shared with the page scripts (tailor.js, customize.js).
+  function openDeck(d) {
+    if (!signedIn() || !PAGE) return;
+    const next = { id: d.id || '', customer: d.id ? d.customer || '' : '', name: d.name || '' };
+    write(openKey(), JSON.stringify(next));
+    // A different account rebrands the whole page (and the sample apps): reload.
+    if (next.customer !== customer) return location.reload();
+    open = next;
+    return state.deck?.reload().then(() => drawBar());
+  }
+
+  async function openEditor(layout) {
+    const d = state.deck;
+    if (!d) return;
+    closeMenu();
+    const { openLayoutEditor } = await import('./layouts.js');
+    openLayoutEditor({
+      deck: d,
+      layout,
+      customers: state.customers,
+      onSaved: (saved) => openDeck(saved),
+      onDeleted: () => openDeck({ id: '' }),
+    });
+  }
+
+  async function newDeck(from) {
+    closeMenu();
+    const { newDeckDialog } = await ui();
+    newDeckDialog({
+      product: PAGE,
+      accounts: state.customers,
+      from,
+      onCreated: async (deck) => {
+        await refreshAccounts();
+        if ((deck.customer || '') !== customer) {
+          // Another account rebrands the page: reload, then open the editor.
+          try {
+            sessionStorage.setItem('ws-edit-now', deck.id);
+          } catch {}
+          return openDeck(deck);
+        }
+        await openDeck(deck);
+        openEditor(state.deck?.layout);
+      },
+    });
+  }
+
+  async function refreshAccounts() {
+    if (signedIn()) state.customers = (await api('/api/profiles').catch(() => ({ profiles: [] }))).profiles || [];
+    if (document.querySelector('.ws-bar')) drawBar();
+  }
+
+  // Shared with the page scripts (deck-core.js, tailor.js, customize.js, decks.js).
   window.ws = {
-    // Signed in as an SE (guests are not: they can't change anything).
     get signedIn() {
-      return Boolean(me && !me.guest);
+      return signedIn();
     },
     get guest() {
       return isGuest();
@@ -72,71 +159,74 @@
     get me() {
       return me;
     },
+    // The account the page is for (the open deck's account), or ''.
     get customer() {
       return customer;
     },
+    get accounts() {
+      return state.customers;
+    },
+    get people() {
+      return state.presenters;
+    },
+    page: PAGE,
     presenterName: nameOf,
-    // The layout this presenter uses for a deck (per browser), and changing it.
-    // null = not chosen yet for this customer (deck-core then uses your layout for them); '' = official deck.
-    layoutId: (deckId) => (me && !isGuest() ? read(layoutKey(deckId)) : ''),
-    setLayout(deckId, id, { silent = false } = {}) {
-      if (isGuest()) return;
-      write(layoutKey(deckId), id || '');
-      if (!silent && state.deck?.id === deckId) state.deck.reload().then(() => me && drawBar());
-    },
-    // A deck on this page (deck-core.js) offers its layouts in the top bar.
-    // Edit the slides for a customer: your layout for them on this deck, or a new one
-    // that starts from what's on screen. Presents to that customer first.
-    async editCustomerLayout(customerId) {
-      const d = state.deck;
-      if (!d || isGuest()) return;
-      if (customerId !== customer) {
-        // Switch the whole page to that customer first, then come back to the editor.
-        try {
-          sessionStorage.setItem('ws-edit-layout-for', customerId || '');
-        } catch {}
-        return window.ws.setCustomer(customerId);
-      }
-      let layout = d.layout?.mine && d.layout.customer === customerId ? d.layout : null;
-      if (!layout) {
-        const name = state.customers.find((c) => c.id === customerId)?.name || 'Customer';
-        const base = d.layout ? { ...d.layout } : {};
-        layout = { ...base, id: undefined, name, customer: customerId };
-      }
-      openEditor(layout);
-    },
+    layoutId: (deckId) => (signedIn() && deckId === PAGE ? open.id : ''),
+    openDeck,
+    newDeck,
+    editDeck: () => state.deck?.layout && openEditor(state.deck.layout),
+    refreshAccounts,
+    // A deck on this page (deck-core.js) shows in the top bar.
     registerDeck(deck) {
       state.deck = deck;
       if (me && document.querySelector('.ws-bar')) drawBar();
-    },
-    setCustomer(id) {
-      if (isGuest()) return;
-      customer = id || '';
-      write(custKey(), customer);
-      location.reload();
+      let pending = null;
+      try {
+        pending = sessionStorage.getItem('ws-edit-now');
+        sessionStorage.removeItem('ws-edit-now');
+      } catch {}
+      if (pending && deck.layout?.id === pending && deck.layout.canEdit) setTimeout(() => openEditor(deck.layout), 80);
     },
   };
 
-  // 2. "Who's presenting?"
+  // 2. "Who's presenting?": find your name, then your PIN.
   let gate;
-  function showGate(step = { who: null, error: '' }) {
+  const recent = () => {
+    try {
+      return JSON.parse(read('ws-recent') || '[]');
+    } catch {
+      return [];
+    }
+  };
+  function remember(id) {
+    write('ws-recent', JSON.stringify([id, ...recent().filter((x) => x !== id)].slice(0, 4)));
+  }
+  const roleTag = (p) => `<span class="ws-role">${p.role === 'ae' ? 'AE' : 'SE'}</span>`;
+
+  function showGate(step = { who: null, error: '', q: '' }) {
     gate?.remove();
     gate = document.createElement('div');
     gate.className = 'ws-gate';
     gate.setAttribute('role', 'dialog');
     gate.setAttribute('aria-modal', 'true');
     const p = step.who && state.presenters.find((x) => x.id === step.who);
+    const recentPeople = recent()
+      .map((id) => state.presenters.find((x) => x.id === id))
+      .filter(Boolean);
+    const card = (x) => `<button type="button" data-who="${esc(x.id)}" data-name="${esc(x.name.toLowerCase())}"><span class="ws-av big">${esc(x.name[0])}</span><b>${esc(x.name)}</b>${roleTag(x)}${x.hasPin ? '' : '<em>New: choose a PIN</em>'}</button>`;
+    const everyone = [...state.presenters].sort((a, b) => a.name.localeCompare(b.name));
     gate.innerHTML = `
       <div class="ws-gate-card">
         <div class="ws-gate-brand"><b>Booz Allen</b><span>Vellox demos</span></div>
         ${
           !p
             ? `<h2>Who’s presenting?</h2>
-               <div class="ws-people">${state.presenters
-                 .map((x) => `<button type="button" data-who="${esc(x.id)}"><span class="ws-av big">${esc(x.name[0])}</span><b>${esc(x.name)}</b>${x.hasPin ? '' : '<em>New: choose a PIN</em>'}</button>`)
-                 .join('')}</div>
-               <p class="ws-gate-note">Your customers, slides and settings stay yours. Other SEs can use your customers, but only you can change them.</p>
-               <div class="ws-guest-opt"><span>Not a sales engineer?</span><button type="button" class="ws-link" data-guest>Look around as a guest →</button></div>
+               <input class="ws-find" id="wsFind" type="search" placeholder="Find your name" autocomplete="off" value="${esc(step.q || '')}" aria-label="Find your name" />
+               ${recentPeople.length ? `<div class="ws-gate-sub">On this device</div><div class="ws-people recent">${recentPeople.map(card).join('')}</div><div class="ws-gate-sub">Everyone</div>` : ''}
+               <div class="ws-people all">${everyone.map(card).join('')}</div>
+               <p class="ws-none" hidden>No one by that name. An admin can add you.</p>
+               <p class="ws-gate-note">Sales engineers and account executives sign in with their own PIN. Your decks and accounts are yours; everyone can open and copy them.</p>
+               <div class="ws-guest-opt"><span>Just looking?</span><button type="button" class="ws-link" data-guest>Continue as a guest →</button></div>
                ${step.error ? `<p class="ws-err">${esc(step.error)}</p>` : ''}`
             : `<form class="ws-pin">
                  <button type="button" class="ws-back" data-back>← Not ${esc(p.name)}?</button>
@@ -154,6 +244,30 @@
     document.body.append(gate);
     gate.querySelectorAll('[data-who]').forEach((b) => (b.onclick = () => showGate({ who: b.dataset.who, error: '' })));
     gate.querySelector('[data-back]')?.addEventListener('click', () => showGate());
+    const find = gate.querySelector('#wsFind');
+    if (find) {
+      const filter = () => {
+        const q = find.value.trim().toLowerCase();
+        let shown = 0;
+        gate.querySelectorAll('.ws-people.all [data-who]').forEach((b) => {
+          const hit = !q || b.dataset.name.split(/\s+/).some((w) => w.startsWith(q)) || b.dataset.name.includes(q);
+          b.hidden = !hit;
+          shown += hit;
+        });
+        gate.querySelectorAll('.ws-people.recent, .ws-gate-sub').forEach((el) => (el.hidden = Boolean(q)));
+        gate.querySelector('.ws-none').hidden = shown > 0;
+        return shown;
+      };
+      find.oninput = filter;
+      find.onkeydown = (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault(); // don't let this Enter also submit the PIN form that replaces it
+        const hits = [...gate.querySelectorAll('.ws-people.all [data-who]:not([hidden])')];
+        if (hits.length === 1) showGate({ who: hits[0].dataset.who, error: '' });
+      };
+      filter();
+      if (!matchMedia('(pointer: coarse)').matches) find.focus();
+    }
     gate.querySelector('[data-guest]')?.addEventListener('click', async () => {
       try {
         const out = await api('/api/presenters/guest', 'POST');
@@ -179,7 +293,8 @@
           token = out.token;
           me = out.me;
           write('ws-token', token);
-          write('ws-me', JSON.stringify({ id: me.id, name: me.name, admin: me.admin }));
+          write('ws-me', JSON.stringify({ id: me.id, name: me.name, admin: me.admin, role: me.role }));
+          remember(me.id);
           location.reload();
         } catch (err) {
           showGate({ who: p.id, error: err.message });
@@ -188,14 +303,14 @@
     }
   }
 
-  // 3. The top bar: "Presenting to ▾" and "Tyler ▾".
+  // 3. The top bar.
   let menu;
   const closeMenu = () => {
     menu?.remove();
     menu = null;
   };
   document.addEventListener('click', (e) => {
-    if (menu && !menu.contains(e.target) && !e.target.closest('.ws-bar') && !e.target.closest('.product-switch a.on')) closeMenu();
+    if (menu && !menu.contains(e.target) && !e.target.closest('.ws-bar, .product-switch a.on')) closeMenu();
   });
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeMenu());
 
@@ -211,107 +326,92 @@
     wire(menu);
   }
 
-  function customerMenu(anchor) {
-    const row = (c) => {
-      const owner = c.owner || 'tyler';
-      const tag = owner === me.id ? 'Yours' : `${esc(nameOf(owner))}’s`;
-      return `<button type="button" class="ws-item ${c.id === customer ? 'on' : ''}" data-cust="${esc(c.id)}"><i class="ws-dot" style="background:${esc(c.color || '#a1a1aa')}"></i><span>${esc(c.name)}</span><small>${tag}</small></button>`;
-    };
-    const mine = state.customers.filter((c) => (c.owner || 'tyler') === me.id);
-    const others = state.customers.filter((c) => (c.owner || 'tyler') !== me.id);
-    openMenu(
-      anchor,
-      `<div class="ws-menu-h">Presenting to</div>
-       <button type="button" class="ws-item ${customer ? '' : 'on'}" data-cust=""><i class="ws-dot std"></i><span>Standard (no customer)</span></button>
-       ${mine.length ? `<div class="ws-menu-sub">Your customers</div>${mine.map(row).join('')}` : ''}
-       ${others.length ? `<div class="ws-menu-sub">Other SEs’ customers <span>use as-is, or copy to edit</span></div>${others.map(row).join('')}` : ''}
-       <div class="ws-menu-f"><button type="button" class="ws-link" data-manage>${customer ? 'Edit or copy this customer…' : '＋ New customer…'}</button></div>`,
-      (m) => {
-        m.querySelectorAll('[data-cust]').forEach((b) => (b.onclick = () => window.ws.setCustomer(b.dataset.cust)));
-        m.querySelector('[data-manage]').onclick = () => {
-          closeMenu();
-          (document.querySelector('#tailorBtn') || document.querySelector('#customizeBtn'))?.click();
-        };
-      },
-    );
-  }
-
-  async function openEditor(layout) {
-    const d = state.deck;
-    closeMenu();
-    const { openLayoutEditor } = await import('./layouts.js');
-    openLayoutEditor({
-      deck: d,
-      layout,
-      customers: state.customers,
-      onSaved: (saved) => window.ws.setLayout(d.id, saved.id),
-      onDeleted: () => window.ws.setLayout(d.id, ''),
-    });
-  }
-
-  async function layoutMenu(anchor) {
+  // The deck picker: official, yours, your accounts', everyone else's; search; actions.
+  async function deckMenu(anchor, note = '') {
     const d = state.deck;
     const cur = d.layout;
     let list = [];
     try {
       list = (await api(`/api/layouts?deck=${encodeURIComponent(d.id)}`)).layouts;
     } catch {}
-    const custName = (id) => state.customers.find((c) => c.id === id)?.name;
-    const row = (l) => `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-lay="${esc(l.id)}"><i class="ws-dot lay ${l.customer ? 'cust' : ''}"></i><span>${esc(l.name)}${l.customer && l.customer !== customer && custName(l.customer) ? ` <em>· for ${esc(custName(l.customer))}</em>` : ''}</span><small>${l.mine ? 'Yours' : `${esc(nameOf(l.owner))}’s`}</small></button>`;
-    // Layouts for the customer you're presenting to come first.
-    const forCust = customer ? list.filter((l) => l.customer === customer) : [];
-    const rest = list.filter((l) => !forCust.includes(l));
-    const mine = rest.filter((l) => l.mine);
-    const others = rest.filter((l) => !l.mine);
-    const curCust = custName(customer);
+    const row = (l) => {
+      const a = account(l.customer);
+      return `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-open="${esc(l.id)}" data-cust="${esc(l.customer || '')}" data-find="${esc(`${l.name} ${a?.name || ''} ${nameOf(l.owner)}`.toLowerCase())}">
+        <i class="ws-dot ${a ? '' : 'gen'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i>
+        <span>${esc(l.name)}${a ? ` <em>· ${esc(a.name)}</em>` : ''}</span><small>${l.mine ? 'Yours' : esc(nameOf(l.owner))}</small></button>`;
+    };
+    // "Your accounts' decks": decks for accounts you own or are on the team of.
+    const onTeam = (l) => {
+      const a = account(l.customer);
+      return Boolean(a && ((a.owner || 'tyler') === me.id || a.team?.includes(me.id)));
+    };
+    const mine = list.filter((l) => l.mine);
+    const team = list.filter((l) => !l.mine && onTeam(l));
+    const others = list.filter((l) => !l.mine && !onTeam(l));
     openMenu(
       anchor,
-      `<div class="ws-menu-h">Layout · ${esc(d.label)}</div>
-       <button type="button" class="ws-item ${cur ? '' : 'on'}" data-lay=""><i class="ws-dot std"></i><span>Official deck</span></button>
-       ${curCust ? `<div class="ws-menu-sub">For ${esc(curCust)} <span>switches on when you present to them</span></div>${forCust.length ? forCust.map(row).join('') : '<p class="ws-note">No layout for this customer yet.</p>'}` : ''}
-       ${mine.length ? `<div class="ws-menu-sub">Your layouts</div>${mine.map(row).join('')}` : ''}
-       ${others.length ? `<div class="ws-menu-sub">Other SEs’ layouts <span>use as-is, or copy to edit</span></div>${others.map(row).join('')}` : ''}
-       <div class="ws-menu-f ws-acts">
-         ${cur?.mine ? '<button type="button" class="ws-link" data-edit>✎ Edit this layout</button>' : ''}
-         ${cur && !cur.mine ? '<button type="button" class="ws-link" data-copy>Copy to mine and edit</button>' : ''}
-         ${curCust && !forCust.some((l) => l.mine) ? `<button type="button" class="ws-link" data-forcust>＋ Layout for ${esc(curCust)}</button>` : ''}
-         <button type="button" class="ws-link" data-new>＋ New layout${cur ? ' from this one' : ''}</button>
-       </div>`,
+      `<div class="ws-menu-h">${esc(LABELS[d.id] || d.label)} decks</div>
+       <input class="ws-search" type="search" placeholder="Search decks, accounts or people" aria-label="Search decks" />
+       <button type="button" class="ws-item ${cur ? '' : 'on'}" data-open="" data-find="official deck"><i class="ws-dot std"></i><span>Official deck</span><small>Booz Allen</small></button>
+       ${mine.length ? `<div class="ws-menu-sub">Your decks</div>${mine.map(row).join('')}` : ''}
+       ${team.length ? `<div class="ws-menu-sub">Your accounts’ decks <span>you’re on the account team</span></div>${team.map(row).join('')}` : ''}
+       ${others.length ? `<div class="ws-menu-sub">Everyone else’s <span>${me.admin ? 'you can edit these as an admin' : 'open, or copy to change'}</span></div>${others.map(row).join('')}` : ''}
+       ${note ? `<p class="ws-note">${esc(note)}</p>` : ''}
+       <div class="ws-menu-f ws-deck-acts">
+         ${cur?.canEdit ? '<button type="button" class="ws-small" data-edit>✎ Edit slides</button>' : ''}
+         ${cur && !cur.mine ? '<button type="button" class="ws-small" data-copy>Copy to my decks</button>' : ''}
+         <button type="button" class="ws-small" data-new>＋ New deck</button>
+         ${cur ? '<button type="button" class="ws-small" data-link>🔗 Copy link</button>' : ''}
+       </div>
+       <a class="ws-item ws-lib" href="/decks"><span>All decks and accounts</span><small>Library →</small></a>`,
       (m) => {
-        m.querySelectorAll('[data-lay]').forEach(
+        const search = m.querySelector('.ws-search');
+        search.oninput = () => {
+          const q = search.value.trim().toLowerCase();
+          m.querySelectorAll('[data-find]').forEach((b) => (b.hidden = Boolean(q) && !b.dataset.find.includes(q)));
+          m.querySelectorAll('.ws-menu-sub').forEach((s) => (s.hidden = Boolean(q)));
+        };
+        if (list.length > 6) search.focus();
+        else search.hidden = true;
+        m.querySelectorAll('[data-open]').forEach(
           (b) =>
             (b.onclick = () => {
               closeMenu();
-              window.ws.setLayout(d.id, b.dataset.lay);
+              openDeck({ id: b.dataset.open, customer: b.dataset.cust || '' });
             }),
         );
-        const editor = openEditor;
-        m.querySelector('[data-forcust]')?.addEventListener('click', () => window.ws.editCustomerLayout(customer));
-        m.querySelector('[data-edit]')?.addEventListener('click', () => editor(cur));
+        m.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(cur));
+        m.querySelector('[data-new]').onclick = () => newDeck(cur ? list.find((l) => l.id === cur.id) || cur : null);
         m.querySelector('[data-copy]')?.addEventListener('click', async () => {
           try {
             const copy = await api(`/api/layouts/${cur.id}/copy`, 'POST', {});
-            window.ws.setLayout(d.id, copy.id, { silent: true });
-            editor(copy);
+            await openDeck(copy);
+            openEditor(state.deck.layout);
           } catch (err) {
-            alert(err.message);
+            deckMenu(anchor, err.message);
           }
         });
-        // A new layout starts from what's on screen: the official deck, or a copy of the current layout.
-        m.querySelector('[data-new]').onclick = () => editor(cur ? { ...cur, id: undefined, name: `${cur.name} (copy)` } : null);
+        m.querySelector('[data-link]')?.addEventListener('click', async () => {
+          const { copyLink } = await ui();
+          await copyLink(cur.id);
+          deckMenu(anchor, `Link copied: anyone signed in can open “${cur.name}” with it.`);
+        });
       },
     );
   }
 
   async function meMenu(anchor, note = '') {
-    // Admins manage people here: add someone, reset a PIN, remove someone they added.
+    // Admins manage people here: add someone, set SE or AE, reset a PIN, remove someone.
     let people = [];
     if (me.admin) people = (await api('/api/presenters/manage').catch(() => ({ people: [] }))).people;
-    const others = people.filter((p) => p.id !== me.id);
-    const person = (p) => `<div class="ws-reset"><span>${esc(p.name)}${p.admin ? ' <em>Admin</em>' : ''}${p.hasPin ? '' : ' <em>no PIN yet</em>'}</span><span class="ws-acts"><button type="button" class="ws-small" data-reset="${esc(p.id)}" ${p.hasPin ? '' : 'disabled'}>Reset PIN</button>${p.builtIn ? '' : `<button type="button" class="ws-small danger" data-remove="${esc(p.id)}">Remove</button>`}</span></div>`;
+    const others = people.filter((p) => p.id !== me.id).sort((a, b) => a.name.localeCompare(b.name));
+    const person = (p) => `<div class="ws-reset"><span>${esc(p.name)}${p.admin ? ' <em>Admin</em>' : ''}${p.hasPin ? '' : ' <em>no PIN yet</em>'}</span>
+      <span class="ws-acts"><select class="ws-role-pick" data-role="${esc(p.id)}" aria-label="${esc(p.name)}’s role"><option value="se" ${p.role !== 'ae' ? 'selected' : ''}>SE</option><option value="ae" ${p.role === 'ae' ? 'selected' : ''}>AE</option></select>
+      <button type="button" class="ws-small" data-reset="${esc(p.id)}" ${p.hasPin ? '' : 'disabled'}>Reset PIN</button>${p.builtIn ? '' : `<button type="button" class="ws-small danger" data-remove="${esc(p.id)}">Remove</button>`}</span></div>`;
     openMenu(
       anchor,
-      `<div class="ws-menu-h">${esc(me.name)}</div>
+      `<div class="ws-menu-h">${esc(me.name)} · ${isAe() ? 'Account executive' : 'Sales engineer'}</div>
+       <a class="ws-item" href="/decks?mine=1"><span>My decks and accounts</span><small>Library →</small></a>
        <form class="ws-chpin"><div class="ws-menu-sub">Change your PIN</div>
          <input type="password" inputmode="numeric" maxlength="8" placeholder="Current PIN" data-old />
          <input type="password" inputmode="numeric" maxlength="8" placeholder="New PIN (4–8 digits)" data-new />
@@ -320,6 +420,7 @@
          me.admin
            ? `<div class="ws-menu-sub">People <span>a reset or new person chooses a PIN at next sign-in</span></div>${others.map(person).join('')}
               <form class="ws-add"><input type="text" maxlength="30" placeholder="Add a person: their name" data-name autocomplete="off" />
+                <select data-newrole aria-label="Role"><option value="se">SE</option><option value="ae">AE</option></select>
                 <label><input type="checkbox" data-admin /> Admin</label><button type="submit" class="ws-small">Add</button></form>`
            : ''
        }
@@ -330,22 +431,33 @@
           e.preventDefault();
           const name = m.querySelector('[data-name]').value.trim();
           try {
-            const out = await api('/api/presenters', 'POST', { name, admin: m.querySelector('[data-admin]').checked });
+            const out = await api('/api/presenters', 'POST', { name, role: m.querySelector('[data-newrole]').value, admin: m.querySelector('[data-admin]').checked });
             state.presenters.push(out.presenter);
-            meMenu(anchor, `${out.presenter.name} was added. They pick their name on the sign-in screen and choose a PIN.`);
+            meMenu(anchor, `${out.presenter.name} was added. They find their name on the sign-in screen and choose a PIN.`);
           } catch (err) {
             meMenu(anchor, err.message);
           }
         });
+        m.querySelectorAll('[data-role]').forEach(
+          (s) =>
+            (s.onchange = async () => {
+              try {
+                await api(`/api/presenters/${s.dataset.role}`, 'PUT', { role: s.value });
+                meMenu(anchor, `${nameOf(s.dataset.role)} is now ${s.value === 'ae' ? 'an AE' : 'an SE'}.`);
+              } catch (err) {
+                meMenu(anchor, err.message);
+              }
+            }),
+        );
         m.querySelectorAll('[data-remove]').forEach(
           (b) =>
             (b.onclick = async () => {
               const who = nameOf(b.dataset.remove);
-              if (!confirm(`Remove ${who}? They’re signed out and can’t sign in again. Their customers and layouts stay, still marked as theirs.`)) return;
+              if (!confirm(`Remove ${who}? They’re signed out and can’t sign in again. Their accounts and decks stay, still marked as theirs.`)) return;
               try {
                 await api(`/api/presenters/${b.dataset.remove}`, 'DELETE');
                 state.presenters = state.presenters.filter((p) => p.id !== b.dataset.remove);
-                state.former = [...(state.former || []), { id: b.dataset.remove, name: who }];
+                state.former = [...state.former, { id: b.dataset.remove, name: who }];
                 meMenu(anchor, `${who} was removed.`);
               } catch (err) {
                 meMenu(anchor, err.message);
@@ -385,8 +497,8 @@
     openMenu(
       anchor,
       `<div class="ws-menu-h">Browsing as a guest</div>
-       <p class="ws-note">Look around the decks, architecture and sample apps, and try the demos. Anything you try in the demos is just for this visit, and nothing here can be changed or customized.</p>
-       <div class="ws-menu-f"><button type="button" class="ws-link" data-signout>Sales engineer? Sign in</button></div>`,
+       <p class="ws-note">Look around the official decks, architecture and sample apps, and try the demos. Anything you try in the demos is just for this visit, and nothing here can be changed.</p>
+       <div class="ws-menu-f"><button type="button" class="ws-link" data-signout>On the team? Sign in</button></div>`,
       (m) => {
         m.querySelector('[data-signout]').onclick = async () => {
           await api('/api/presenters/logout', 'POST').catch(() => {});
@@ -407,44 +519,26 @@
   function drawBar() {
     const host = document.querySelector('.topbar .top-right');
     if (!host) return;
+    document.querySelector('.ws-bar')?.remove();
+    const bar = document.createElement('div');
+    bar.className = 'ws-bar';
+    const home = `<a class="ws-home" href="/decks" title="All decks and accounts">⌂<span class="ws-lbl">Decks</span></a>`;
     if (isGuest()) {
-      document.querySelector('.ws-bar')?.remove();
-      const bar = document.createElement('div');
-      bar.className = 'ws-bar';
-      bar.innerHTML = `<button type="button" class="ws-me ws-guest-chip" title="Browsing as a guest (read-only)"><span class="ws-av">G</span><span class="ws-me-n">Guest</span><span class="ws-caret">▾</span></button>`;
+      bar.innerHTML = `${home}<button type="button" class="ws-me ws-guest-chip" title="Browsing as a guest (read-only)"><span class="ws-av">G</span><span class="ws-me-n">Guest</span><span class="ws-caret">▾</span></button>`;
       host.prepend(bar);
       bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : guestMenu(e.currentTarget));
       return;
     }
-    const cur = state.customers.find((c) => c.id === customer);
-    if (customer && !cur) {
-      // The customer was deleted: back to the standard version.
-      customer = '';
-      write(custKey(), '');
-    }
-    if (cur?.color) document.documentElement.style.setProperty('--cust', cur.color);
-    document.querySelector('.ws-bar')?.remove();
-    const bar = document.createElement('div');
-    bar.className = 'ws-bar';
-    bar.innerHTML = `
-      <button type="button" class="ws-cust" title="Who you’re presenting to (only in this browser)"><i class="ws-dot ${cur ? '' : 'std'}" style="${cur?.color ? `background:${esc(cur.color)}` : ''}"></i><span class="ws-lbl">Presenting to</span><b>${esc(cur?.name || 'Standard')}</b><span class="ws-caret">▾</span></button>
-      ${state.deck ? `<button type="button" class="ws-lay" title="Your slide layout for this deck (only in this browser)"><span class="ws-lbl">Layout</span><b>${esc(state.deck.layout?.name || 'Official')}</b><span class="ws-caret">▾</span></button>` : ''}
-      <button type="button" class="ws-me" title="Signed in as ${esc(me.name)}"><span class="ws-av">${esc(me.name[0])}</span><span class="ws-me-n">${esc(me.name)}</span><span class="ws-caret">▾</span></button>`;
+    const d = state.deck;
+    const a = account(customer);
+    if (a?.color) document.documentElement.style.setProperty('--cust', a.color);
+    const deckChip = d
+      ? `<button type="button" class="ws-deck" title="The deck open on this page: click to switch, edit, copy or share"><i class="ws-dot ${d.layout ? (a ? '' : 'gen') : 'std'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i><span class="ws-lbl">Deck</span><b>${esc(d.layout?.name || 'Official')}</b>${a ? `<small>${esc(a.name)}</small>` : ''}<span class="ws-caret">▾</span></button>`
+      : '';
+    bar.innerHTML = `${home}${deckChip}<button type="button" class="ws-me" title="Signed in as ${esc(me.name)}"><span class="ws-av">${esc(me.name[0])}</span><span class="ws-me-n">${esc(me.name)}</span><span class="ws-caret">▾</span></button>`;
     host.prepend(bar);
-    bar.querySelector('.ws-cust').onclick = (e) => (menu ? closeMenu() : customerMenu(e.currentTarget));
     bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : meMenu(e.currentTarget));
-    bar.querySelector('.ws-lay')?.addEventListener('click', (e) => (menu ? closeMenu() : layoutMenu(e.currentTarget)));
-    // Coming back from "Edit slides for this customer": open the editor now.
-    let pending = null;
-    try {
-      pending = sessionStorage.getItem('ws-edit-layout-for');
-    } catch {}
-    if (pending != null && pending === customer && state.deck && state.customers.length) {
-      try {
-        sessionStorage.removeItem('ws-edit-layout-for');
-      } catch {}
-      setTimeout(() => window.ws.editCustomerLayout(customer), 50);
-    }
+    bar.querySelector('.ws-deck')?.addEventListener('click', (e) => (menu ? closeMenu() : deckMenu(e.currentTarget)));
   }
 
   // On narrower screens the product switch collapses to the current product + a menu.
@@ -475,14 +569,24 @@
           token = '';
           me = null;
         }
+        document.dispatchEvent(new CustomEvent('ws:ready'));
         return showGate();
       }
+      const wasSignedIn = signedIn();
       me = mine.me;
-      markGuest();
-      write('ws-me', JSON.stringify(me.guest ? { id: me.id, name: me.name, guest: true } : { id: me.id, name: me.name, admin: me.admin }));
-      if (isGuest()) customer = '';
-      else state.customers = (await api('/api/profiles')).profiles || [];
+      markRoles();
+      write('ws-me', JSON.stringify(me.guest ? { id: me.id, name: me.name, guest: true } : { id: me.id, name: me.name, admin: me.admin, role: me.role }));
+      // Signed in on the server but not when this page started (another tab): start again.
+      if (!wasSignedIn && signedIn()) return location.reload();
+      await refreshAccounts();
+      // The open deck's account must still be its account (a deck can be moved or deleted).
+      if (signedIn() && PAGE && open.id) {
+        const deck = await api(`/api/layouts/${encodeURIComponent(open.id)}`).catch((err) => (err.status === 404 ? null : undefined));
+        if (deck && (deck.customer || '') !== customer) return openDeck(deck);
+        if (deck === null) await openDeck({ id: '' });
+      }
       drawBar();
+      document.dispatchEvent(new CustomEvent('ws:ready'));
     } catch {
       // The page still works signed out if the server can't be reached.
     }

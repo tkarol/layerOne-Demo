@@ -555,6 +555,11 @@ function initViews() {
     window.scrollTo({ top: 0 });
   });
   setView(location.hash.slice(1) || 'apps');
+  // Load the Overview deck right away (hidden), so the top bar's deck picker works on every tab.
+  if (!deckMounted) {
+    deckMounted = true;
+    mountDeck($('#overviewRoot'));
+  }
 }
 
 // ---------- mode badge ----------

@@ -1,7 +1,8 @@
-// "Tailor" for the Vellox Reverser and Ranger pages: optionally fit the slides and
-// the architecture to one customer. Tailoring lives in the customer profile (the
-// same profiles that white-label the LayerOne demo apps), under profile.pitch.
-// Every field is optional; blank means "keep the standard version".
+// "✎ Account" on the Vellox product pages: the branding and details of the
+// account the open deck is for (name, color, logo, "Prepared for", and this
+// product's details such as their environment or next step). Slides and talk
+// track live in the deck itself (Deck ▾ → Edit slides). Every detail is
+// optional; blank keeps the standard text.
 import { esc } from './deck-core.js';
 
 const MAX_LOGO_BYTES = 150 * 1024;
@@ -38,34 +39,21 @@ export async function loadTailoring(product) {
   }
 }
 
-// The header button: "Tailor", or "For <customer>" while one is active.
+// The header button: "✎ Account" while the open deck is for an account; hidden otherwise.
 export function tailorButton(btn, t) {
-  // Signed in, the top bar already says who you're presenting to.
-  if (window.ws?.signedIn) {
-    btn.innerHTML = '✎ Tailor';
-    btn.title = t.customer ? `Edit what ${t.customer} sees on this page` : 'Tailor this page for a customer';
-    return;
-  }
-  btn.innerHTML = t.customer ? `<span class="tailor-dot"></span>For ${esc(t.customer)}` : '✎ Tailor';
-  btn.title = t.customer ? 'Tailored for this customer: click to edit or switch back to the standard version' : 'Optional: tailor the slides and architecture for a customer';
+  const show = Boolean(window.ws?.signedIn && window.ws.customer && t.customer);
+  btn.hidden = !show;
+  btn.innerHTML = '✎ Account';
+  btn.title = show ? `${t.customer}: name, logo, color and details on this page` : '';
 }
 
 let dlg;
 
 // opts: { product, label, fields: [{ k, label, placeholder, options? }], onSaved }
-// Signed in (workspace.js), the customer is chosen per browser; otherwise it's the site-wide one.
-const ws = () => (window.ws?.signedIn ? window.ws : null);
-const ownerLabel = (x) => (ws() && x.owner ? (x.owner === ws().me.id ? ' · yours' : ` · ${ws().presenterName(x.owner)}’s`) : '');
-
-async function useCustomer(id) {
-  if (ws()) return ws().setCustomer(id || ''); // reloads the page
-  await call('/api/profiles/active', 'PUT', { id: id || null });
-}
-
 export async function openTailor(opts) {
-  const list = await call('/api/profiles');
-  const ui = { ...opts, list, selected: ws() ? ws().customer : list.active || '', draft: null, error: '' };
-  if (ui.selected) ui.draft = await call(`/api/profiles/${ui.selected}`);
+  const id = window.ws?.customer;
+  if (!id) return;
+  const ui = { ...opts, draft: await call(`/api/profiles/${id}`), error: '' };
   dlg?.remove();
   dlg = document.createElement('dialog');
   dlg.className = 'settings customize tailor';
@@ -76,11 +64,11 @@ export async function openTailor(opts) {
 }
 
 function draw(ui) {
-  const { list, draft, product, label } = ui;
-  const locked = list.locked;
-  const readOnly = Boolean(draft && draft.canEdit === false);
-  const pitch = draft?.pitch || {};
+  const { draft, product, label } = ui;
+  const readOnly = draft.canEdit === false;
+  const pitch = draft.pitch || {};
   const p = pitch[product] || {};
+  const owner = window.ws?.presenterName(draft.owner || 'tyler') || 'the owner';
   const field = (f) => {
     const v = p[f.k] || '';
     const input = f.options
@@ -91,58 +79,36 @@ function draw(ui) {
 
   dlg.innerHTML = `
     <form novalidate>
-      <div class="s-head"><h2>Tailor ${esc(label)} for a customer</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
+      <div class="s-head"><h2>${esc(draft.name)} <span class="muted">· account</span></h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
       <div class="s-body">
-        ${locked ? '<p class="s-locked">Customization is locked on this server (ALLOW_UI_SETTINGS=false).</p>' : ''}
-        <p class="s-hint">Optional. Pick a customer and fill in only what helps; anything left blank keeps the standard version. Choose <b>Standard</b> to go back at any time.</p>
-        <div class="profile-row">
-          <label>Customer<select id="tlPick">
-            <option value="">Standard (no customer)</option>
-            ${list.profiles.map((x) => `<option value="${esc(x.id)}" ${x.id === ui.selected ? 'selected' : ''}>${esc(x.name)}${esc(ownerLabel(x))}</option>`).join('')}
-            <option value="new" ${ui.selected === 'new' ? 'selected' : ''}>＋ New customer…</option>
-          </select></label>
+        <p class="s-hint">What every deck for this account shows: its name, color and logo, plus details for the ${esc(label)} slides. Anything left blank keeps the standard text. To change slides or the talk track, use <b>Deck ▾ → Edit slides</b>.</p>
+        ${readOnly ? `<p class="s-locked tl-ro">Owned by <b>${esc(owner)}</b>. Only the owner and the account team can change it; ask to be added in the deck library.</p>` : ''}
+        <fieldset class="tl-fields" ${readOnly ? 'disabled' : ''}><div class="grid2">
+          <label class="full">Account name<input id="tlName" value="${esc(draft.name || '')}" placeholder="e.g. Department of Example" /></label>
+          <label>Brand color <span class="muted">(an accent: title slide, “Prepared for”, top bar)</span><span class="color-row"><input type="color" id="tlColor" value="${esc(draft.color || '#2563eb')}" /><code>${esc(draft.color || 'none')}</code></span></label>
+          <label class="check tl-usecolor"><input type="checkbox" id="tlUseColor" ${draft.color ? 'checked' : ''} /> Use the brand color</label>
+          <label class="check full"><input type="checkbox" id="tlPrepared" ${pitch.hidePrepared ? '' : 'checked'} /> Show “Prepared for ${esc(draft.name || 'the account')}” on title slides</label>
+          <label class="full">Logo <span class="muted">(title slides; optional)</span>
+            <span class="logo-row">${pitch.logo ? `<img src="${esc(pitch.logo)}" alt="" />` : ''}<input type="file" id="tlLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" />${pitch.logo ? '<button type="button" class="link-btn" id="tlLogoClear">Remove</button>' : ''}</span>
+            <input id="tlLogo" value="${esc(pitch.logo?.startsWith('data:') ? '' : pitch.logo || '')}" placeholder="…or an https:// image URL" /></label>
         </div>
-        ${
-          readOnly
-            ? `<p class="s-locked tl-ro">Created by <b>${esc(ws()?.presenterName(draft.owner || 'tyler') || 'another SE')}</b>. You can present to this customer as-is, or <button type="button" class="link-btn" id="tlCopy">make a copy</button> to change it.</p>`
-            : ''
-        }
-        ${
-          draft
-            ? `<fieldset class="tl-fields" ${readOnly ? 'disabled' : ''}><div class="grid2">
-                 <label class="full">Customer name<input id="tlName" value="${esc(draft.name || '')}" placeholder="e.g. Department of Example" /></label>
-                 <label>Brand color <span class="muted">(an accent: title slide, “Prepared for”, top bar)</span><span class="color-row"><input type="color" id="tlColor" value="${esc(draft.color || '#2563eb')}" /><code>${esc(draft.color || 'none')}</code></span></label>
-                 <label class="check tl-usecolor"><input type="checkbox" id="tlUseColor" ${draft.color ? 'checked' : ''} /> Use the brand color</label>
-                 <label class="check full"><input type="checkbox" id="tlPrepared" ${pitch.hidePrepared ? '' : 'checked'} /> Show “Prepared for ${esc(draft.name || 'the customer')}” on the title slide</label>
-                 <label class="full">Customer logo <span class="muted">(title slide; optional)</span>
-                   <span class="logo-row">${pitch.logo ? `<img src="${esc(pitch.logo)}" alt="" />` : ''}<input type="file" id="tlLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" />${pitch.logo ? '<button type="button" class="link-btn" id="tlLogoClear">Remove</button>' : ''}</span>
-                   <input id="tlLogo" value="${esc(pitch.logo?.startsWith('data:') ? '' : pitch.logo || '')}" placeholder="…or an https:// image URL" /></label>
-                 ${list.passwordRequired ? '<label class="full">Settings password<input type="password" id="tlPw" autocomplete="current-password" placeholder="Required to save on this deployment" /></label>' : ''}
-               </div>
-               <div class="s-section-title">${esc(label)} details <span class="dim-note">blank keeps the standard text</span></div>
-               <div class="grid2">${ui.fields.map(field).join('')}</div>
-               <div class="s-section-title">Slides and talking points</div>
-               <p class="tl-slides">Slide changes for ${esc(draft.name || 'this customer')} (show or hide, order, titles, talk track, notes) live in a <b>layout</b> for this customer, so there’s one place to change slides. It switches on automatically whenever you present to them.
-                 ${draft.id && window.ws?.signedIn ? `<button type="button" class="secondary small" id="tlSlides">Edit ${esc(label)} slides for ${esc(draft.name || 'this customer')} →</button>` : '<span class="muted">Save the customer first, then edit its slides.</span>'}</p>
-               <p class="muted small">This customer also applies to the LayerOne demo apps and the other Vellox pages. Clear just this page with <button type="button" class="link-btn" id="tlReset">reset ${esc(label)} to standard</button>.</p></fieldset>`
-            : '<p class="muted">The standard version: no customer name, standard slides and architecture.</p>'
-        }
+        ${ui.fields.length ? `<div class="s-section-title">${esc(label)} details <span class="dim-note">blank keeps the standard text</span></div><div class="grid2">${ui.fields.map(field).join('')}</div>` : ''}
+        <p class="muted small">Name, color and logo apply to every deck for this account, and to the LayerOne sample apps.</p></fieldset>
         <p class="err">${esc(ui.error)}</p>
       </div>
       <div class="s-foot"><span class="spacer"></span>
-        <button type="button" class="secondary" data-close>Cancel</button>
-        <button type="submit" class="save" ${locked && !readOnly ? 'disabled' : ''}>${readOnly ? 'Present to this customer' : draft ? 'Save and use' : 'Use the standard version'}</button>
+        <button type="button" class="secondary" data-close>${readOnly ? 'Close' : 'Cancel'}</button>
+        ${readOnly ? '' : '<button type="submit" class="save">Save</button>'}
       </div>
     </form>`;
   wire(ui);
 }
 
-// Copy the form into the draft profile.
+// Copy the form into the draft account.
 function collect(ui) {
   const d = ui.draft;
-  if (!d) return;
-  const q = (s) => dlg.querySelector(s);
   if (d.canEdit === false) return;
+  const q = (s) => dlg.querySelector(s);
   d.name = q('#tlName')?.value.trim() || '';
   d.color = q('#tlUseColor')?.checked ? q('#tlColor').value : '';
   d.pitch ||= {};
@@ -152,35 +118,21 @@ function collect(ui) {
   else if (!d.pitch.logo?.startsWith('data:')) delete d.pitch.logo;
   const p = (d.pitch[ui.product] ||= {});
   dlg.querySelectorAll('[data-f]').forEach((el) => (p[el.dataset.f] = el.value.trim()));
-  const pw = q('#tlPw')?.value;
-  if (pw) {
-    try {
-      sessionStorage.setItem('l1-settings-pw', pw);
-    } catch {}
-  }
 }
 
 function wire(ui) {
   const q = (s) => dlg.querySelector(s);
   dlg.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => dlg.close()));
-  q('#tlPick').onchange = async (e) => {
-    ui.selected = e.target.value;
-    ui.error = '';
-    ui.draft = ui.selected === 'new' ? { name: '', apps: {}, steps: {}, pitch: {} } : ui.selected ? await call(`/api/profiles/${ui.selected}`) : null;
-    draw(ui);
-    if (ui.selected === 'new') q('#tlName')?.focus();
-  };
-  if (q('#tlReset')) q('#tlReset').onclick = () => {
-    collect(ui);
-    delete ui.draft.pitch[ui.product];
-    draw(ui);
-  };
-  if (q('#tlLogoClear')) q('#tlLogoClear').onclick = () => {
+  q('#tlColor')?.addEventListener('input', (e) => {
+    q('#tlUseColor').checked = true;
+    e.target.nextElementSibling.textContent = e.target.value;
+  });
+  q('#tlLogoClear')?.addEventListener('click', () => {
     collect(ui);
     delete ui.draft.pitch.logo;
     draw(ui);
-  };
-  if (q('#tlLogoFile')) q('#tlLogoFile').onchange = (e) => {
+  });
+  q('#tlLogoFile')?.addEventListener('change', (e) => {
     const f = e.target.files[0];
     if (!f) return;
     if (f.size > MAX_LOGO_BYTES) {
@@ -195,50 +147,18 @@ function wire(ui) {
       draw(ui);
     };
     r.readAsDataURL(f);
-  };
-  // Slides for this customer: present to them, then open your layout for them in the editor.
-  if (q('#tlSlides')) q('#tlSlides').onclick = async () => {
-    collect(ui);
-    try {
-      if (ui.draft.canEdit !== false && ui.draft.id) await call(`/api/profiles/${ui.draft.id}`, 'PUT', ui.draft);
-      dlg.close();
-      await window.ws.editCustomerLayout(ui.draft.id);
-    } catch (err) {
-      ui.error = err.message;
-      draw(ui);
-    }
-  };
-  if (q('#tlCopy')) q('#tlCopy').onclick = async () => {
-    try {
-      const copy = await call(`/api/profiles/${ui.draft.id}/copy`, 'POST', {});
-      ui.list = await call('/api/profiles');
-      ui.selected = copy.id;
-      ui.draft = copy;
-      ui.error = '';
-      draw(ui);
-      q('#tlName')?.focus();
-    } catch (err) {
-      ui.error = err.message;
-      draw(ui);
-    }
-  };
+  });
   q('form').onsubmit = async (e) => {
     e.preventDefault();
     collect(ui);
     try {
-      if (ui.draft && ui.draft.canEdit === false) {
-        await useCustomer(ui.draft.id);
-      } else if (ui.draft) {
-        if (!ui.draft.name) throw new Error('Enter the customer name');
-        const saved = ui.draft.id ? await call(`/api/profiles/${ui.draft.id}`, 'PUT', ui.draft) : await call('/api/profiles', 'POST', ui.draft);
-        await useCustomer(saved.id);
-      } else {
-        await useCustomer(null);
-      }
+      if (!ui.draft.name) throw new Error('Enter the account name');
+      await call(`/api/profiles/${ui.draft.id}`, 'PUT', ui.draft);
       dlg.close();
+      await window.ws?.refreshAccounts?.();
       await ui.onSaved?.();
     } catch (err) {
-      ui.error = err.status === 401 ? 'Enter the settings password to save.' : err.message;
+      ui.error = err.message;
       draw(ui);
     }
   };

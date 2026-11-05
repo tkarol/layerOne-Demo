@@ -755,3 +755,67 @@ test('the AWS re:Invent webinar ships as Tyler’s customer with its own Vellox 
   assert.match(lay.talk.title.ask, /Poll/);
   assert.match((await api('/api/pitch', 'GET', null, { 'X-Customer': cust.id })).data.pitch.vellox.next, /working session/);
 });
+
+test('accounts and decks: roles, account teams, deck links, and copying a deck to another account', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const login = async (id, pin) => (await api('/api/presenters/login', 'POST', { id, pin })).data.token;
+  const emilio = await login('emilio', '2468');
+  const ethan = await login('ethan', '4321');
+  const chris = await login('chris', '1357');
+
+  // An admin adds an account executive; roles show for everyone, admin status doesn't.
+  const pat = (await api('/api/presenters', 'POST', { name: 'Pat Lee', role: 'ae' }, as(emilio))).data.presenter;
+  assert.equal(pat.role, 'ae');
+  const listed = (await api('/api/presenters')).data.presenters;
+  assert.equal(listed.find((p) => p.id === pat.id).role, 'ae');
+  assert.equal(listed.find((p) => p.id === 'ethan').role, 'se');
+  assert.ok(listed.every((p) => !('admin' in p)));
+  const patT = await login(pat.id, '5555');
+  assert.equal((await api('/api/presenters/me', 'GET', null, as(patT))).data.me.role, 'ae');
+
+  // AEs can't change Live settings or use Connect, but can make accounts and decks.
+  assert.equal((await api('/api/settings', 'PUT', { pace: 'slow' }, as(patT))).status, 403);
+  assert.equal((await api('/api/connect/check', 'POST', {}, as(patT))).status, 403);
+  const acct = (await api('/api/profiles', 'POST', { name: 'Team Test Agency', color: '#0f766e', team: [pat.id, 'nobody'] }, as(ethan))).data;
+  assert.deepEqual(acct.team, [pat.id], 'only real people join the team');
+  const deck = (await api('/api/layouts', 'POST', { deck: 'ranger', name: 'Agency pitch', customer: acct.id }, as(ethan))).data;
+  assert.equal(deck.canEdit, true);
+  assert.equal((await api('/api/layouts', 'POST', { deck: 'ranger', name: 'Bad', customer: 'p_ffff0000' }, as(ethan))).status, 400, 'the account must exist');
+
+  // The account team can edit the account and its decks; others can only open and copy.
+  assert.equal((await api(`/api/layouts/${deck.id}`, 'PUT', { name: 'Agency pitch, AE edit' }, as(patT))).status, 200);
+  assert.equal((await api(`/api/layouts/${deck.id}`, 'PUT', { name: 'Nope' }, as(chris))).status, 403);
+  const seenByPat = (await api('/api/layouts?deck=ranger', 'GET', null, as(patT))).data.layouts.find((l) => l.id === deck.id);
+  assert.equal(seenByPat.canEdit, true);
+  assert.equal(seenByPat.updatedBy, pat.id);
+  assert.equal((await api(`/api/profiles/${acct.id}`, 'PUT', { ...acct, name: 'Team Test Agency (AE)', steps: { 'x:y': { prompt: 'nope' } } }, as(patT))).status, 200);
+  assert.equal((await api(`/api/profiles/${acct.id}`, 'PUT', { ...acct, name: 'Nope' }, as(chris))).status, 403);
+
+  // Copy a deck to your own, for another account (or none).
+  const general = (await api(`/api/layouts/${deck.id}/copy`, 'POST', { name: 'Chris general', customer: null }, as(chris))).data;
+  assert.equal(general.owner, 'chris');
+  assert.equal(general.customer, null);
+
+  // A deck link opens the deck on its product page, for its account.
+  const res = await fetch(`${base}/d/${deck.id}`, { redirect: 'manual' });
+  assert.equal(res.status, 302);
+  const to = new URL(res.headers.get('location'));
+  assert.equal(to.pathname, '/ranger.html');
+  assert.equal(to.searchParams.get('deck'), deck.id);
+  assert.equal(to.searchParams.get('acct'), acct.id);
+  const gone = await fetch(`${base}/d/l_00000000dead`, { redirect: 'manual' });
+  assert.match(gone.headers.get('location'), /\/decks\?missing=1$/);
+
+  // Admins change roles; a PIN reset keeps the role.
+  assert.equal((await api(`/api/presenters/${pat.id}`, 'PUT', { role: 'se' }, as(chris))).status, 403);
+  assert.equal((await api(`/api/presenters/${pat.id}`, 'PUT', { role: 'se' }, as(emilio))).data.presenter.role, 'se');
+  await api(`/api/presenters/${pat.id}/reset`, 'POST', {}, as(emilio));
+  assert.equal((await api('/api/presenters')).data.presenters.find((p) => p.id === pat.id).role, 'se');
+
+  // Deleting an account keeps its decks, as general decks.
+  assert.equal((await api(`/api/profiles/${acct.id}`, 'DELETE', null, as(ethan))).status, 200);
+  assert.equal((await api(`/api/layouts/${deck.id}`, 'GET', null, as(ethan))).data.customer, null);
+
+  for (const [id, who] of [[deck.id, ethan], [general.id, chris]]) await api(`/api/layouts/${id}`, 'DELETE', null, as(who));
+  await api(`/api/presenters/${pat.id}`, 'DELETE', null, as(emilio));
+});

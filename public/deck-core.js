@@ -88,24 +88,16 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     slides = shown.length ? shown : ordered;
     st.i = Math.min(st.i, slides.length - 1);
   };
-  // The active layout for this deck (chosen per presenter, in this browser).
+  // The deck that's open on this page (picked in the top bar or from a deck link);
+  // '' is the official deck. Nothing is picked automatically.
   async function loadLayout() {
-    let id = window.ws?.layoutId?.(deckId); // null: not chosen yet for this customer; '': the official deck
+    const id = window.ws?.layoutId?.(deckId) || '';
     st.layout = null;
-    // Presenting to a customer you haven't picked a layout for yet: use your layout for
-    // them (or a teammate's, if you have none).
-    const cust = window.ws?.customer;
-    if (id == null && cust) {
-      try {
-        const { layouts } = await fetch(`/api/layouts?deck=${encodeURIComponent(deckId)}&customer=${encodeURIComponent(cust)}`).then((r) => r.json());
-        id = (layouts.find((l) => l.mine) || layouts[0])?.id || '';
-      } catch {}
-    }
     if (!id) return;
     try {
       const res = await fetch(`/api/layouts/${encodeURIComponent(id)}`);
       if (res.ok) st.layout = await res.json();
-      else window.ws?.setLayout?.(deckId, '', { silent: true });
+      else if (res.status === 404) window.ws?.openDeck?.({ id: '' }); // deleted: back to the official deck
     } catch {}
   }
   // The talk track for a slide: official, with this layout's rewrites on top.
@@ -169,7 +161,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     notes.innerHTML = `
       <div class="tp-head"><span class="tp-label">Talking points${st.layout ? ` <em class="tp-layout">${esc(st.layout.name)}</em>` : ''}</span><span class="muted small">Slide ${st.i + 1} of ${slides.length} · not shown when presenting</span></div>
       <p class="tp-key">${t.key}</p>
-      ${mine ? `<p class="tp-mine"><span>${st.layout.customer && st.ctx.customer ? `Notes for ${esc(st.ctx.customer)}` : 'Your notes'}</span>${fmtText(mine)}</p>` : ''}
+      ${mine ? `<p class="tp-mine"><span>${st.layout.customer && st.ctx.customer ? `Notes for ${esc(st.ctx.customer)}` : 'Deck notes'}</span>${fmtText(mine)}</p>` : ''}
       <ul class="tp-list">${t.points.map((p) => `<li>${p}</li>`).join('')}</ul>
       ${t.ask ? `<p class="tp-ask"><span>Ask the room</span>${t.ask}</p>` : ''}
       ${t.objection ? `<p class="tp-obj"><span>If they say…</span>${t.objection}</p>` : ''}

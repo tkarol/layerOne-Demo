@@ -7,11 +7,14 @@
 // Admins can reset anyone's PIN, which sends that person back to "choose a PIN".
 import { json, randomHex, safeEqual } from './util.js';
 
+// Roles: 'se' (sales engineer: everything) and 'ae' (account executive: accounts and
+// decks, but not the Live/API settings or sample-app step edits).
+export const ROLES = ['se', 'ae'];
 export const PRESENTERS = [
-  { id: 'tyler', name: 'Tyler', admin: true },
-  { id: 'emilio', name: 'Emilio', admin: true },
-  { id: 'ethan', name: 'Ethan' },
-  { id: 'chris', name: 'Chris' },
+  { id: 'tyler', name: 'Tyler', admin: true, role: 'se' },
+  { id: 'emilio', name: 'Emilio', admin: true, role: 'se' },
+  { id: 'ethan', name: 'Ethan', role: 'se' },
+  { id: 'chris', name: 'Chris', role: 'se' },
 ];
 // Guests (anyone who isn't an SE) can look around without a PIN, but can't change
 // anything. Each guest visit gets its own throwaway sandbox for the sample apps.
@@ -33,9 +36,13 @@ async function hashPin(pin, salt) {
   return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-const publicPresenter = (p, rec) => ({ id: p.id, name: p.name, hasPin: Boolean(rec?.pinHash) });
+const roleOf = (p, rec) => (ROLES.includes(rec?.role) ? rec.role : ROLES.includes(p.role) ? p.role : 'se');
+const publicPresenter = (p, rec) => ({ id: p.id, name: p.name, role: roleOf(p, rec), hasPin: Boolean(rec?.pinHash) });
 // Only you see whether you're an admin.
 const selfPresenter = (p, rec) => ({ ...publicPresenter(p, rec), admin: Boolean(p.admin) });
+// Everyone who can sign in now (ids), e.g. to check an account team.
+export const presenterIds = async (storage) => new Set((await allPresenters(storage)).map((p) => p.id));
+
 // Admins can add people; they're stored here, on top of the built-in four.
 // Removed people stay in the list (marked removed) so their customers and
 // layouts still show whose they are, but they can't sign in.
@@ -55,7 +62,7 @@ export async function presenterFromRequest(request, storage) {
   const p = await byId(storage, session.presenter);
   // A PIN reset bumps the presenter's epoch, which signs out their old sessions.
   if (!p || (session.epoch || 0) !== ((await storage.getKV(`presenter-epoch:${p.id}`)) || 0)) return null;
-  return { ...p, token };
+  return { ...p, role: roleOf(p, await storage.getKV(`presenter:${p.id}`)), token };
 }
 
 // Storage seen through one presenter's eyes: their own settings, key/value data
@@ -94,12 +101,22 @@ export function scopeStorage(base, id) {
   };
 }
 
-// Who may edit a customer: its owner or an admin. Signed out, only customers
-// without an owner (the pre-workspace behavior, still password-protected).
+// Who may edit an account (customer): its owner, its account team, or an admin.
+// Signed out, only accounts without an owner (the pre-workspace behavior,
+// still password-protected).
 export function canEditCustomer(profile, me) {
   if (!me) return !profile?.owner;
+  if (me.guest) return false;
   const owner = profile?.owner || LEGACY_OWNER;
-  return me.admin || owner === me.id;
+  return Boolean(me.admin || owner === me.id || profile?.team?.includes(me.id));
+}
+
+// Who may edit a deck: its owner, an admin, or (for a deck made for an account)
+// anyone on that account's team.
+export function canEditDeck(layout, me, account) {
+  if (!me || me.guest || !layout) return false;
+  if (me.admin || layout.owner === me.id) return true;
+  return Boolean(account && (account.owner || LEGACY_OWNER) === me.id) || Boolean(account?.team?.includes(me.id));
 }
 
 // /api/presenters/*
@@ -133,7 +150,7 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
       // First sign-in: this sets the PIN.
       if (cfg.settingsPassword && !safeEqual(setupPassword || '', cfg.settingsPassword)) return json(401, { error: 'Enter the team setup password to choose your first PIN', setupPasswordRequired: true });
       const salt = randomHex(16);
-      await storage.putKV(`presenter:${p.id}`, { salt, pinHash: await hashPin(pin, salt), setAt: new Date().toISOString() });
+      await storage.putKV(`presenter:${p.id}`, { ...r, salt, pinHash: await hashPin(pin, salt), setAt: new Date().toISOString() });
     } else if (!safeEqual(await hashPin(pin, r.salt), r.pinHash)) {
       const fails = (r.fails || 0) + 1;
       await storage.putKV(`presenter:${p.id}`, { ...r, fails: fails >= MAX_FAILS ? 0 : fails, lockedUntil: fails >= MAX_FAILS ? Date.now() + LOCK_MS : 0 });
@@ -160,7 +177,7 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
     if (r.pinHash && !safeEqual(await hashPin(String(pin || ''), r.salt), r.pinHash)) return json(401, { error: 'Your current PIN isn’t right' });
     if (!PIN_RE.test(String(newPin || ''))) return json(400, { error: 'Use 4 to 8 digits' });
     const salt = randomHex(16);
-    await storage.putKV(`presenter:${me.id}`, { salt, pinHash: await hashPin(newPin, salt), setAt: new Date().toISOString() });
+    await storage.putKV(`presenter:${me.id}`, { ...r, fails: 0, lockedUntil: 0, salt, pinHash: await hashPin(newPin, salt), setAt: new Date().toISOString() });
     return json(200, { ok: true });
   }
   // Admins add people. They choose their own PIN at first sign-in.
@@ -176,7 +193,7 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
     const taken = new Set([...everyone.map((p) => p.id), GUEST.id]);
     let id = slug(name);
     for (let n = 2; taken.has(id); n++) id = `${slug(name).slice(0, 17)}-${n}`;
-    const person = { id, name, admin: body.admin === true, addedBy: me.id, addedAt: new Date().toISOString() };
+    const person = { id, name, admin: body.admin === true, role: ROLES.includes(body.role) ? body.role : 'se', addedBy: me.id, addedAt: new Date().toISOString() };
     await storage.putKV(PEOPLE_KEY, [...list, person]);
     return json(200, { presenter: { ...publicPresenter(person, null), admin: person.admin } });
   }
@@ -190,6 +207,16 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
     return json(200, { people });
   }
   const one = rest.match(/^([a-z0-9-]{1,24})$/);
+  // Admins change someone's role (SE or AE).
+  if (method === 'PUT' && one) {
+    if (!me.admin) return json(403, { error: 'Only an admin can change roles' });
+    const p = await byId(storage, one[1]);
+    if (!p) return json(404, { error: 'Unknown presenter' });
+    const { role } = await readJson(request);
+    if (!ROLES.includes(role)) return json(400, { error: 'Role is SE or AE' });
+    await storage.putKV(`presenter:${p.id}`, { ...((await rec(p.id)) || {}), role });
+    return json(200, { presenter: publicPresenter(p, await rec(p.id)) });
+  }
   if (method === 'DELETE' && one) {
     if (!me.admin) return json(403, { error: 'Only an admin can remove people' });
     if (one[1] === me.id) return json(400, { error: 'You can’t remove yourself' });
@@ -208,7 +235,9 @@ export async function handlePresenterApi(request, { storage, pathname, method, r
   if (method === 'POST' && reset) {
     if (!me.admin) return json(403, { error: 'You can’t reset someone else’s PIN' });
     if (!(await byId(storage, reset[1]))) return json(404, { error: 'Unknown presenter' });
-    await storage.deleteKV(`presenter:${reset[1]}`);
+    // Forget the PIN (they choose a new one at next sign-in); keep their role.
+    const old = (await rec(reset[1])) || {};
+    await storage.putKV(`presenter:${reset[1]}`, old.role ? { role: old.role } : {});
     await storage.putKV(`presenter-epoch:${reset[1]}`, ((await storage.getKV(`presenter-epoch:${reset[1]}`)) || 0) + 1);
     return json(200, { ok: true });
   }

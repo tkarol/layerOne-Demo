@@ -12,9 +12,9 @@ import { handleDataApi } from './data-app.js';
 import { FREE_WORKFLOW, MAX_MESSAGE } from './chat-app.js';
 import { json, safeEqual } from './util.js';
 import { connectInfo, runChecks, sendCustom } from './connect.js';
-import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi } from './workspace.js';
+import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi, presenterIds } from './workspace.js';
 import { applySeeds } from './seeds.js';
-import { handleLayoutApi } from './layouts.js';
+import { handleLayoutApi, DECK_PAGES } from './layouts.js';
 
 const summarize = (t) => ({
   id: t.id,
@@ -126,6 +126,15 @@ export function createApp({ env, storage }) {
       if (method === 'POST' && pathname.startsWith('/mock/model/')) return handleMockModel(request, { storage });
       if (method === 'POST' && pathname.startsWith('/mock/judge/')) return handleMockJudge(request, { storage });
 
+      // Deck links: /d/<deck id> opens that deck on its product page, for its account.
+      const link = pathname.match(/^\/d\/(l_[0-9a-f]{1,24})\/?$/);
+      if (link && method === 'GET') {
+        const deck = await storage.getKV(`layout:${link[1]}`);
+        if (!deck) return Response.redirect(`${origin}/decks?missing=1`, 302);
+        const qs = new URLSearchParams({ deck: deck.id, ...(deck.customer ? { acct: deck.customer } : {}) });
+        return Response.redirect(`${origin}${DECK_PAGES[deck.deck] || '/'}?${qs}#overview`, 302);
+      }
+
       if (!pathname.startsWith('/api/')) return null;
 
       // Who's presenting: a signed-in SE gets their own settings, data and history
@@ -135,6 +144,11 @@ export function createApp({ env, storage }) {
       const mine = me ? scopeStorage(storage, me.scope || me.id) : storage;
       // Guests look around: they can use the demos (in their own sandbox) but change nothing,
       // and never see the customer list or SEs' layouts.
+      // Account executives: accounts and decks, but not the Live/API settings,
+      // the Connect tab's live requests, or sample-app step edits.
+      if (me?.role === 'ae' && method !== 'GET' && /^\/api\/(settings|connect\/(check|send))(\/|$)/.test(pathname)) {
+        return json(403, { error: 'Live settings and Connect are for sales engineers.', role: 'ae' });
+      }
       if (me?.guest) {
         const write = method !== 'GET';
         if (write && /^\/api\/(settings|profiles|layouts|connect)(\/|$)/.test(pathname)) return json(403, { error: 'Guests can look around, but can’t change anything.', guest: true });
@@ -220,7 +234,7 @@ export function createApp({ env, storage }) {
         const id = pathname.split('/')[3];
         if (method === 'GET' && !id) {
           const profiles = (await listProfiles(storage)).map((p) => ({ ...p, canEdit: canEditCustomer(p, me) }));
-          return json(200, { active: (await storage.getKV('profile:active')) || null, profiles, me: me ? { id: me.id, admin: Boolean(me.admin) } : null, locked: cfg.settingsLocked, passwordRequired: !me && Boolean(cfg.settingsPassword) });
+          return json(200, { active: (await storage.getKV('profile:active')) || null, profiles, me: me ? { id: me.id, admin: Boolean(me.admin), role: me.role } : null, locked: cfg.settingsLocked, passwordRequired: !me && Boolean(cfg.settingsPassword) });
         }
         if (method === 'GET') {
           const profile = await storage.getKV(`profile:${id}`);
@@ -230,7 +244,7 @@ export function createApp({ env, storage }) {
         if (denied) return denied;
         const existing = id && id !== 'active' ? await storage.getKV(`profile:${id}`) : null;
         if (existing && !canEditCustomer(existing, me) && !(method === 'POST' && pathname.endsWith('/copy'))) {
-          return json(403, { error: 'Only the person who created this customer can change it. Make a copy to edit your own.' });
+          return json(403, { error: 'Only the account’s owner or its account team can change it.' });
         }
         // Make a copy: any signed-in SE can copy any customer and own the copy.
         if (method === 'POST' && pathname.endsWith('/copy')) {
@@ -240,6 +254,7 @@ export function createApp({ env, storage }) {
           const { profile, errors, ok } = validateProfile({ ...existing, name: String(name || `${existing.name} (copy)`) });
           if (!ok) return json(400, { error: 'Some fields are invalid', errors });
           profile.owner = me.id;
+          profile.team = [];
           await storage.putKV(`profile:${profile.id}`, profile);
           return json(200, { ...profile, canEdit: true });
         }
@@ -252,15 +267,25 @@ export function createApp({ env, storage }) {
         }
         if ((method === 'POST' && !id) || (method === 'PUT' && id)) {
           if (id && !(await storage.getKV(`profile:${id}`))) return json(404, { error: 'Profile not found' });
-          const { profile, errors, ok } = validateProfile(await readJson(request), id);
+          const body = await readJson(request);
+          const { profile, errors, ok } = validateProfile(body, id);
           if (!ok) return json(400, { error: 'Some fields are invalid', errors });
           const owner = existing ? existing.owner : me?.id;
           if (owner) profile.owner = owner;
+          // The account team: people who can edit this account and its decks.
+          if (Array.isArray(body.team) && me) {
+            const known = await presenterIds(storage);
+            profile.team = [...new Set(body.team.filter((t) => typeof t === 'string' && known.has(t) && t !== profile.owner))].slice(0, 20);
+          } else if (existing?.team) profile.team = existing.team;
+          // Account executives don't rewrite sample-app steps.
+          if (me?.role === 'ae') profile.steps = existing?.steps || {};
           await storage.putKV(`profile:${profile.id}`, profile);
           return json(200, { ...profile, canEdit: canEditCustomer(profile, me) });
         }
         if (method === 'DELETE' && id) {
           await storage.deleteKV(`profile:${id}`);
+          // Its decks stay, as general decks.
+          for (const l of (await storage.listKV('layout:l_')).filter((x) => x?.customer === id)) await storage.putKV(`layout:${l.id}`, { ...l, customer: null });
           if ((await storage.getKV('profile:active')) === id) await storage.deleteKV('profile:active');
           return json(200, { ok: true });
         }

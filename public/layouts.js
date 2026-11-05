@@ -39,7 +39,7 @@ export function openLayoutEditor(opts) {
   const order = (layout?.order?.length ? [...layout.order.filter((id) => official[id]), ...deck.slides.map((s) => s.id).filter((id) => !layout.order.includes(id))] : deck.slides.map((s) => s.id));
   const ui = {
     ...opts,
-    name: layout?.name || `My ${deck.label.replace(/^Vellox /, '')} layout`,
+    name: layout?.name || `My ${deck.label.replace(/^Vellox /, '')} deck`,
     customer: layout?.customer || '',
     rows: order.map((id) => {
       const s = official[id];
@@ -102,7 +102,7 @@ function draw(ui) {
                 <button type="button" class="link-btn" data-padd="${n}">＋ Add a point</button>
               </div>
               ${FIELDS.slice(1).map(([k, label, rows]) => `<label>${label}<textarea data-f="${k}" data-r="${n}" rows="${rows}">${esc(r[k])}</textarea></label>`).join('')}
-              <label>Your private notes <span class="muted">(only in your talking points)</span><textarea data-f="notes" data-r="${n}" rows="2" placeholder="Reminders for yourself on this slide">${esc(r.notes)}</textarea></label>
+              <label>Notes <span class="muted">(only in the talking points, never on the slide)</span><textarea data-f="notes" data-r="${n}" rows="2" placeholder="Reminders for yourself on this slide">${esc(r.notes)}</textarea></label>
               <p class="muted small">Use **double asterisks** for bold. <button type="button" class="link-btn" data-reset="${n}">Reset this slide to the official version</button></p>
             </div>`
           : ''
@@ -110,21 +110,21 @@ function draw(ui) {
     </li>`;
   dlg.innerHTML = `
     <form novalidate>
-      <div class="s-head"><h2>Your layout · ${esc(ui.deck.label)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
+      <div class="s-head"><h2>${ui.layout?.id ? 'Edit deck' : 'New deck'} · ${esc(ui.deck.label)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
       <div class="s-body">
         <div class="le-headrow">
-          <label class="le-name">Layout name<input id="leName" value="${esc(ui.name)}" maxlength="60" /></label>
-          <label class="le-name">For<select id="leCust"><option value="">Any customer (general)</option>${(ui.customers || []).map((c) => `<option value="${esc(c.id)}" ${c.id === ui.customer ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+          <label class="le-name">Deck name<input id="leName" value="${esc(ui.name)}" maxlength="60" /></label>
+          <label class="le-name">Account<select id="leCust"><option value="">No account (general deck)</option>${(ui.customers || []).map((c) => `<option value="${esc(c.id)}" ${c.id === ui.customer ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
         </div>
-        <p class="s-hint">Drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change keeps following the official deck. A layout <b>for a customer</b> switches on automatically when you present to them. Other SEs can see and copy your layouts, but only you can change them.</p>
+        <p class="s-hint">Drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change keeps following the official deck. A deck for an <b>account</b> shows that account’s name, logo and color. Everyone can open and copy this deck; its owner and the account’s team can change it.</p>
         <ol class="le-list">${ui.rows.map(row).join('')}</ol>
         <p class="err">${esc(ui.error)}</p>
       </div>
       <div class="s-foot">
-        ${ui.layout?.id ? '<button type="button" class="link-btn danger" id="leDelete">Delete layout</button>' : ''}
+        ${ui.layout?.id ? '<button type="button" class="link-btn danger" id="leDelete">Delete deck</button>' : ''}
         <span class="spacer"></span>
         <button type="button" class="secondary" data-close>Cancel</button>
-        <button type="submit" class="save">Save and use</button>
+        <button type="submit" class="save">Save deck</button>
       </div>
     </form>`;
   wire(ui);
@@ -188,7 +188,7 @@ function wire(ui) {
   });
 
   dlg.querySelector('#leDelete')?.addEventListener('click', async () => {
-    if (!confirm(`Delete the layout “${ui.layout.name}”? Anyone using it goes back to the official deck.`)) return;
+    if (!confirm(`Delete the deck “${ui.layout.name}”? Its link stops working, and anyone who has it open goes back to the official deck.`)) return;
     try {
       await call(`/api/layouts/${ui.layout.id}`, 'DELETE');
       dlg.close();

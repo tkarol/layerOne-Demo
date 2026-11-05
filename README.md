@@ -82,35 +82,67 @@ The **Overview** tab is a 4-slide deck to open a customer demo: the title; **tod
 * With a customer profile active, the title slide says *Prepared for* that customer.
 * Claims stay within the LayerOne docs and what this demo shows. Edit the slides in `public/deck.js`.
 
-## SE workspaces: who's presenting
+## Accounts and decks: who's presenting, to whom, with what
 
-Four sales engineers share this site: **Tyler**, **Emilio**, **Ethan** and **Chris**. Admins are set in `src/core/workspace.js`; admin status is never shown to other presenters. On the Vellox pages (Vellox, LayerOne, Reverser, Ranger, Navigator) the first visit shows **Who's presenting?**; pick your name and enter your PIN.
+The site is shared by sales engineers (SEs) and account executives (AEs). Everything people make comes down to two things:
 
-* **First sign-in chooses your PIN** (4–8 digits). If the server has a `SETTINGS_PASSWORD`, choosing a first PIN also asks for it (the *team setup password*), so nobody can claim someone else's name. Five wrong PINs lock that name for a minute. An admin can **reset** anyone's PIN from their name menu (top right; only admins see it); that signs the person out and they choose a new PIN next time. Anyone can change their own PIN there too.
-* **Adding people:** any admin can add a person from their name menu (**People → Add a person**), optionally as an admin. The new person shows up on **Who's presenting?** and chooses their own PIN at first sign-in (with the team setup password, if one is set). Admins can also **remove** people they added (not the original four, and not themselves); that signs them out for good, while their customers and layouts stay, still labelled with their name.
-* **Yours alone:** your settings (Dry run or live, endpoint, model, API key; until you save your own you get the site-wide ones), your Customer Hub data, and your request history (*Behind the scenes*). Nothing another SE does changes them.
-* **Customers are a shared library.** The **Presenting to ▾** menu in the top bar lists your customers and other SEs' customers; picking one applies only in your browser, so nobody else's choice changes your screen. Only the SE who created a customer (or an admin) can edit it; anyone else sees it read-only with **make a copy**. Customers made before workspaces belong to the first admin.
-* **Brand color:** a customer can have a brand color (set in **✎ Tailor**). It's used as an accent only (the "Prepared for" line, the top-bar dot), so product colors and red/green meanings stay as they are.
-* On screens under 1520px wide, the product switch collapses to the current product with a ▾ menu, to make room.
-* **Guests:** anyone who isn't an SE can pick **Look around as a guest** on the sign-in screen (no PIN). Guests see every deck, architecture page and sample app, always in the standard official version, and can try the demos; their Customer Hub data and history are a throwaway sandbox for that visit (12 hours). They can't change anything: no settings, Connect, customers, Tailor, Customize, step edits, layouts or PINs, and they never see the customer list or SEs' layouts. The server enforces this; the edit buttons are also hidden. **Guest ▾ → Sales engineer? Sign in** goes back to the sign-in screen.
+| | What it is | What it holds |
+|---|---|---|
+| **Account** | Who you present to: a customer, an opportunity or an event | Name, brand color, logo, "Prepared for", product details, sample-app branding, and its **team** |
+| **Deck** | Your version of one product deck, optionally **for one account** | Which slides, their order, titles, the talk track and notes |
 
-### Ready-made customers (seeds)
+**You always open a deck.** A deck for an account shows that account's branding; nothing switches on by itself, so there's never a question of which one wins. The **official decks** are always there, and every other deck starts from one.
 
-`src/core/seeds.js` adds ready-made customers and layouts to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
+### Signing in
 
-* **AWS re:Invent** (Tyler's): a customer with an AWS-orange accent and a webinar call to action on the Vellox deck's last slide, plus the layout **AWS re:Invent webinar** for the Vellox deck. The layout rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Pick **Presenting to → AWS re:Invent** and the layout switches on.
+The first visit to any Vellox page shows **Who's presenting?**:
 
-### Your own deck layouts
+* **Find your name** (type a few letters, Enter when there's one match), then your PIN. People who signed in on this device recently are listed first. Each person shows as **SE** or **AE**.
+* **First sign-in chooses your PIN** (4–8 digits). If the server has a `SETTINGS_PASSWORD`, choosing a first PIN also asks for it (the *team setup password*), so nobody can claim someone else's name. Five wrong PINs lock that name for a minute.
+* **Just looking? Continue as a guest:** no PIN. Guests see the official decks, architecture pages and sample apps and can try the demos (their Customer Hub data and history are a throwaway sandbox for 12 hours). They can't change anything and never see accounts or anyone's decks. The server enforces this.
+* Admins are set in `src/core/workspace.js`; admin status is shown only to admins.
 
-Every deck (Vellox, LayerOne, Reverser, Ranger, Navigator) has a **Layout ▾** picker in the top bar: the **Official deck**, your layouts, and other SEs' layouts. Picking one applies only in your browser, straight away.
+### People and roles (admins)
 
-* **✎ Edit this layout / ＋ New layout:** drag (or ▲▼) to reorder slides, untick to skip one, retitle it, and open **Talk track** to rewrite the key message, talking points (add, remove, reorder), the question to ask the room, the objection and the lead-in. Add **private notes** per slide; they show as *Your notes* in your talking points only. Use `**double asterisks**` for bold.
-* **Only what you change is saved.** Everything else keeps following the official deck, so improvements to the official slides still reach your layout. A slide added to the official deck later appears in your layout next to its official neighbor.
-* **Other SEs' layouts** can be used as-is or **copied to yours** to change; only the owner can edit or delete a layout.
-* **Layouts for a customer.** A layout can be *for* one customer (the **For** field in the editor). It switches on automatically whenever you present to that customer, and the Layout menu lists it first under **For &lt;customer&gt;**. Your layout choice is remembered per customer. If you have no layout for a customer, a teammate's layout for them is used; with none at all you get the official deck.
-* **One source of truth:** layouts are the only place slides change (order, show/hide, titles, talk track, notes). Customers (Tailor) hold facts and wording about the customer, not slides. Slide edits made in Tailor before this change were moved into customer layouts automatically, owned by the customer's owner.
+From your name menu (top right), admins manage **People**: **add a person** (name, SE or AE, optionally admin), change someone's **role**, **reset a PIN** (they choose a new one next time; their role stays), or **remove** someone they added (signed out for good; their accounts and decks stay, still labelled with their name). Anyone can change their own PIN there.
 
-Coming next: an "official version updated · review" badge when a slide you rewrote changes officially, and an admin screen. The Oracle page is outside workspaces.
+* **SEs** can do everything.
+* **AEs** can make and edit accounts and decks, present, and run the sample apps, but not change the Live/API **Settings**, use **Connect**, or rewrite sample-app steps (**✏️ Edit step**). The server enforces this; those controls are hidden for AEs.
+
+### The deck library (`/decks`)
+
+**⌂ Decks** in the top bar opens the library:
+
+* **Decks tab:** a search box (decks, accounts or people), product chips, *Everyone's / Mine / a person*, and *any account*. Then **Official decks**, **Your decks**, **Your accounts' decks** (accounts you own or are on the team of) and **Everyone else's**. Each card shows the product, the account, who made it and when it last changed, with **Open**, **Edit** (if you can), **Copy** (to your own deck, for any account) and **🔗** (copy its link).
+* **Accounts tab:** your accounts and everyone else's, with the owner and team, and how many decks each product has. **See decks**, **＋ Deck**, and **Edit** (name, color, team).
+* **＋ New deck:** pick the product, an account (or **＋ New account** right there), name it, and start from the official deck or a copy. It opens straight into the slide editor.
+
+### On a product page
+
+The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Account** (when the open deck is for an account), and your name.
+
+* **Deck ▾** lists the **Official deck**, **Your decks**, **Your accounts' decks** and **Everyone else's** for this product, with a search box when there are many. Actions: **✎ Edit slides**, **Copy to my decks**, **＋ New deck**, **🔗 Copy link**, and a link to the library. The deck you open is remembered per product, in your browser.
+* **✎ Edit slides:** drag (or ▲▼) to reorder slides, untick to skip one, retitle it, and open **Talk track** to rewrite the key message, talking points, the question to ask the room, the objection and the lead-in, plus **notes** per slide (only in the talking points). Use `**double asterisks**` for bold. The **Account** field changes which account the deck is for. Only what you change is saved; everything else keeps following the official deck, and a slide added to the official deck later appears next to its official neighbor.
+* **✎ Account:** the open deck's account: name, brand color (an accent only), logo, *Prepared for*, and this product's details (see *Account details on Reverser, Ranger and Navigator*). It applies to every deck for that account, and to the sample apps.
+* **Deck links:** `/d/<deck id>` opens that deck on its product page for its account. Share it in a calendar invite or chat; anyone signed in can open it. A deleted deck's link goes to the library with a note.
+* On screens under 1520px wide, the product switch collapses to the current product with a ▾ menu.
+
+### Who can change what
+
+* **Decks:** everyone can open and copy every deck. Its **owner**, an **admin**, or anyone on the **team of the deck's account** can edit or delete it, so an AE and SE pair can work on the same deck.
+* **Accounts:** everyone can see every account and present its decks. Its **owner**, its **team** or an **admin** can change it. Deleting an account keeps its decks, as general decks.
+* **Yours alone:** your settings (Dry run or Live, endpoint, model, API key; until you save your own you get the site-wide ones), your Customer Hub data, and your request history (*Behind the scenes*).
+* Accounts made before workspaces belong to the first admin. Slide edits made with the older *Tailor* were moved into decks for their account automatically.
+
+### Ready-made accounts and decks (seeds)
+
+`src/core/seeds.js` adds ready-made accounts and decks to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
+
+* **AWS re:Invent** (Tyler's account, AWS-orange accent, a webinar call to action on the Vellox deck's last slide) and its deck **AWS re:Invent webinar** for the Vellox suite. The deck rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Open it from the library, or from **Deck ▾** on the Vellox page.
+
+### What's next
+
+Storage is a key/value store that reads every account and deck to list them: fine into the hundreds. Next steps when it grows: move accounts and decks to a database (Cloudflare D1) with search and paging, add version history on decks, an "official deck updated · review" flag on copies, and company sign-in (SSO) instead of PINs. The Oracle page is outside all of this.
 
 ## Vellox: the suite overview page
 
@@ -119,7 +151,7 @@ Coming next: an "official version updated · review" badge when a slide you rewr
 * **Overview:** a 6-slide deck with talking points: the title (the four products around a Vellox core); *AI changed both sides* (a chart of the growing gap between attackers with AI and defenders today, next to the four places defenders fall behind, each matched to a product); *four products, one mission* (Reverser, Ranger, Navigator and LayerOne around a "human operators + AI agents" hub, each with its role and status: Reverser, Ranger and Navigator generally available, LayerOne limited preview); *when a new threat lands* (Ranger spots it and Reverser takes it apart **at the same time**, then your analysts decide with both answers in hand, while Navigator and LayerOne are always on); *built on adversary tradecraft*; and *start where it hurts most* (each bottleneck links straight to its product page). The slides play once with measured animations, then settle.
 * **Products are separate today:** they don't exchange data with each other, so nothing on this page shows one product feeding another. The talking points say so, and treat "do they work together?" as an objection.
 * **Architecture (“The suite around your environment”):** the four products around *your environment*, each connected only to it. **Explore:** click a product to light it up and get a card with its status and an **Open** button to its page. **Follow one threat:** the same story, step by step (Ranger and Reverser light up together).
-* **Tailor:** the title tagline and the next step.
+* **✎ Account:** the title tagline and the next step.
 
 ## Vellox Reverser: a separate product page
 
@@ -145,7 +177,7 @@ Product details come from Booz Allen's public announcements and press coverage o
   5. *Your engineers stay in charge*: an example pull request for a new rule (what, where, ATT&CK technique, why), reviewed in GitHub or GitLab, and a pilot as the next step.
 
   The network pictures on slides 2 and 4 loop while the slide is up.
-* **Architecture (“Watch Ranger build your detections”):** the customer's network map is the centerpiece (a dark “console”), with six stages along the top that you can click or play (about 5 seconds each): **1 model the environment** (assets, layout, vulnerabilities, telemetry, existing rules); **2 add threat intelligence** (one threat applies and lights up the nodes it touches; two don't apply and are filtered out); **3 find exploitable paths** (the attacker's route to the crown-jewel system draws on the map and everything else dims); **4 map to MITRE ATT&CK** (a technique badge on each hop: T1566, T1204, T1021.002, T1003, T1005); **5 write & rank detections** (P1/P2/P3 shields on the hops, plus phishing marked *already covered by your rules, skipped*); **6 review & deploy** (a pull request with the rule as code, engineer approved → their detection tools; the shields turn green). A story panel on the right explains each stage. The crown jewel, review tool and detection tools follow **Tailor**. The network, threats and rules are illustrative.
+* **Architecture (“Watch Ranger build your detections”):** the customer's network map is the centerpiece (a dark “console”), with six stages along the top that you can click or play (about 5 seconds each): **1 model the environment** (assets, layout, vulnerabilities, telemetry, existing rules); **2 add threat intelligence** (one threat applies and lights up the nodes it touches; two don't apply and are filtered out); **3 find exploitable paths** (the attacker's route to the crown-jewel system draws on the map and everything else dims); **4 map to MITRE ATT&CK** (a technique badge on each hop: T1566, T1204, T1021.002, T1003, T1005); **5 write & rank detections** (P1/P2/P3 shields on the hops, plus phishing marked *already covered by your rules, skipped*); **6 review & deploy** (a pull request with the rule as code, engineer approved → their detection tools; the shields turn green). A story panel on the right explains each stage. The crown jewel, review tool and detection tools follow **✎ Account**. The network, threats and rules are illustrative.
 
 Product details come from Booz Allen's announcements and press coverage (listed under **Sources** on the page). Lower dwell time and fewer false positives are Booz Allen's stated goals, so the talking points say so rather than quoting numbers. Confirm integrations (which SIEMs and detection tools) and deployment options with the Vellox team. Edit the page in `public/ranger.js`.
 
@@ -162,23 +194,24 @@ Product details come from Booz Allen's announcements and press coverage (listed 
   5. *Every status has a reason*: evidence lineage from evidence → control → finding → a person's decision, and a next step.
 
   Slides 2 and 4 loop while they're up.
-* **Architecture (“A compliance package that stays current”):** evidence sources (cloud, identity, endpoints, network, security tools) feed a live board of 12 NIST SP 800-53 controls for the customer's system and baseline, with the authorization package (SSP, POA&Ms, assessments, human review, assessors & AOs) beside it. **Click any control** for its evidence lineage: control → status → evidence → where it was collected → who reviewed it. **Watch a drift get caught** plays 7 steps: evidence flows in → a firewall change opens a management port → SC-7 Boundary protection is flagged with the changed rule set as evidence → a POA&M entry is drafted and the SSP marked → the reviewer confirms and assigns the fix → the rule is reverted and SC-7 is restored → the POA&M item closes with evidence attached and the SSP updates. System, baseline and reviewer follow **Tailor**; the evidence, times and story are illustrative.
+* **Architecture (“A compliance package that stays current”):** evidence sources (cloud, identity, endpoints, network, security tools) feed a live board of 12 NIST SP 800-53 controls for the customer's system and baseline, with the authorization package (SSP, POA&Ms, assessments, human review, assessors & AOs) beside it. **Click any control** for its evidence lineage: control → status → evidence → where it was collected → who reviewed it. **Watch a drift get caught** plays 7 steps: evidence flows in → a firewall change opens a management port → SC-7 Boundary protection is flagged with the changed rule set as evidence → a POA&M entry is drafted and the SSP marked → the reviewer confirms and assigns the fix → the rule is reverted and SC-7 is restored → the POA&M item closes with evidence attached and the SSP updates. System, baseline and reviewer follow **✎ Account**; the evidence, times and story are illustrative.
 
 Systems, controls and findings on the slides are examples. Confirm availability, supported control frameworks and integrations with the Vellox team. Edit the page in `public/navigator.js`.
 
-## Tailoring Reverser, Ranger and Navigator for a customer (optional)
+## Account details on Reverser, Ranger and Navigator (optional)
 
-All three product pages look exactly as described above until you choose to tailor them. **✎ Tailor** in the header opens a short form:
+All three product pages look exactly as described above until you open a deck for an account. **✎ Account** in the header (shown when the open deck is for an account) edits:
 
-* **Customer:** pick an existing customer, add a new one, or choose **Standard (no customer)** to go back. While a customer is active the button reads *For &lt;customer&gt;*.
-* **Title slide:** *Prepared for &lt;customer&gt;* (can be turned off), an optional customer logo, and an optional tagline.
+* **Title slides:** *Prepared for &lt;account&gt;* (can be turned off), an optional logo, and the brand color (an accent only).
 * **Product details** (blank keeps the standard text):
   * Reverser: the key message on the threat slide, the sample file name (slide 4 and architecture), their tools for detections (architecture) and the next step.
   * Ranger: their crown-jewel system (it replaces *Finance DB* on the network slides and in the example pull request), GitHub or GitLab, their detection tools (architecture) and the next step.
   * Navigator: their system name and control baseline (e.g. *NIST SP 800-53 Moderate*) on the package slide and architecture, who reviews changes (e.g. *the ISSO*), and the next step.
-* **Slides and talking points:** not here. **Edit &lt;product&gt; slides for &lt;customer&gt; →** opens your layout for that customer (or starts one from what's on screen), so slide changes live in one place: the layout. See *Your own deck layouts*.
+  * Vellox: the title tagline and the next step.
+* **Slides and talking points:** not here. Use **Deck ▾ → ✎ Edit slides**, so slide changes live in one place: the deck.
 
-Tailoring is saved in the same customer profile that white-labels the LayerOne demo apps (`pitch` in the profile), so one customer setting covers every page, and saving from the LayerOne **Customize** dialog keeps it. It's stored on the server and protected by `SETTINGS_PASSWORD` / `ALLOW_UI_SETTINGS` like the rest of Customize. **Reset to standard** in the form clears just one product's tailoring.
+Details are saved in the account (`pitch` in the profile), so one account covers every deck for it and the LayerOne sample apps.
+
 ## Sample apps
 
 ### Ask AI: the 5-minute demo
@@ -288,7 +321,7 @@ The table is stored server-side (Durable Object on Cloudflare), so changes persi
 
 *Hidden by default. Turn it on in **⚙ Settings → Sample app features → Customize for a customer**. An active customer profile stays applied when the controls are hidden, so you can brand the demo, then hide the controls before the meeting.*
 
-**🎨 Customize** creates **customer profiles**. Each profile has:
+Signed in, **🎨 Customize** edits the sample-app branding of the **account the open deck is for** (open a deck for an account first; the dialog offers **＋ New deck for an account** if there isn't one). Signed out (on a deployment without the sign-in screen), it manages **customer profiles** directly. Each has:
 
 * **Customer name:** shown as "Prepared for …" in the page and the browser tab.
 * **Which apps to show:** for example only Healthcare, or Banking and Public sector.
@@ -449,7 +482,14 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `public/reverser.html`, `public/reverser.js` | The separate Vellox Reverser page: deck and architecture explainer |
 | `public/ranger.html`, `public/ranger.js` | The separate Vellox Ranger page: deck and architecture explainer |
 | `public/navigator.html`, `public/navigator.js` | The separate Vellox Navigator page: deck and architecture explainer |
-| `public/tailor.js` | The optional **Tailor** form for the Reverser, Ranger and Navigator pages |
+| `public/tailor.js` | **✎ Account** on the product pages: the open deck's account (name, color, logo, product details) |
+| `public/decks.html`, `public/decks.js` | The deck library (`/decks`): decks and accounts, search and filters |
+| `public/decks-ui.js` | Shared by the top bar and the library: products, deck links, the New deck and Account dialogs |
+| `public/workspace.js` | Sign-in (find your name, PIN, guest), the top bar (⌂ Decks, Deck ▾, your name) and People for admins |
+| `public/layouts.js` | The deck editor (slides, order, titles, talk track, notes, account) |
+| `src/core/workspace.js` | People, roles (SE/AE), PINs and sessions, guests, and who can edit accounts and decks |
+| `src/core/layouts.js` | Decks: validation, sharing and permissions (`/api/layouts`), deck pages for `/d/` links |
+| `src/core/seeds.js` | Ready-made accounts and decks, added once |
 | `public/oracle-erp.html`, `public/oracle-erp.js`, `public/oracle-erp.css` | A standalone, unlinked proof-of-concept page at **/oracle-erp** (Oracle Fusion Cloud ERP for state and local government: a 6-slide deck, and an architecture view with click-to-explain parts and three step-by-step walkthroughs: a purchase, a federal grant and a tax payment). Unrelated to the Vellox pages: no product switch, no Booz Allen branding, `noindex`. Oracle branding: save the official Oracle logo as `public/brand/oracle-logo.svg` and it replaces the text **ORACLE** wordmark in the header and on the title slide (use the approved file from Oracle's brand or partner resources, not a recreation) |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
