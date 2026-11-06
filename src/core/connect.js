@@ -60,7 +60,8 @@ export function connectInfo(cfg, origin) {
     authHeader: cfg.authHeader,
     authScheme: cfg.authScheme || '',
     keySet: Boolean(key),
-    keyHint: cfg.mode === 'mock' ? DRY_RUN_KEY : key ? `…${key.slice(-4)}` : '',
+    keyHint: cfg.mode === 'mock' ? DRY_RUN_KEY : cfg.via === 'browser' ? 'in this browser' : key ? `…${key.slice(-4)}` : '',
+    via: cfg.via === 'browser' ? 'browser' : 'server',
     // The dry-run key is not a secret, so commands can include it as is.
     dryRunKey: cfg.mode === 'mock' ? DRY_RUN_KEY : null,
     model: cfg.model,
@@ -70,7 +71,8 @@ export function connectInfo(cfg, origin) {
 }
 
 function headersFor(cfg, { withKey = true, json = true } = {}) {
-  const h = { Accept: 'application/json', 'X-Demo-Client': 'layerone-demo-connect', ...layeroneHeaders(cfg), ...(cfg.extraHeaders || {}) };
+  // From the browser: only headers a gateway's CORS rules are likely to allow.
+  const h = { Accept: 'application/json', ...(cfg.via === 'browser' ? {} : { 'X-Demo-Client': 'layerone-demo-connect' }), ...layeroneHeaders(cfg), ...(cfg.extraHeaders || {}) };
   if (json) h['Content-Type'] = 'application/json';
   const key = keyOf(cfg);
   if (withKey && key) h[cfg.authHeader] = authValue(cfg, key);
@@ -85,9 +87,10 @@ async function call(fetchFn, url, init) {
     const res = await fetchFn(url, { ...init, signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) });
     const text = await res.text();
     const headers = Object.fromEntries(res.headers.entries());
-    return { ok: true, status: res.status, statusText: res.statusText, headers, text, body: parseBody(text), ms: Math.round(now() - t0) };
+    // `timingMs`: measured in the browser when it made the call (browser-route.js).
+    return { ok: true, status: res.status, statusText: res.statusText, headers, text, body: parseBody(text), ms: res.timingMs ?? Math.round(now() - t0) };
   } catch (err) {
-    return { ok: false, error: describeFetchError(err, CHECK_TIMEOUT_MS), ms: Math.round(now() - t0) };
+    return { ok: false, error: describeFetchError(err, CHECK_TIMEOUT_MS), ms: err.timingMs ?? Math.round(now() - t0) };
   }
 }
 
@@ -102,8 +105,10 @@ export async function runChecks(cfg, { origin, fetchFn }) {
     return { checks, info: connectInfo(cfg, origin) };
   };
 
+  const browser = cfg.via === 'browser';
   // 1. Settings
-  if (cfg.mode === 'mock') add({ id: 'settings', name: STEP_NAME.settings, status: 'pass', detail: "Dry run: checking the demo's built-in LayerOne stand-in. Switch to Live in Settings to check your real deployment." });
+  if (browser) add({ id: 'settings', name: STEP_NAME.settings, status: cfg.apiKey ? 'pass' : 'warn', detail: `Sending from this browser to ${endpoint}, ${cfg.apiKey ? `with your key in the ${cfg.authHeader} header` : 'without a key (none entered in Settings → Send from this browser)'}. Agent ID: ${cfg.agentId || 'layerone-demo'}${cfg.projectId ? `, project ID: ${cfg.projectId}` : ', no project ID (recommended)'}.` });
+  else if (cfg.mode === 'mock') add({ id: 'settings', name: STEP_NAME.settings, status: 'pass', detail: "Dry run: checking the demo's built-in LayerOne stand-in. Switch to Live in Settings to check your real deployment." });
   else if (!cfg.baseUrl) {
     add({ id: 'settings', name: STEP_NAME.settings, status: 'fail', detail: 'No LayerOne URL is set. Add it in Settings.' });
     return skipRest('reach', 'Needs a LayerOne URL first');
@@ -117,11 +122,13 @@ export async function runChecks(cfg, { origin, fetchFn }) {
     add({ id: 'reach', name: STEP_NAME.reach, status: 'pass', detail: `Proxy health is OK (GET ${healthUrl} → HTTP ${health.status}).`, ms: health.ms, http: health.status });
   } else {
     const reach = await call(fetchFn, base, { method: 'GET', headers: { Accept: 'application/json' } });
-    if (!reach.ok) {
+    // A browser may be refused /health by CORS even when chat works, so try chat anyway.
+    if (!reach.ok && browser) {
+      add({ id: 'reach', name: STEP_NAME.reach, status: 'warn', detail: `This browser couldn't read ${healthUrl} (LayerOne may not allow cross-origin requests there). Trying a chat request anyway.`, ms: reach.ms });
+    } else if (!reach.ok) {
       add({ id: 'reach', name: STEP_NAME.reach, status: 'fail', detail: `${reach.error}. Check the URL, and that this server's network can reach it (VPN, firewall or allowlist).${portNote(base)}`, ms: reach.ms });
       return skipRest('auth', 'The host could not be reached');
-    }
-    add({ id: 'reach', name: STEP_NAME.reach, status: 'pass', detail: `The host answered (HTTP ${reach.status}), so DNS, network and TLS are working. ${healthUrl} did not report healthy.`, ms: reach.ms, http: reach.status });
+    } else add({ id: 'reach', name: STEP_NAME.reach, status: 'pass', detail: `The host answered (HTTP ${reach.status}), so DNS, network and TLS are working. ${healthUrl} did not report healthy.`, ms: reach.ms, http: reach.status });
   }
 
   // 3. Is the key accepted? Send a harmless chat request.

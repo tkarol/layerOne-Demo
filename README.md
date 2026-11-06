@@ -66,7 +66,7 @@ What happens on each run: the server still builds the request and keeps the trac
 * **LayerOne switched off** in a sample app always goes from the server (straight to the model), as before.
 * **What LayerOne needs:** CORS that allows this demo's origin (your `*.workers.dev` address) and the `Authorization`, `Content-Type` and `x-layerone-*` headers. To show LayerOne's decision headers in the trace, it must list them in `Access-Control-Expose-Headers`. Otherwise the decision is read from the response body or status.
 * **Browser:** Chrome or Edge. Safari blocks `http://localhost` from an `https://` page.
-* The **Connect** tab's checks and request builder still run from the server.
+* The **Connect** tab follows it too: **Your connection** shows the browser's URL, and **Check the connection**, **Try it like the docs** and **Send a request** (form or curl) go from this browser, one call at a time (the server runs the same checks and reads each answer). The key is added in the browser. **Quick setup** is hidden while this is on, because it changes the server's settings.
 
 ### The Connect tab
 
@@ -545,6 +545,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | Route | |
 | --- | --- |
 | `POST /api/run` `{prompt, scenario?}` | Run a request; streams trace snapshots as server-sent events |
+| `GET /api/connect?via=<url>&model=&key=1` · `POST /api/connect/check\|send` with `via: {url, model?, hasKey, results: []}` | Connect tab, sending from this browser: answers `{need: request}` (the key is a placeholder) until every call has a result, then the usual answer |
 | … with `via: {url, model?, step: 'build'}`, then `via: {url, model?, traceId, result}` | Send from this browser: the first call returns the request to send (no key) and the first trace snapshot; the second takes the browser's result (`{status, statusText, headers, body, ms}` or `{error, ms}`) and streams the rest. Also on `/api/app/run` |
 | `GET /api/apps` | The sample apps as the active customer profile presents them (`?default=1` for the originals) |
 | `GET /api/profiles` · `POST /api/profiles` · `GET`/`PUT`/`DELETE /api/profiles/:id` · `PUT /api/profiles/active` | Customer profiles |

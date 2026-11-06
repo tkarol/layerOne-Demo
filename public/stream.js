@@ -63,7 +63,8 @@ export async function callFromBrowser(req, key) {
   try {
     const res = await fetch(req.url, { method: req.method || 'POST', headers, body: req.body, signal: AbortSignal.timeout(req.timeoutMs || 60000) });
     const text = await res.text();
-    return { status: res.status, statusText: res.statusText, headers: Object.fromEntries(res.headers.entries()), body: text, ms: ms() };
+    // The server takes up to 1 MB per request; a chat answer is far smaller.
+    return { status: res.status, statusText: res.statusText, headers: Object.fromEntries(res.headers.entries()), body: text.slice(0, 900_000), ms: ms() };
   } catch (err) {
     return { error: browserFetchError(err, req), ms: ms() };
   }
@@ -80,6 +81,27 @@ export function browserFetchError(err, req) {
     `when the browser asked to reach devices on your local network, and that LayerOne accepts requests from ` +
     `${location.origin} (CORS). Use Chrome or Edge; Safari blocks http://localhost from an https page.`
   );
+}
+
+// The Connect tab's checks and request builder (/api/connect/check|send), sent from here:
+// the server answers { need: request } until it has every result, then the usual answer.
+// The request carries a placeholder where the key goes; it becomes this browser's key
+// (or, with no key, the header is left out).
+export async function postConnectVia(path, body, post) {
+  const r = browserRoute();
+  const via = { url: r.url, model: r.model, hasKey: Boolean(r.key), results: [] };
+  for (let n = 0; n < 10; n++) {
+    const out = await post(path, { ...body, via });
+    if (!out?.need) return out;
+    const { keyPlaceholder: ph, ...req } = out.need;
+    const headers = {};
+    for (const [k, v] of Object.entries(req.headers || {})) {
+      if (!String(v).includes(ph)) headers[k] = v;
+      else if (r.key) headers[k] = String(v).replace(ph, r.key);
+    }
+    via.results.push(await callFromBrowser({ ...req, headers, body: req.body ?? undefined, timeoutMs: 20000 }, ''));
+  }
+  throw new Error('Too many steps');
 }
 
 // POST to /api/run or /api/app/run. Returns a response that readTraceStream reads the same

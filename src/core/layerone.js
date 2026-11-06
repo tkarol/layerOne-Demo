@@ -78,6 +78,10 @@ export function buildDirectRequest({ prompt, traceId, origin, system, model, max
   };
 }
 
+// Stands in for a key that only the presenter's browser has (browser-route.js). The
+// browser swaps it for the real key just before sending; the server never sees that key.
+export const BROWSER_KEY = '{{key-from-this-browser}}';
+
 function mask(value) {
   const s = String(value);
   const [scheme, secret] = s.includes(' ') ? [s.slice(0, s.indexOf(' ') + 1), s.slice(s.indexOf(' ') + 1)] : ['', s];
@@ -88,7 +92,9 @@ function mask(value) {
 export function redactHeaders(headers, authHeader = 'Authorization') {
   return Object.fromEntries(
     Object.entries(headers).map(([k, v]) =>
-      SENSITIVE_HEADER.test(k) || k.toLowerCase() === authHeader.toLowerCase() ? [k, mask(v)] : [k, v],
+      String(v).includes(BROWSER_KEY)
+        ? [k, String(v).replace(BROWSER_KEY, '•••••••• (added by the browser)')]
+        : SENSITIVE_HEADER.test(k) || k.toLowerCase() === authHeader.toLowerCase() ? [k, mask(v)] : [k, v],
     ),
   );
 }

@@ -5,7 +5,7 @@ import { envConfig, mergeSaved, publicConfig } from './config.js';
 import { SCENARIOS } from './scenarios.js';
 import { publicApps, publicPitch, findWorkflow, getActiveProfile, listProfiles, validateProfile } from './profiles.js';
 import { createTrace, runWorkflow } from './workflow.js';
-import { viaConfig, buildForBrowser, finishOptions } from './browser-route.js';
+import { viaConfig, buildForBrowser, finishOptions, replay } from './browser-route.js';
 import { handleMockChat } from './mock-layerone.js';
 import { handleMockModel, handleMockJudge } from './mock-model.js';
 import { validate, publicSettings, toSaved, testConnection } from './settings.js';
@@ -240,14 +240,30 @@ export function createApp({ env, storage }) {
       }
 
       // ----- Connect tab: connection checks and a request builder (they use the saved key) -----
-      if (pathname === '/api/connect' && method === 'GET') return json(200, connectInfo(await configNow(), origin));
+      // With `?via=<url>&model=&key=1` (or `via` in the body), the same thing for a LayerOne this
+      // browser sends to (browser-route.js): the browser makes each call, one round trip each.
+      if (pathname === '/api/connect' && method === 'GET') {
+        const via = url.searchParams.get('via');
+        const v = via ? viaConfig(await configNow(), { url: via, model: url.searchParams.get('model'), hasKey: url.searchParams.get('key') === '1' }, { withKey: true }) : null;
+        if (v?.error) return json(400, { error: v.error });
+        return json(200, connectInfo(v ? v.cfg : await configNow(), origin));
+      }
       if ((pathname === '/api/connect/check' || pathname === '/api/connect/send') && method === 'POST') {
+        const body = await readJson(request);
+        if (body.via) {
+          const v = viaConfig(await configNow(), body.via, { withKey: true });
+          if (v.error) return json(400, { error: v.error });
+          const r = await replay((fetchFn) => (pathname === '/api/connect/check' ? runChecks(v.cfg, { origin, fetchFn }) : sendCustom(body, v.cfg, { origin, fetchFn })), body.via.results);
+          if (r.need) return json(200, { need: r.need });
+          if (pathname === '/api/connect/check') return json(200, r.value);
+          return r.value.error ? json(r.value.status, { error: r.value.error }) : json(200, r.value.result);
+        }
         const cfg = await configNow();
         if (!me && cfg.settingsPassword && !safeEqual(request.headers.get('x-settings-password') || '', cfg.settingsPassword)) {
           return json(401, { error: 'Enter the settings password to send requests with the saved key', passwordRequired: true });
         }
         if (pathname === '/api/connect/check') return json(200, await runChecks(cfg, { origin, fetchFn: makeFetch(origin) }));
-        const out = await sendCustom(await readJson(request), cfg, { origin, fetchFn: makeFetch(origin) });
+        const out = await sendCustom(body, cfg, { origin, fetchFn: makeFetch(origin) });
         return out.error ? json(out.status, { error: out.error }) : json(200, out.result);
       }
 

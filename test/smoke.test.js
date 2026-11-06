@@ -995,3 +995,46 @@ test('send from this browser: the server builds the request without its key, the
     await settings('DELETE');
   }
 });
+
+test('send from this browser: the Connect tab’s checks and requests go one call at a time through the browser', async () => {
+  const post = async (path, body) => (await fetch(`${base}${path}`, { method: 'POST', body: JSON.stringify(body) })).json();
+  await settings('PUT', { mode: 'live', baseUrl: 'https://layerone.example.gov', apiKey: 'sk-server-secret-5555' });
+  try {
+    const info = await (await fetch(`${base}/api/connect?via=${encodeURIComponent('http://localhost:4000/v1/chat/completions')}&model=haiku-5-5&key=1`)).json();
+    assert.equal(info.via, 'browser');
+    assert.equal(info.endpoint, 'http://localhost:4000/v1/chat/completions');
+    assert.equal(info.healthUrl, 'http://localhost:4000/health');
+    assert.equal(info.keyHint, 'in this browser');
+
+    // Play the browser: answer each call the server asks for.
+    const asked = [];
+    const answer = (need) => {
+      asked.push(need);
+      if (need.url.endsWith('/health')) return { status: 200, statusText: 'OK', headers: { 'content-type': 'application/json' }, body: '{"status":"ok"}', ms: 9 };
+      if (/\d{3}-\d{2}-\d{4}/.test(need.body)) return { status: 403, statusText: 'Forbidden', headers: { 'x-layerone-decision': 'blocked' }, body: '{"error":{"type":"policy_violation"}}', ms: 4 };
+      return { status: 200, statusText: 'OK', headers: { 'x-layerone-decision': 'allowed' }, body: JSON.stringify({ choices: [{ message: { content: 'OK' } }] }), ms: 650 };
+    };
+    const via = { url: 'http://localhost:4000/v1/chat/completions', model: 'haiku-5-5', hasKey: true, results: [] };
+    let out;
+    for (let n = 0; n < 10 && !(out = await post('/api/connect/check', { via })).checks; n++) via.results.push(answer(out.need));
+    assert.deepEqual(out.checks.map((c) => c.status), ['pass', 'pass', 'pass', 'pass', 'pass', 'pass']);
+    assert.equal(out.checks.find((c) => c.id === 'chat').ms, 650, 'the time measured in the browser');
+    assert.equal(asked.length, 3); // health, chat, fake SSN
+    const chat = asked[1];
+    assert.equal(chat.url, 'http://localhost:4000/v1/chat/completions');
+    assert.equal(chat.headers.Authorization, `Bearer ${chat.keyPlaceholder}`);
+    assert.equal(JSON.parse(chat.body).model, 'haiku-5-5');
+    assert.doesNotMatch(JSON.stringify(asked), /sk-server-secret|X-Demo-Client/);
+
+    // The request builder, without a key: no key header at all.
+    const send = { method: 'POST', path: '/chat/completions', body: '{"model":"haiku-5-5","messages":[]}', useKey: false, headers: {} };
+    const first = await post('/api/connect/send', { ...send, via: { ...via, results: [] } });
+    assert.equal(first.need.url, 'http://localhost:4000/v1/chat/completions');
+    assert.equal(first.need.headers.Authorization, undefined);
+    const done = await post('/api/connect/send', { ...send, via: { ...via, results: [answer(first.need)] } });
+    assert.equal(done.response.status, 200);
+    assert.equal(done.ms, 650);
+  } finally {
+    await settings('DELETE');
+  }
+});

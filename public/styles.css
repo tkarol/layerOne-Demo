@@ -2323,3 +2323,8 @@ button.lib-acct { cursor: pointer; }
 .print-sheet :is(.vx-core, .vx-hub)::before, .print-sheet :is(.vx-core, .vx-hub)::after, .print-sheet .vx-band::after { display: none; }
 .print-sheet .vx-const { transform: none; top: calc(50% - 19cqw); } /* Chrome drops a strip of translated layers when printing */
 .print-sheet .d-orbit { transform: none !important; top: calc(50% - 23cqw); }
+
+/* Connect tab: sending from this browser */
+.con-via { background: rgb(var(--brand-rgb) / 0.08); border: 1px solid rgb(var(--brand-rgb) / 0.4); border-radius: 12px; padding: 12px 16px; margin: 0 0 16px; line-height: 1.5; }
+.con-via code { word-break: break-all; }
+.con-via small { color: var(--muted, #666); }

@@ -9,6 +9,7 @@
 //      { status, statusText, headers, body, ms } or { error, ms }
 //      → the rest of the trace, as server-sent events, saved to History as usual.
 import { createTrace, runWorkflow } from './workflow.js';
+import { BROWSER_KEY } from './layerone.js';
 
 const MAX_BODY = 2_000_000;
 const TRACE_ID = /^trc_\d{14}_[0-9a-f]{6}$/;
@@ -22,14 +23,18 @@ const isHttpUrl = (s) => {
   }
 };
 
-// The settings for one browser-sent request: Live, to the browser's URL, with no key
-// (and none of the server's extra headers, which could hold secrets).
-export function viaConfig(cfg, via) {
+// The settings for one browser-sent request: Live, to the browser's URL, and none of the
+// server's extra headers (they could hold secrets). Never the server's key: runs leave the
+// key out and the browser adds its own; with `withKey` (Connect tab) a placeholder marks
+// where the browser puts it, if it has one.
+export function viaConfig(cfg, via, { withKey = false } = {}) {
   const url = String(via?.url ?? '').trim().replace(/\/+$/, '');
   if (!isHttpUrl(url)) return { error: 'Enter the LayerOne URL this browser should send to, like http://localhost:4000/v1/chat/completions' };
-  const full = /\/chat\/completions$/.test(url);
+  // "…/v1/chat/completions" is the base "…/v1" plus the chat path, like an OpenAI client.
+  const full = url.match(/^(.*)(\/chat\/completions)$/);
   const model = String(via.model ?? '').trim().slice(0, 200);
-  return { cfg: { ...cfg, mode: 'live', via: 'browser', baseUrl: url, chatPath: full ? '' : cfg.chatPath, apiKey: '', extraHeaders: {}, ...(model ? { model } : {}) } };
+  const apiKey = withKey && via.hasKey ? BROWSER_KEY : '';
+  return { cfg: { ...cfg, mode: 'live', via: 'browser', baseUrl: full ? full[1] : url, chatPath: full ? full[2] : cfg.chatPath, apiKey, extraHeaders: {}, ...(model ? { model } : {}) } };
 }
 
 const gatewayDone = (t) => !['pending', 'running'].includes(t.steps.find((s) => s.key === 'gateway')?.status);
@@ -74,23 +79,48 @@ export async function buildForBrowser(input, cfg) {
   };
 }
 
+// What the browser got back, as the Response (or error) a server-side fetch would give.
+// `timingMs` carries the time the browser measured.
+function toResponse(result) {
+  const ms = Math.max(0, Math.min(Number(result?.ms) || 0, 600_000));
+  if (!result || typeof result !== 'object') throw new Error('The browser did not send a result');
+  if (result.error) throw Object.assign(new Error(String(result.error).slice(0, 600)), { timingMs: ms });
+  const status = Number(result.status);
+  if (!Number.isInteger(status) || status < 200 || status > 599) throw Object.assign(new Error(`The browser got an unusable HTTP status (${result.status})`), { timingMs: ms });
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(result.headers || {}).slice(0, 200)) {
+    try {
+      headers.set(k, String(v));
+    } catch {}
+  }
+  const body = [204, 205, 304].includes(status) ? null : String(result.body ?? '').slice(0, MAX_BODY);
+  const statusText = String(result.statusText || '').replace(/[^\t\x20-\x7e]/g, '').slice(0, 100);
+  return Object.assign(new Response(body, { status, statusText, headers }), { timingMs: ms });
+}
+
 // Step 3: replay the workflow with the browser's result in place of the network call.
-export function resultFetch(result) {
-  return async () => {
-    if (!result || typeof result !== 'object') throw new Error('The browser did not send a result');
-    if (result.error) throw new Error(String(result.error).slice(0, 500));
-    const status = Number(result.status);
-    if (!Number.isInteger(status) || status < 200 || status > 599) throw new Error(`The browser got an unusable HTTP status (${result.status})`);
-    const headers = new Headers();
-    for (const [k, v] of Object.entries(result.headers || {}).slice(0, 200)) {
-      try {
-        headers.set(k, String(v));
-      } catch {}
-    }
-    const body = [204, 205, 304].includes(status) ? null : String(result.body ?? '').slice(0, MAX_BODY);
-    const statusText = String(result.statusText || '').replace(/[^\t\x20-\x7e]/g, '').slice(0, 100);
-    return new Response(body, { status, statusText, headers });
+export const resultFetch = (result) => async () => toResponse(result);
+
+// For anything that makes several calls (the Connect tab's checks): run `fn(fetchFn)` with
+// the results the browser has sent so far. At the first call it has no result for, stop and
+// return { need: request } for the browser to send; once all are answered, { value }.
+// The browser posts again with one more result each time.
+export async function replay(fn, results) {
+  const answers = Array.isArray(results) ? results.slice(0, 10) : [];
+  let i = 0;
+  let need = null;
+  const fetchFn = async (url, init = {}) => {
+    if (i < answers.length) return toResponse(answers[i++]);
+    need ||= { url: String(url), method: init.method || 'GET', headers: { ...(init.headers || {}) }, body: init.body ?? null, keyPlaceholder: BROWSER_KEY };
+    throw new Error('handed to the browser');
   };
+  let value;
+  try {
+    value = await fn(fetchFn);
+  } catch (err) {
+    if (!need) throw err;
+  }
+  return need ? { need } : { value };
 }
 
 export function finishOptions(via, cfg) {

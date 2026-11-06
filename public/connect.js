@@ -2,6 +2,7 @@
 // connection checks, gives copy-ready curl / PowerShell commands, and has a
 // request builder. Requests are sent by the server, which adds the saved key.
 import { authHeaders } from './customize.js';
+import { browserRoute, saveBrowserRoute, postConnectVia } from './stream.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -35,11 +36,21 @@ export async function mountConnect(el) {
   root = el;
   await load();
   window.addEventListener('l1:config', load); // settings changed
+  window.addEventListener('l1:route', load); // sending from this browser turned on or off
 }
+
+// "Send from this browser" (Settings): this tab then checks and sends to that LayerOne,
+// from this browser, with the key saved there.
+const viaBrowser = () => browserRoute().on;
 
 async function load() {
   try {
-    s.info = await fetch('/api/connect').then((r) => r.json());
+    const r = browserRoute();
+    const q = r.on ? `?${new URLSearchParams({ via: r.url, model: r.model, key: r.key ? '1' : '0' })}` : '';
+    if (s.info && s.info.via !== (r.on ? 'browser' : 'server')) s.modeB = null; // start Mode B from the new URL
+    const info = await fetch(`/api/connect${q}`).then((res) => res.json());
+    if (info.error) throw new Error(info.error);
+    s.info = info;
     s.error = '';
   } catch (err) {
     s.error = `Could not load the connection settings: ${err.message}`;
@@ -47,7 +58,10 @@ async function load() {
   draw();
 }
 
-async function post(path, body) {
+// Checks and requests: from the server, or (sending from this browser) from here.
+const post = (path, body) => (viaBrowser() ? postConnectVia(path, body || {}, postServer) : postServer(path, body));
+
+async function postServer(path, body) {
   const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body || {}) });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && data.passwordRequired) {
@@ -56,7 +70,7 @@ async function post(path, body) {
       try {
         sessionStorage.setItem('l1-settings-pw', pw);
       } catch {}
-      return post(path, body);
+      return postServer(path, body);
     }
   }
   if (!res.ok) throw new Error(data.error || res.statusText);
@@ -185,7 +199,7 @@ function modeB() {
       baseUrl: i.mode === 'mock' ? i.baseUrl : i.baseUrl.replace(/\/v1$/, '') || 'http://localhost:4000',
       useSaved: true,
       key: '',
-      model: i.mode === 'mock' ? i.model : 'gpt-4',
+      model: i.mode === 'mock' || i.via === 'browser' ? i.model : 'gpt-4',
       message: 'Hello',
       runId: 'run-001',
       agentId: i.agentId && i.agentId !== 'layerone-demo' ? i.agentId : 'agent-001',
@@ -241,7 +255,7 @@ function drawModeB(ready) {
       <form id="conModeB" class="con-form">
         ${field('baseUrl', 'base_url', 'placeholder="http://localhost:4000"')}
         <div class="con-key">
-          <label class="check"><input type="checkbox" name="useSaved" ${m.useSaved ? 'checked' : ''} /> Use the saved API key</label>
+          <label class="check"><input type="checkbox" name="useSaved" ${m.useSaved ? 'checked' : ''} /> Use the ${s.info.via === 'browser' ? 'key saved in this browser' : 'saved API key'}</label>
           <input name="key" type="password" placeholder="api_key for this test only (not saved)" value="${esc(m.key)}" ${m.useSaved ? 'hidden' : ''} autocomplete="off" />
         </div>
         ${field('model', 'model')}
@@ -262,8 +276,8 @@ function drawModeB(ready) {
 
 function modeBHostNote(m, h) {
   if (h.invalid) return 'Enter a full URL, like http://localhost:4000';
-  if (h.ok) return `✓ This is your LayerOne host${s.info.mode === 'mock' ? ' (the Dry-run stand-in)' : ''}.`;
-  return `This page only sends to the LayerOne URL in Settings (${esc(hostOf(s.info.baseUrl))}). <button type="button" class="link-btn" id="conModeBSave">Use ${esc(h.want)} as the LayerOne URL</button>`;
+  if (h.ok) return `✓ This is your LayerOne host${s.info.mode === 'mock' ? ' (the Dry-run stand-in)' : s.info.via === 'browser' ? ', sent from this browser' : ''}.`;
+  return `This page only sends to the LayerOne URL in ${s.info.via === 'browser' ? 'Settings → Send from this browser' : 'Settings'} (${esc(hostOf(s.info.baseUrl))}). <button type="button" class="link-btn" id="conModeBSave">Use ${esc(h.want)} as the LayerOne URL</button>`;
 }
 
 function drawModeBResult(m) {
@@ -314,6 +328,13 @@ function wireModeBSave() {
   if (!b) return;
   b.onclick = async () => {
     const m = readModeB();
+    if (s.info.via === 'browser') {
+      // Sending from this browser: point that at the new URL instead of the server's.
+      saveBrowserRoute({ ...browserRoute(), url: sdkUrl(m.baseUrl), model: m.model });
+      m.error = '';
+      m.note = `Saved. This browser now sends to ${sdkUrl(m.baseUrl)}.`;
+      return;
+    }
     try {
       const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ mode: 'live', baseUrl: m.baseUrl, chatPath: '/chat/completions', model: m.model, agentId: m.agentId, projectId: m.projectId }) });
       const data = await res.json().catch(() => ({}));
@@ -413,20 +434,26 @@ function draw() {
   }
   const live = i.mode === 'live';
   const ready = Boolean(i.endpoint);
+  const browser = i.via === 'browser';
   root.innerHTML = `
     <p class="intro">Get this demo talking to your LayerOne deployment: check the connection, copy ready-made commands, and send test requests. ${
-      live ? '' : '<b>You are in Dry run</b>, so everything here points at the built-in LayerOne stand-in. That is a safe place to practice.'
+      browser ? '' : live ? '' : '<b>You are in Dry run</b>, so everything here points at the built-in LayerOne stand-in. That is a safe place to practice.'
     }</p>
+    ${
+      browser
+        ? `<div class="notice con-via"><b>Sending from this browser.</b> The checks, <i>Try it like the docs</i> and <i>Send a request</i> below go from this browser to <code>${esc(i.endpoint)}</code>, with the key saved in this browser. <button type="button" class="link-btn" id="conRoute">Change</button><br /><small>Quick setup is hidden while this is on: it changes the server's settings, which other computers use.</small></div>`
+        : ''
+    }
 
-    ${drawSetup()}
+    ${browser ? '' : drawSetup()}
 
     <section class="card con-now">
       <div class="card-head"><h2>Your connection</h2><button class="secondary" id="conSettings">⚙ Change in Settings</button></div>
       <dl class="con-facts">
-        <div><dt>Mode</dt><dd><span class="con-mode ${live ? 'live' : ''}">${live ? 'Live' : 'Dry run'}</span></dd></div>
+        <div><dt>Mode</dt><dd><span class="con-mode ${live ? 'live' : ''}">${browser ? 'Live, from this browser' : live ? 'Live' : 'Dry run'}</span></dd></div>
         <div><dt>LayerOne URL</dt><dd><code>${esc(i.baseUrl || 'Not set')}</code></dd></div>
         <div><dt>Chat endpoint</dt><dd><code>${esc(i.endpoint ? `POST ${i.endpoint}` : 'Not set')}</code></dd></div>
-        <div><dt>Authentication</dt><dd><code>${esc(i.authHeader)}: ${esc(i.authScheme ? `${i.authScheme} ` : '')}${i.keySet ? esc(i.dryRunKey || `•••• ${i.keyHint}`) : '<no key saved>'}</code></dd></div>
+        <div><dt>Authentication</dt><dd><code>${esc(i.authHeader)}: ${esc(i.authScheme ? `${i.authScheme} ` : '')}${i.keySet ? esc(i.dryRunKey || `•••• ${i.keyHint}`) : browser ? '<no key in this browser>' : '<no key saved>'}</code></dd></div>
         <div><dt>Model</dt><dd><code>${esc(i.model)}</code></dd></div>
         <div><dt>Agent ID <small>required</small></dt><dd><code>${esc(i.agentId)}</code></dd></div>
         <div><dt>Project ID <small>recommended</small></dt><dd><code>${esc(i.projectId || 'Not set')}</code></dd></div>
@@ -483,7 +510,7 @@ function draw() {
         <label>Body (JSON)<textarea name="body" rows="9" spellcheck="false">${esc(bodyFor(PRESETS[s.preset]))}</textarea></label>
         <label>Extra headers <small class="muted">one per line, like <code>X-Request-Id: test-1</code></small><textarea name="headers" rows="2" spellcheck="false"></textarea></label>
         <div class="con-actions">
-          <label class="check"><input type="checkbox" name="useKey" checked /> Add the saved API key (${esc(i.authHeader)})</label>
+          <label class="check"><input type="checkbox" name="useKey" checked /> Add ${browser ? 'this browser’s' : 'the saved'} API key (${esc(i.authHeader)})</label>
           <span class="muted small" title="${esc(Object.entries(idHeaders()).map(([k, v]) => `${k}: ${v}`).join('\n'))}">+ x-layerone-* headers from Settings</span>
           <span class="con-expect muted small">Expect: ${esc(PRESETS[s.preset].expect)}</span>
           <button type="button" class="secondary" id="conCopyCurl">Copy as ${{ bash: 'curl', ps: 'PowerShell', py: 'Python' }[s.shell]}</button>
@@ -678,6 +705,8 @@ function formValues() {
 
 function wire() {
   $('#conSettings', root).onclick = () => $('#openSettings').click();
+  const rb = $('#conRoute', root);
+  if (rb) rb.onclick = () => ($('#openSettings').click(), $('#openRoute')?.click());
   $('#conCheck', root).onclick = runChecks;
   const mb = $('#conModeB', root);
   if (mb) {
@@ -697,7 +726,8 @@ function wire() {
         draw();
       }),
   );
-  $('#conSetup', root).onsubmit = (e) => {
+  const setup = $('#conSetup', root);
+  if (setup) setup.onsubmit = (e) => {
     e.preventDefault();
     saveSetup();
   };
