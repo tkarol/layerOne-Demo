@@ -571,12 +571,11 @@ function renderConfig() {
   badge.textContent = route.on ? 'Live: this browser' : mock ? 'Dry run' : 'Live: LayerOne';
   badge.className = `badge ${mock ? 'mock' : 'live'}`;
   badge.title = `${c.endpoint.url}\nClick to change`;
-  badge.onclick = route.on ? openRoute : openSettings;
   const note = $('#modeNote');
   note.hidden = false;
   note.className = 'mode-note';
   if (route.on) {
-    note.innerHTML = `Requests go from this browser to <code>${esc(route.url)}</code> (set on this device). <a data-open-route>Change</a>`;
+    note.innerHTML = `Live, from this browser: requests go to <code>${esc(route.url)}</code> (set on this device only). <a data-open-settings>Change in Settings</a>`;
   } else if (mock) {
     note.innerHTML = 'Dry run: requests go to a built-in stand-in for LayerOne, not the real product. <a data-open-settings>Change in Settings</a>';
   } else if (!c.configured) {
@@ -588,7 +587,6 @@ function renderConfig() {
     note.hidden = true;
   }
   note.querySelectorAll('[data-open-settings]').forEach((a) => (a.onclick = openSettings));
-  note.querySelectorAll('[data-open-route]').forEach((a) => (a.onclick = openRoute));
   $('#send').textContent = mock ? 'Send through LayerOne (dry run)' : 'Send through LayerOne';
   window.dispatchEvent(new CustomEvent('l1:config', { detail: c }));
 }
@@ -612,7 +610,9 @@ const ERROR_FIELDS = [...SETTINGS_FIELDS, 'settingsPassword'];
 
 function readForm() {
   const f = form();
-  const data = { mode: f.mode.value, pace: f.pace.value || 'normal', showPlay: f.showPlay.checked, showCustomize: f.showCustomize.checked };
+  // "Live, from this browser" is this device's choice; the server keeps its own mode.
+  const mode = f.mode.value === 'browser' ? state.rawConfig?.mode || 'mock' : f.mode.value;
+  const data = { mode, pace: f.pace.value || 'normal', showPlay: f.showPlay.checked, showCustomize: f.showCustomize.checked };
   for (const k of SETTINGS_FIELDS) data[k] = f[k].value;
   data.timeoutMs = Number(data.timeoutMs);
   data.clearApiKey = f.clearApiKey.checked;
@@ -631,10 +631,24 @@ function showErrors(errors = {}) {
   }
 }
 
+// What a run will call for a URL typed in "Live, from this browser" (the server adds the
+// chat path to a bare base URL; see browser-route.js).
+const chatUrl = (u) => (/\/chat\/completions\/?$/.test(u) ? u.replace(/\/+$/, '') : `${u.replace(/\/+$/, '')}/v1/chat/completions`);
+
 function updatePreview() {
   const f = form();
-  const mock = f.mode.value === 'mock';
-  $('#liveFields').classList.toggle('dim', mock);
+  const browser = f.mode.value === 'browser';
+  const mock = f.mode.value === 'mock' || (browser && state.rawConfig?.mode === 'mock');
+  $('#browserFields').hidden = !browser;
+  $('#liveFields').classList.toggle('dim', f.mode.value !== 'live');
+  if (browser) {
+    const err = routeError(readRoute());
+    const touched = f.routeUrl.dataset.touched === '1';
+    f.routeUrl.classList.toggle('invalid', Boolean(err) && touched);
+    f.querySelector('[data-err="routeUrl"]').textContent = touched ? err : '';
+    $('#epPreview').textContent = err ? 'Enter the LayerOne URL on this computer above' : `POST ${chatUrl(f.routeUrl.value.trim())}, sent from this browser`;
+    return;
+  }
   const base = f.baseUrl.value.trim().replace(/\/+$/, '');
   const path = f.chatPath.value.trim() || '/v1/chat/completions';
   $('#epPreview').textContent = mock
@@ -646,7 +660,13 @@ function updatePreview() {
 
 function fillForm(st) {
   const f = form();
-  f.mode.value = st.mode;
+  const route = browserRoute();
+  f.mode.value = route.on ? 'browser' : st.mode;
+  f.routeUrl.value = route.url;
+  f.routeModel.value = route.model;
+  f.routeKey.value = route.key;
+  f.routeUrl.dataset.touched = '';
+  state.serverLocked = Boolean(st.locked);
   f.pace.value = st.pace || 'normal';
   f.showPlay.checked = Boolean(st.showPlay);
   f.showCustomize.checked = Boolean(st.showCustomize);
@@ -662,7 +682,8 @@ function fillForm(st) {
   f.settingsPassword.value = '';
   $('#settingsLocked').hidden = !st.locked;
   $('#settingsLocked').textContent = st.lockedReason || 'Settings are locked on this server (ALLOW_UI_SETTINGS=false).';
-  for (const el of f.querySelectorAll('input, #settingsSave, #settingsTest, #settingsReset')) el.disabled = st.locked;
+  // Locked server settings: this device's choice (the mode, and the browser fields) still works.
+  for (const el of f.querySelectorAll('input, #settingsSave, #settingsTest, #settingsReset')) el.disabled = st.locked && !el.matches('[data-local], [name=mode], #settingsSave, #settingsTest');
   $('#testResult').hidden = true;
   showErrors();
   updatePreview();
@@ -680,6 +701,7 @@ async function openSettings() {
 }
 
 async function testSettings() {
+  if (form().mode.value === 'browser') return testRoute();
   const out = $('#testResult');
   const btn = $('#settingsTest');
   showErrors();
@@ -723,10 +745,31 @@ function rememberPassword() {
 async function saveSettings(e) {
   e.preventDefault();
   const btn = $('#settingsSave');
+  const f = form();
+  const browser = f.mode.value === 'browser';
+  const r = { ...readRoute(), on: browser };
+  if (browser && routeError(r)) {
+    f.routeUrl.dataset.touched = '1';
+    updatePreview();
+    f.routeUrl.focus();
+    return;
+  }
   btn.disabled = true;
   showErrors();
   try {
     rememberPassword();
+    // Locked server settings: only this device's choice changes.
+    if (state.serverLocked) {
+      saveBrowserRoute(r);
+      $('#settings').close();
+      state.config = withRoute(state.rawConfig);
+      state.selectedId = null;
+      renderConfig();
+      render();
+      const kept = !browser && f.mode.value !== state.rawConfig?.mode;
+      toast(browser ? `Live, from this browser: requests go to ${chatUrl(r.url)}.` : kept ? `Settings are locked on this server, so it stays on ${state.rawConfig?.mode === 'mock' ? 'Dry run' : 'Live'}.` : 'Saved.');
+      return;
+    }
     let data;
     try {
       data = await api('/api/settings', { method: 'PUT', body: JSON.stringify(readForm()) });
@@ -740,12 +783,16 @@ async function saveSettings(e) {
       (form().querySelector('.invalid') || out).scrollIntoView({ block: 'center' });
       return;
     }
+    saveBrowserRoute(r);
     $('#settings').close();
     state.selectedId = null; // show the newly configured endpoints, not a past request's
     state.config = withRoute((state.rawConfig = await api('/api/config')));
     renderConfig();
     render();
-    toast(data.notice || `Saved. ${data.settings.mode === 'mock' ? 'Dry run is on.' : `Live: requests now go to ${data.settings.endpoint}`}`);
+    toast(
+      data.notice ||
+        (browser ? `Saved. Live, from this browser: requests go to ${chatUrl(r.url)}.` : `Saved. ${data.settings.mode === 'mock' ? 'Dry run is on.' : `Live: requests now go to ${data.settings.endpoint}`}`),
+    );
   } finally {
     btn.disabled = false;
   }
@@ -759,15 +806,12 @@ function withRoute(c) {
   return { ...c, mode: 'live', via: 'browser', endpoint: { method: 'POST', url: r.url }, upstream: c.mode === 'mock' ? null : c.upstream, model: r.model || c.model, configured: true, authConfigured: Boolean(r.key) };
 }
 
-const routeForm = () => $('#routeForm');
-
 function readRoute() {
-  const f = routeForm();
-  return { on: f.on.value === '1', url: f.url.value.trim(), key: f.key.value, model: f.model.value.trim() };
+  const f = form();
+  return { url: f.routeUrl.value.trim(), key: f.routeKey.value, model: f.routeModel.value.trim() };
 }
 
 function routeError(r) {
-  if (!r.on) return '';
   try {
     if (!['http:', 'https:'].includes(new URL(r.url).protocol)) throw 0;
   } catch {
@@ -776,36 +820,16 @@ function routeError(r) {
   return '';
 }
 
-function drawRoute() {
-  const f = routeForm();
-  $('#routeFields').classList.toggle('dim', f.on.value !== '1');
-  const err = routeError(readRoute());
-  f.url.classList.toggle('invalid', Boolean(err) && f.url.dataset.touched === '1');
-  f.querySelector('[data-err="url"]').textContent = f.url.dataset.touched === '1' ? err : '';
-}
-
-function openRoute(e) {
-  e?.preventDefault?.();
-  const r = browserRoute();
-  const f = routeForm();
-  f.on.value = r.on ? '1' : '0';
-  f.url.value = r.url;
-  f.model.value = r.model;
-  f.key.value = r.key;
-  f.url.dataset.touched = '';
-  $('#routeResult').hidden = true;
-  drawRoute();
-  if ($('#settings').open) $('#settings').close();
-  $('#routeDlg').showModal();
-}
-
+// "Test connection" with "Live, from this browser" chosen: the exact request a run sends
+// (built by the server, without the key), sent from here, so it also checks CORS.
 async function testRoute() {
   const r = readRoute();
-  const out = $('#routeResult');
-  routeForm().url.dataset.touched = '1';
-  const err = routeError({ ...r, on: true });
-  drawRoute();
+  const f = form();
+  const out = $('#testResult');
+  f.routeUrl.dataset.touched = '1';
+  updatePreview();
   out.hidden = false;
+  const err = routeError(r);
   if (err) {
     out.className = 'test-result bad';
     out.textContent = err;
@@ -813,11 +837,10 @@ async function testRoute() {
   }
   out.className = 'test-result pending';
   out.textContent = 'Sending "Hello, how are you?" from this browser…';
-  const btn = $('#routeTest');
+  out.scrollIntoView({ block: 'nearest' });
+  const btn = $('#settingsTest');
   btn.disabled = true;
   try {
-    // The exact request a run sends (built by the server, without the key), so this also
-    // checks that LayerOne's CORS rules allow every header.
     const prep = await fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -845,38 +868,14 @@ async function testRoute() {
     out.className = `test-result ${ok ? 'ok' : 'bad'}`;
     out.innerHTML = `${ok ? '✓ Connected from this browser' : '✕ Reached LayerOne, but it returned an error'} · HTTP ${res.status} ${esc(res.statusText)} in ${fmtMs(res.ms)}${hint ? ` · ${esc(hint)}` : ''}
       <small>${esc(url)}${reply ? ` · Reply: "${esc(reply.slice(0, 200))}"` : !ok ? ` · ${esc(String(res.body).slice(0, 200))}` : ''}</small>`;
+    requestAnimationFrame(() => out.scrollIntoView({ block: 'nearest' }));
   } finally {
     btn.disabled = false;
   }
 }
 
-function saveRoute(e) {
-  e.preventDefault();
-  const r = readRoute();
-  routeForm().url.dataset.touched = '1';
-  if (routeError(r)) return drawRoute();
-  saveBrowserRoute(r);
-  $('#routeDlg').close();
-  state.config = withRoute(state.rawConfig);
-  state.selectedId = null;
-  renderConfig();
-  render();
-  toast(r.on ? `Requests now go from this browser to ${r.url}.` : 'Requests go from the server again.');
-}
-
-function initRoute() {
-  $('#openRoute').onclick = openRoute;
-  $('#routeClose').onclick = () => $('#routeDlg').close();
-  $('#routeTest').onclick = testRoute;
-  routeForm().addEventListener('submit', saveRoute);
-  routeForm().addEventListener('input', (e) => {
-    if (e.target.name === 'url') e.target.dataset.touched = '1';
-    drawRoute();
-  });
-}
-
 function initSettings() {
-  initRoute();
+  form().routeUrl.addEventListener('input', (e) => (e.target.dataset.touched = '1'));
   $('#openSettings').onclick = openSettings;
   $('#modeBadge').onclick = openSettings;
   $('#settingsClose').onclick = () => $('#settings').close();

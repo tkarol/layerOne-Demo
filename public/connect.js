@@ -441,7 +441,7 @@ function draw() {
     }</p>
     ${
       browser
-        ? `<div class="notice con-via"><b>Sending from this browser.</b> The checks, <i>Try it like the docs</i> and <i>Send a request</i> below go from this browser to <code>${esc(i.endpoint)}</code>, with the key saved in this browser. <button type="button" class="link-btn" id="conRoute">Change</button><br /><small>Quick setup is hidden while this is on: it changes the server's settings, which other computers use.</small></div>`
+        ? `<div class="notice con-via"><b>Sending from this browser.</b> The checks, <i>Try it like the docs</i> and <i>Send a request</i> below go from this browser to <code>${esc(i.endpoint)}</code>, with the key saved in this browser. <button type="button" class="link-btn" id="conRoute">Change in Settings</button><br /><small>Quick setup is hidden while this is on: it changes the server's settings, which other computers use.</small></div>`
         : ''
     }
 
@@ -706,7 +706,7 @@ function formValues() {
 function wire() {
   $('#conSettings', root).onclick = () => $('#openSettings').click();
   const rb = $('#conRoute', root);
-  if (rb) rb.onclick = () => ($('#openSettings').click(), $('#openRoute')?.click());
+  if (rb) rb.onclick = () => $('#openSettings').click();
   $('#conCheck', root).onclick = runChecks;
   const mb = $('#conModeB', root);
   if (mb) {

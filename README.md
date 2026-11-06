@@ -55,13 +55,15 @@ Alternatively, set the API key as a secret so it never has to be typed into the 
 
 The demo on Cloudflare can't reach a LayerOne gateway that runs on your laptop (`http://localhost:4000`): `localhost` on Cloudflare's servers is Cloudflare, not your Mac. For that case the page can send the requests itself:
 
-1. Click **⚙ Settings → Send requests from this browser instead…** (or the **Live: this browser** badge once it's on).
-2. Choose **From this browser**, and enter the URL (`http://localhost:4000/v1/chat/completions`, or just `http://localhost:4000`), the model (for example `haiku-5-5`) and your LayerOne key.
-3. Click **Test from this browser**. It sends "Hello, how are you?" with exactly the headers a real run uses, and shows the reply or what went wrong. The first time, the browser may ask to **access other apps and services on this device** (or **devices on your local network**): click **Allow**. Then **Save**.
+1. Click **⚙ Settings**. Under **Where should requests go?**, choose **Live, from this browser** (next to Dry run and Live).
+2. Enter the URL (`http://localhost:4000/v1/chat/completions`, or just `http://localhost:4000`), the model (for example `haiku-5-5`) and your LayerOne key.
+3. Click **Test connection**. With this option chosen it sends "Hello, how are you?" from this browser, with exactly the headers a real run uses, and shows the reply or what went wrong. The first time, the browser may ask to **access other apps and services on this device** (or **devices on your local network**): click **Allow**. Then **Save**.
+
+To go back, choose **Dry run** or **Live** and **Save**: that turns the browser option off on this device. It's one choice, so Dry run always means Dry run.
 
 What happens on each run: the server still builds the request and keeps the trace in History, but hands the call to your browser, which sends it to LayerOne (adding the key) and passes LayerOne's answer back to be checked and shown. Every tab works the same: Behind the scenes, the sample apps, Compare. The trace shows **Browser → LayerOne** for that hop and LayerOne's real response time.
 
-* **Nothing else changes.** **From the server** stays the default, and the Settings above (Dry run or Live) still apply on every other computer. The choice, URL and key are saved in this browser only (on this device, for everyone using this browser profile).
+* **Nothing else changes.** Other computers keep using Dry run or Live as saved on the server; choosing **Live, from this browser** doesn't change that. The choice, URL and key are saved in this browser only (on this device, for everyone using this browser profile). If the server's settings are locked, you can still pick this option (or turn it off) for your own device.
 * **The key stays in the browser.** It's never sent to the server, and the server never sends its own saved key to the browser. Anyone using this browser profile could read it, so use a key meant for demos.
 * **LayerOne switched off** in a sample app always goes from the server (straight to the model), as before.
 * **What LayerOne needs:** CORS that allows this demo's origin (your `*.workers.dev` address) and the `Authorization`, `Content-Type` and `x-layerone-*` headers. To show LayerOne's decision headers in the trace, it must list them in `Access-Control-Expose-Headers`. Otherwise the decision is read from the response body or status.
@@ -431,7 +433,7 @@ The header badge always shows **Dry run**, **Live: LayerOne** or, when this brow
 
 Click **⚙ Settings** (or the mode badge) to change, without redeploying:
 
-* **Mode:** Dry run or Live
+* **Mode:** Dry run, Live, or Live from this browser (see *LayerOne on your own computer*)
 * **Presentation pace:** Fast, Normal or Slow
 * **Sample app features:** show or hide **Play the day** and **Customize for a customer** (both hidden by default)
 * **LayerOne gateway:** base URL, chat path, model, API key, auth header and scheme, timeout. A preview shows the exact endpoint requests will hit.

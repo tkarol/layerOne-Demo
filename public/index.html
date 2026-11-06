@@ -186,18 +186,31 @@
           </div>
 
           <div class="s-section-title">Where should requests go?</div>
-          <div class="modes">
+          <div class="modes modes3">
             <label class="mode-opt">
               <input type="radio" name="mode" value="mock" />
               <span><b>Dry run</b><small>Uses built-in stand-ins for LayerOne and the AI model. Nothing is sent to LayerOne or any AI provider, and no credentials are needed.</small></span>
             </label>
             <label class="mode-opt">
               <input type="radio" name="mode" value="live" />
-              <span><b>Live</b><small>Sends requests to a real LayerOne gateway, using the settings below.</small></span>
+              <span><b>Live</b><small>The server sends requests to a real LayerOne gateway, using the settings below.</small></span>
+            </label>
+            <label class="mode-opt">
+              <input type="radio" name="mode" value="browser" />
+              <span><b>Live, from this browser</b><small>For LayerOne running on this computer (like localhost:4000), which the server can't reach. This device only.</small></span>
             </label>
           </div>
 
-          <p class="s-hint route-link">LayerOne running on your own computer? <a href="#" id="openRoute">Send requests from this browser instead…</a></p>
+          <div id="browserFields" class="browser-fields" hidden>
+            <div class="s-section-title">LayerOne on this computer <span class="dim-note">saved in this browser only</span></div>
+            <div class="grid2">
+              <label class="full">URL<input name="routeUrl" data-local placeholder="http://localhost:4000/v1/chat/completions" autocomplete="off" /><small class="err" data-err="routeUrl"></small></label>
+              <label>Model<input name="routeModel" data-local placeholder="haiku-5-5" autocomplete="off" /></label>
+              <label>API key<input name="routeKey" data-local type="password" autocomplete="off" placeholder="Your LayerOne agent key" /></label>
+            </div>
+            <p class="s-hint">This browser sends each request; the server still builds it and keeps the history. The key stays in this browser and is never sent to the server, so use a key meant for demos. LayerOne switched off in a sample app still goes from the server. Every other computer keeps using Dry run or Live as set on the server.</p>
+            <p class="s-hint"><b>The first time</b>, the browser may ask to <b>access other apps and services on this device</b> or <b>devices on your local network</b>. Click <b>Allow</b>. Use Chrome or Edge: Safari blocks http://localhost from an https page.</p>
+          </div>
 
           <div class="s-section-title">Presentation pace</div>
           <div class="pace" role="radiogroup" aria-label="Presentation pace">
@@ -262,43 +275,6 @@
           <span class="spacer"></span>
           <button type="button" id="settingsTest" class="secondary">Test connection</button>
           <button type="submit" id="settingsSave" class="save">Save</button>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="routeDlg" class="settings" aria-labelledby="routeTitle">
-      <form id="routeForm" novalidate>
-        <div class="s-head">
-          <h2 id="routeTitle">Where requests are sent from</h2>
-          <button type="button" class="icon-btn" id="routeClose" aria-label="Close">✕</button>
-        </div>
-        <div class="s-body">
-          <div class="modes">
-            <label class="mode-opt">
-              <input type="radio" name="on" value="0" />
-              <span><b>From the server</b><small>The usual way. The server (Cloudflare) sends each request, using the mode, URL and key in Settings. Works for a LayerOne gateway on the internet.</small></span>
-            </label>
-            <label class="mode-opt">
-              <input type="radio" name="on" value="1" />
-              <span><b>From this browser</b><small>For a LayerOne gateway on this computer (like http://localhost:4000), which the server can't reach. This browser sends each request; the server still builds it and keeps the history. Only on this device.</small></span>
-            </label>
-          </div>
-          <div id="routeFields" class="live-fields">
-            <div class="s-section-title">LayerOne on this computer</div>
-            <div class="grid2">
-              <label class="full">URL<input name="url" placeholder="http://localhost:4000/v1/chat/completions" autocomplete="off" /><small class="err" data-err="url"></small></label>
-              <label>Model<input name="model" placeholder="haiku-5-5" autocomplete="off" /></label>
-              <label>API key<input name="key" type="password" autocomplete="off" placeholder="Your LayerOne agent key" /></label>
-            </div>
-            <p class="s-hint">The key is saved in this browser only and is never sent to the server. Anyone using this browser profile can read it, so use a key meant for demos. LayerOne switched off in a sample app still goes from the server.</p>
-            <p class="s-hint"><b>The first time</b>, the browser may ask to <b>access other apps and services on this device</b> or <b>devices on your local network</b>. Click <b>Allow</b>. Use Chrome or Edge: Safari blocks http://localhost from an https page.</p>
-          </div>
-          <div id="routeResult" class="test-result" hidden></div>
-        </div>
-        <div class="s-foot">
-          <span class="spacer"></span>
-          <button type="button" id="routeTest" class="secondary">Test from this browser</button>
-          <button type="submit" class="save">Save</button>
         </div>
       </form>
     </dialog>
