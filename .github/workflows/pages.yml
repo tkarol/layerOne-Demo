@@ -1,0 +1,53 @@
+# Publishes the pages (public/) to GitHub Pages. GitHub Pages only serves files, so the
+# pages call the Cloudflare Worker for everything else (sign-in, decks, LayerOne calls).
+# Set the Worker's address once: repository Settings → Secrets and variables → Actions →
+# Variables → New repository variable LAYERONE_DEMO_API_URL = https://layerone-demo.<you>.workers.dev
+# and choose Settings → Pages → Source: GitHub Actions. See "GitHub Pages" in the README.
+name: GitHub Pages
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Pages deploys from the default branch once the Worker's address is set (or when run
+    # by hand, which says what's missing).
+    if: github.event_name == 'workflow_dispatch' || (github.ref_name == github.event.repository.default_branch && vars.LAYERONE_DEMO_API_URL != '')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the site, pointed at the Worker
+        env:
+          API_URL: ${{ vars.LAYERONE_DEMO_API_URL }}
+        run: |
+          API_URL="${API_URL%/}"
+          if ! printf '%s' "$API_URL" | grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?$'; then
+            echo "::error::Set the repository variable LAYERONE_DEMO_API_URL to your Worker's address, like https://layerone-demo.<you>.workers.dev (Settings → Secrets and variables → Actions → Variables)."
+            exit 1
+          fi
+          mkdir _site
+          cp -R public/. _site/
+          sed -i "s|^window.L1_API = '';|window.L1_API = '$API_URL';|" _site/site.js
+          grep -q "window.L1_API = '$API_URL';" _site/site.js
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

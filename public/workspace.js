@@ -13,6 +13,18 @@
 // product page. Nothing switches on by itself. The open deck is remembered per
 // person, in this browser, so it follows you from product to product.
 (() => {
+  // A shared deck link on GitHub Pages (<site>/?d=<deck id>[&p=<product>]; on the Worker it's
+  // /d/<id>): ask the backend where that deck opens, and go there.
+  const link = new URLSearchParams(location.search).get('d');
+  if (/^l_[0-9a-f]{1,24}$/.test(link || '')) {
+    const p = new URLSearchParams(location.search).get('p');
+    document.documentElement.style.visibility = 'hidden';
+    fetch(window.l1Api(`/api/d/${link}${/^[a-z]+$/.test(p || '') ? `/${p}` : ''}`))
+      .then((r) => r.json())
+      .then((to) => location.replace(new URL(to.href, location.href)))
+      .catch(() => location.replace(new URL('decks.html?missing=1', location.href)));
+    return;
+  }
   const read = (k) => {
     try {
       return localStorage.getItem(k);
@@ -44,7 +56,8 @@
 
   // Which product deck lives on this page (null on the library).
   const PAGE = (() => {
-    const f = location.pathname.replace(/\/+$/, '').split('/').pop().replace(/\.html$/, '');
+    // The last part of the address; a folder (like GitHub Pages' /layerOne-Demo/) is the LayerOne page.
+    const f = location.pathname.endsWith('/') ? '' : location.pathname.split('/').pop().replace(/\.html$/, '');
     return { '': 'layerone', index: 'layerone', vellox: 'vellox', reverser: 'reverser', ranger: 'ranger', navigator: 'navigator' }[f] ?? null;
   })();
   const LABELS = { vellox: 'Vellox', layerone: 'LayerOne', reverser: 'Reverser', ranger: 'Ranger', navigator: 'Navigator' };
@@ -113,7 +126,8 @@
   }
   applyBrand(customer ? open.color : '');
 
-  // 1. Every /api/ call carries who's signed in and which account the page is for.
+  // 1. Every /api/ call carries who's signed in and which account the page is for, and
+  //    goes to the backend (site.js: the same server, or the Worker when on GitHub Pages).
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     try {
@@ -123,6 +137,10 @@
         if (token) h.set('X-Presenter-Token', token);
         if (me) h.set('X-Customer', customer || 'none');
         init = { ...init, headers: h };
+        if (window.L1_API) {
+          if (typeof input !== 'string') init = { method: input.method, body: input.body, ...init };
+          input = window.l1Api(url.pathname + url.search);
+        }
       }
     } catch {}
     return nativeFetch(input, init);
@@ -435,7 +453,7 @@
        ${team.length ? `<div class="ws-menu-sub">Shared with you <span>decks for customers you can edit</span></div>${team.map(row).join('')}` : ''}
        ${others.length ? `<div class="ws-menu-sub">Everyone else’s <span>${me.admin ? 'you can edit these as an admin' : 'open, or copy to change'}</span></div>${others.map(row).join('')}` : ''}
        <div class="ws-menu-f"><button type="button" class="ws-small" data-new>＋ New deck</button></div>
-       <a class="ws-item ws-lib" href="/decks"><span>All decks</span><small>Library →</small></a>`,
+       <a class="ws-item ws-lib" href="decks.html"><span>All decks</span><small>Library →</small></a>`,
       (m) => {
         const search = m.querySelector('.ws-search');
         search.oninput = () => {
@@ -493,7 +511,7 @@
     openMenu(
       anchor,
       `<div class="ws-menu-h">${esc(me.name)} · ${isAe() ? 'Account executive' : 'Sales engineer'}</div>
-       <a class="ws-item" href="/decks?mine=1"><span>My decks</span><small>Library →</small></a>
+       <a class="ws-item" href="decks.html?mine=1"><span>My decks</span><small>Library →</small></a>
        <button type="button" class="ws-item" data-tour><span>Take the quick tour</span><small>1 minute</small></button>
        <form class="ws-chpin"><div class="ws-menu-sub">Change your PIN</div>
          <input type="password" inputmode="numeric" maxlength="8" placeholder="Current PIN" data-old />
@@ -644,7 +662,7 @@
     document.querySelector('.ws-bar')?.remove();
     const bar = document.createElement('div');
     bar.className = 'ws-bar';
-    const home = `<a class="ws-home" href="/decks" title="All decks">⌂<span class="ws-lbl">Decks</span></a>`;
+    const home = `<a class="ws-home" href="decks.html" title="All decks">⌂<span class="ws-lbl">Decks</span></a>`;
     if (isGuest()) {
       bar.innerHTML = `${home}<button type="button" class="ws-me ws-guest-chip" title="Browsing as a guest (read-only)"><span class="ws-av">G</span><span class="ws-me-n">Guest</span><span class="ws-caret">▾</span></button>`;
       host.prepend(bar);

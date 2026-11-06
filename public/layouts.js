@@ -115,7 +115,7 @@ function draw(ui) {
     <form novalidate>
       <div class="s-head"><h2>Edit ${esc(ui.deck.label)} slides</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></div>
       <div class="s-body">
-        <div class="le-for">${forCust ? `${forCust.hasLogo ? `<img src="/api/profiles/${esc(forCust.id)}/logo?v=${encodeURIComponent(forCust.updatedAt || '')}" alt="" />` : `<i style="${forCust.color ? `background:${esc(forCust.color)}` : ''}"></i>`}` : '<i></i>'}
+        <div class="le-for">${forCust ? `${forCust.hasLogo ? `<img src="${esc(window.l1Api(`/api/profiles/${forCust.id}/logo`))}?v=${encodeURIComponent(forCust.updatedAt || '')}" alt="" />` : `<i style="${forCust.color ? `background:${esc(forCust.color)}` : ''}"></i>`}` : '<i></i>'}
           <span><b>${esc(ui.name)}</b><small>${forCust && forCust.name !== ui.name ? `for ${esc(forCust.name)} · ` : !forCust ? 'general deck · ' : ''}only the ${esc(ui.deck.label)} slides change here</small></span></div>
         <p class="s-hint">Drag or use ▲▼ to reorder, untick to skip a slide, and open <b>Talk track</b> to rewrite what you say. Anything you don’t change follows the official slides. The other products in this deck aren’t affected.</p>
         <ol class="le-list">${ui.rows.map(row).join('')}</ol>

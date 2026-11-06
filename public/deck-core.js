@@ -194,7 +194,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     if (window.ws?.signedIn) fetch('/api/presented', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deck: st.layout?.id || '', product: deckId }) }).catch(() => {});
   }
   function openPresenter() {
-    window.open(`/presenter.html?k=${encodeURIComponent(storageKey)}`, `presenter-${storageKey}`, 'width=1180,height=760');
+    window.open(`presenter.html?k=${encodeURIComponent(storageKey)}`, `presenter-${storageKey}`, 'width=1180,height=760');
     notePresented();
   }
 

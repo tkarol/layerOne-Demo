@@ -9,11 +9,11 @@
 // "profile"), so its logo and its team (who can edit) are set once.
 
 export const PRODUCTS = [
-  { id: 'vellox', name: 'Vellox', label: 'Vellox suite', page: '/vellox.html', rgb: 'var(--brand-rgb)' },
-  { id: 'layerone', name: 'LayerOne', label: 'Vellox LayerOne', page: '/', rgb: 'var(--brand-rgb)' },
-  { id: 'reverser', name: 'Reverser', label: 'Vellox Reverser', page: '/reverser.html', rgb: 'var(--brand-rgb)' },
-  { id: 'ranger', name: 'Ranger', label: 'Vellox Ranger', page: '/ranger.html', rgb: 'var(--brand-rgb)' },
-  { id: 'navigator', name: 'Navigator', label: 'Vellox Navigator', page: '/navigator.html', rgb: 'var(--brand-rgb)' },
+  { id: 'vellox', name: 'Vellox', label: 'Vellox suite', page: 'vellox.html', rgb: 'var(--brand-rgb)' },
+  { id: 'layerone', name: 'LayerOne', label: 'Vellox LayerOne', page: './', rgb: 'var(--brand-rgb)' },
+  { id: 'reverser', name: 'Reverser', label: 'Vellox Reverser', page: 'reverser.html', rgb: 'var(--brand-rgb)' },
+  { id: 'ranger', name: 'Ranger', label: 'Vellox Ranger', page: 'ranger.html', rgb: 'var(--brand-rgb)' },
+  { id: 'navigator', name: 'Navigator', label: 'Vellox Navigator', page: 'navigator.html', rgb: 'var(--brand-rgb)' },
 ];
 export const productOf = (id) => PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
 
@@ -33,10 +33,11 @@ export function pdfHref({ id = '', customer = '', color = '', name = '', product
   if (id && color) qs.set('color', color);
   if (name) qs.set('name', name);
   if (products.length) qs.set('products', products.join(','));
-  return `/print.html?${qs}`;
+  return `print.html?${qs}`;
 }
-// The short link to share: /d/<id> always opens the deck as it is now.
-export const shareUrl = (id) => `${location.origin}/d/${id}`;
+// The short link to share: /d/<id> always opens the deck as it is now. On GitHub Pages,
+// where there is no server to answer /d/, it's <site>/?d=<id> (workspace.js follows it).
+export const shareUrl = (id) => (window.L1_API ? new URL(`./?d=${id}`, location.href).href : `${location.origin}/d/${id}`);
 
 export async function copyLink(id) {
   const url = shareUrl(id);
@@ -428,7 +429,7 @@ export function deckSettingsDialog(opts) {
             <label class="full">Deck name<input id="dsName" maxlength="60" value="${esc(ui.name)}" ${ro ? 'disabled' : ''} /></label>
           </div>
           <div class="s-section-title">Who it’s for</div>
-          <div class="nd-cust">${c ? (c.hasLogo ? `<img src="/api/profiles/${esc(c.id)}/logo?v=${encodeURIComponent(c.updatedAt || '')}" alt="" />` : `<i style="${c.color ? `background:${esc(c.color)}` : ''}"></i>`) : '<i></i>'}
+          <div class="nd-cust">${c ? (c.hasLogo ? `<img src="${esc(window.l1Api(`/api/profiles/${c.id}/logo`))}?v=${encodeURIComponent(c.updatedAt || '')}" alt="" />` : `<i style="${c.color ? `background:${esc(c.color)}` : ''}"></i>`) : '<i></i>'}
             <span><b>${c ? esc(c.name) : 'No one in particular'}</b><small>A deck stays with the customer it was made for. To present it to someone else, make a copy for them.</small></span></div>
           <p><button type="button" class="secondary small" id="dsCopy">⧉ Make a copy…</button> <span class="muted small">for another customer, or your own version for this one</span></p>
           <div class="s-section-title">Share</div>

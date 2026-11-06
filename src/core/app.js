@@ -147,7 +147,8 @@ export function createApp({ env, storage }) {
       if (method === 'POST' && pathname.startsWith('/mock/model/')) return handleMockModel(request, { storage });
       if (method === 'POST' && pathname.startsWith('/mock/judge/')) return handleMockJudge(request, { storage });
 
-      const link = pathname.match(/^\/d\/(l_[0-9a-f]{1,24})(?:\/([a-z]+))?\/?$/);
+      // /d/<id> redirects; /api/d/<id> says where to go (GitHub Pages, which can't redirect).
+      const link = pathname.match(/^\/(?:api\/)?d\/(l_[0-9a-f]{1,24})(?:\/([a-z]+))?\/?$/);
       if (!link && !pathname.startsWith('/api/')) return null;
 
       // Ready-made accounts and decks (added once), and one-time moves of older data.
@@ -160,8 +161,9 @@ export function createApp({ env, storage }) {
       if (link) {
         if (method !== 'GET') return json(405, { error: 'Method not allowed' });
         const deck = await getDeck(storage, link[1]);
+        const qs = deck && new URLSearchParams({ deck: deck.id, ...(deck.customer ? { acct: deck.customer } : {}) });
+        if (pathname.startsWith('/api/')) return json(deck ? 200 : 404, { href: deck ? `${deckPage(deck, link[2]).slice(1) || './'}?${qs}#overview` : 'decks.html?missing=1' });
         if (!deck) return Response.redirect(`${origin}/decks?missing=1`, 302);
-        const qs = new URLSearchParams({ deck: deck.id, ...(deck.customer ? { acct: deck.customer } : {}) });
         return Response.redirect(`${origin}${deckPage(deck, link[2])}?${qs}#overview`, 302);
       }
 
@@ -411,5 +413,38 @@ export function createApp({ env, storage }) {
     }
   }
 
-  return handle;
+  // The pages can also live on another site (GitHub Pages; see public/site.js) and call
+  // this backend from there. Answer the browser's CORS checks for /api/ from those origins.
+  // Sign-in is a header (X-Presenter-Token), never a cookie, so another site can't act as
+  // a visitor; it can only do what anyone could do by calling the API directly.
+  async function handleWithCors(request, opts) {
+    if (!new URL(request.url).pathname.startsWith('/api/')) return handle(request, opts);
+    const allow = allowedOrigin(request.headers.get('origin'), env);
+    if (request.method === 'OPTIONS') return new Response(null, { status: allow ? 204 : 403, headers: allow ? corsHeaders(allow) : {} });
+    const res = await handle(request, opts);
+    if (!allow || !res) return res;
+    const out = new Response(res.body, res); // a copy whose headers can change (redirects' can't)
+    for (const [k, v] of Object.entries(corsHeaders(allow))) out.headers.set(k, v);
+    out.headers.append('Vary', 'Origin');
+    return out;
+  }
+
+  return handleWithCors;
 }
+
+// ALLOWED_ORIGINS (comma-separated, or *) lists the sites whose pages may call this
+// backend. Unset: any GitHub Pages site (https://<name>.github.io).
+export function allowedOrigin(origin, env = {}) {
+  if (!origin) return null;
+  const list = String(env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean);
+  if (list.length) return list.includes('*') || list.includes(origin) ? origin : null;
+  return /^https:\/\/[a-z0-9-]+\.github\.io$/i.test(origin) ? origin : null;
+}
+
+const corsHeaders = (origin) => ({
+  'Access-Control-Allow-Origin': origin,
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Presenter-Token, X-Customer, X-Settings-Password',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
+  'Access-Control-Max-Age': '86400',
+});

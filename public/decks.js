@@ -23,7 +23,7 @@ const st = {
 const nameOf = (id) => [...st.people, ...st.former].find((p) => p.id === id)?.name || id;
 const acct = (id) => st.accounts.find((a) => a.id === id);
 const initials = (id) => esc((nameOf(id) || '?')[0]);
-const logoImg = (a, cls = 'lib-logo') => (a?.hasLogo ? `<img class="${cls}" src="/api/profiles/${esc(a.id)}/logo?v=${encodeURIComponent(a.updatedAt || '')}" alt="${esc(a.name)} logo" loading="lazy" />` : '');
+const logoImg = (a, cls = 'lib-logo') => (a?.hasLogo ? `<img class="${cls}" src="${esc(window.l1Api(`/api/profiles/${a.id}/logo`))}?v=${encodeURIComponent(a.updatedAt || '')}" alt="${esc(a.name)} logo" loading="lazy" />` : '');
 
 async function load() {
   const [{ me }, people] = await Promise.all([call('/api/presenters/me'), call('/api/presenters')]);

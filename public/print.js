@@ -6,11 +6,11 @@
 //   /print.html?deck=<id>&acct=<customer>&color=<hex>&products=vellox,ranger
 const qs = new URLSearchParams(location.search);
 const PRODUCTS = [
-  ['vellox', 'Vellox suite', '/vellox.html'],
-  ['layerone', 'LayerOne', '/'],
-  ['reverser', 'Reverser', '/reverser.html'],
-  ['ranger', 'Ranger', '/ranger.html'],
-  ['navigator', 'Navigator', '/navigator.html'],
+  ['vellox', 'Vellox suite', 'vellox.html'],
+  ['layerone', 'LayerOne', './'],
+  ['reverser', 'Reverser', 'reverser.html'],
+  ['ranger', 'Ranger', 'ranger.html'],
+  ['navigator', 'Navigator', 'navigator.html'],
 ];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const bar = document.getElementById('prBar');

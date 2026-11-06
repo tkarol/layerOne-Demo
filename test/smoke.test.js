@@ -1038,3 +1038,40 @@ test('send from this browser: the Connect tab’s checks and requests go one cal
     await settings('DELETE');
   }
 });
+
+test('GitHub Pages: the pages on another site may call the API (CORS), and deck links resolve as JSON', async () => {
+  const pages = 'https://tkarol.github.io';
+  const pre = await fetch(`${base}/api/run`, { method: 'OPTIONS', headers: { Origin: pages, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type,x-presenter-token' } });
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('access-control-allow-origin'), pages);
+  assert.match(pre.headers.get('access-control-allow-headers'), /X-Presenter-Token/);
+  const other = await fetch(`${base}/api/run`, { method: 'OPTIONS', headers: { Origin: 'https://example.com', 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(other.status, 403);
+  assert.equal(other.headers.get('access-control-allow-origin'), null);
+
+  // A real call (streamed) carries the header; same-site calls don't need it.
+  const res = await fetch(`${base}/api/config`, { headers: { Origin: pages } });
+  assert.equal(res.headers.get('access-control-allow-origin'), pages);
+  assert.equal((await fetch(`${base}/api/config`)).headers.get('access-control-allow-origin'), null);
+  const run = await fetch(`${base}/api/run`, { method: 'POST', headers: { Origin: pages }, body: JSON.stringify({ prompt: 'hi' }) });
+  assert.equal(run.headers.get('access-control-allow-origin'), pages);
+  assert.match(run.headers.get('content-type'), /text\/event-stream/);
+  await run.text();
+
+  // Deck links: /d/<id> redirects on the Worker; /api/d/<id> answers where to go (relative).
+  const link = await (await fetch(`${base}/api/d/l_a75e1e2026`)).json();
+  assert.match(link.href, /^vellox\.html\?deck=l_a75e1e2026&acct=p_a75e1e2026#overview$/);
+  assert.match((await (await fetch(`${base}/api/d/l_a75e1e2026/layerone`)).json()).href, /^\.\/\?deck=/);
+  const gone = await fetch(`${base}/api/d/l_000000`);
+  assert.equal(gone.status, 404);
+  assert.equal((await gone.json()).href, 'decks.html?missing=1');
+});
+
+test('ALLOWED_ORIGINS limits which sites may call the API', async () => {
+  const { allowedOrigin } = await import('../src/core/app.js');
+  assert.equal(allowedOrigin('https://tkarol.github.io', {}), 'https://tkarol.github.io');
+  assert.equal(allowedOrigin('https://evil.example', {}), null);
+  assert.equal(allowedOrigin('https://tkarol.github.io', { ALLOWED_ORIGINS: 'https://demo.example.com' }), null);
+  assert.equal(allowedOrigin('https://demo.example.com', { ALLOWED_ORIGINS: 'https://demo.example.com/, https://x.example' }), 'https://demo.example.com');
+  assert.equal(allowedOrigin('https://any.example', { ALLOWED_ORIGINS: '*' }), 'https://any.example');
+});

@@ -93,6 +93,26 @@ A `workers.dev` link is public: anyone with it can use the demo and open Setting
 * **Require a password to change settings.** Add a **Secret** named `SETTINGS_PASSWORD`. Anyone can still view the demo and send requests, but changing Settings needs the password.
 * **Or lock settings entirely.** Add a variable `ALLOW_UI_SETTINGS` = `false`.
 
+## GitHub Pages
+
+The same app can also be opened from GitHub Pages (`https://<you>.github.io/layerOne-Demo/`). GitHub Pages only serves files, so the pages there call the **Cloudflare Worker** for everything else: sign-in and PINs, decks, customers and logos, history, Settings, Dry run and LayerOne calls. Both addresses show the same people, decks and data, and the Worker keeps working as before.
+
+One-time setup:
+
+1. Deploy the Worker as usual (see *Deploy to Cloudflare*) and copy its address, like `https://layerone-demo.<you>.workers.dev`.
+2. In this repository on GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**. Name: `LAYERONE_DEMO_API_URL`. Value: the Worker's address.
+3. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+4. Push to the default branch, or run **Actions → GitHub Pages → Run workflow**. The workflow (`.github/workflows/pages.yml`) copies `public/`, writes the Worker's address into `site.js`, and publishes it. The site's address is shown on the run and under **Settings → Pages**.
+
+Good to know:
+
+* **Which sites may call the Worker.** By default any `https://<name>.github.io` site. To allow only yours (or a custom domain), add a Worker variable `ALLOWED_ORIGINS`, like `https://tkarol.github.io` (comma-separated for more than one). Sign-in is a header, not a cookie, so another site can't act as one of your presenters.
+* **Signing in.** Each address signs in separately (the browser keeps sign-in per site). Same names and PINs.
+* **Deck links.** Shared from the Pages site, a deck link is `https://<you>.github.io/layerOne-Demo/?d=<deck id>` instead of `/d/<deck id>`. Both open the same deck.
+* **Live, from this browser** works on Pages too. Your local LayerOne's CORS must then allow `https://<you>.github.io`.
+* **GitHub Pages sites are public**: anyone with the address can open the pages, including `oracle-erp.html`. The data stays behind sign-in on the Worker. Publishing Pages from a **private** repository needs a paid GitHub plan.
+* **Cloudflare Access** on the Worker (see *Protect the link*) blocks calls from the Pages site, because Access signs people in with a cookie on the Worker's own address. Use one or the other.
+
 ## Overview: a short pitch deck
 
 The **Overview** tab is a 4-slide deck to open a customer demo: the title; **today, without LayerOne** (apps and agents wired straight to the models, an empty "no checkpoint" box, and the four risks: data leaves, unapproved models, manipulated AI, wrong answers, plus no record); **with LayerOne**, the same picture with LayerOne filling the middle and the risks replaced by its four decisions (pass, redact, block, hold); and a last slide that jumps straight into each demo. Slides 2 and 3 share a layout, so moving between them reads as a before-and-after. Both are animated on a slow, 28-second loop of live traffic (about 7 seconds per request). On slide 2, an SSN, agency data headed for a public model, a hidden instruction and a made-up answer coming back fly straight through the empty middle, and each risk tile lights up as its request lands. On slide 3, the same kinds of traffic hit LayerOne: a normal request passes, the SSN goes in and comes out `[REDACTED]`, the hidden instruction is blocked, and the made-up answer is held. LayerOne's four steps light up as it works, a status line says what it just did, and the Pass / Redact / Block / Hold tile for each request glows in sync. Dots travel around the title rings, and the last slide has a card for every sample app.
@@ -476,6 +496,7 @@ Set these as Worker **Variables and Secrets** in the dashboard (or in `.env` whe
 | `DIRECT_MODEL_AUTH_HEADER` / `DIRECT_MODEL_AUTH_SCHEME` | `Authorization` / `Bearer` | Its auth header |
 | `SETTINGS_PASSWORD` | — | Password required to change Settings. Use a **Secret** |
 | `ALLOW_UI_SETTINGS` | `true` | `false` makes the Settings panel read-only |
+| `ALLOWED_ORIGINS` | any `https://*.github.io` | Other sites whose pages may call this Worker (GitHub Pages; see *GitHub Pages*). Comma-separated, or `*` |
 
 `wrangler.jsonc` sets `keep_vars`, so variables you add in the dashboard survive redeploys.
 
@@ -538,6 +559,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |
 | `src/worker.js` | Cloudflare Worker entry + Durable Object storage |
+| `public/site.js`, `.github/workflows/pages.yml` | GitHub Pages: where the backend is (blank = same address), and the workflow that publishes the pages with the Worker's address |
 | `src/core/` | The backend, shared by the Worker and the local server: routing, LayerOne adapter, workflow, settings, dry-run stand-ins |
 | `src/node-server.js`, `src/storage/file.js` | Optional local server for testing on your own machine |
 | `wrangler.jsonc` | Cloudflare configuration |

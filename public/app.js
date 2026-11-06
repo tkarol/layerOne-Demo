@@ -461,7 +461,7 @@ function renderTech(t) {
     ${record ? `<div class="label">Audit record</div>${codeBlock(record)}` : ''}
     <div class="tech-actions">
       ${t.request ? '<button class="small-btn" id="copyCurl">Copy as cURL</button>' : ''}
-      <a class="small-btn" href="/api/traces/${esc(t.id)}/export">Download full trace (JSON)</a>
+      <a class="small-btn" href="${esc(window.l1Api(`/api/traces/${t.id}/export`))}">Download full trace (JSON)</a>
     </div>`;
   const copy = $('#copyCurl');
   if (copy) copy.onclick = () => navigator.clipboard?.writeText(toCurl(t.request)).then(() => (copy.textContent = 'Copied ✓'));

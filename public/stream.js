@@ -1,7 +1,9 @@
 // Reads a /api/run or /api/app/run response: server-sent events, one trace
 // snapshot per frame. Calls onTrace for each snapshot; resolves with the last one.
 export const NO_BACKEND_MSG =
-  'This page cannot reach its backend, so Send and Settings will not work. If it is hosted on Cloudflare, deploy this repo as a Cloudflare Worker (see "Deploy to Cloudflare" in the README), not as a static Pages site.';
+  window.L1_API
+    ? `This page cannot reach its backend at ${window.L1_API}, so Send and Settings will not work. Check that the Cloudflare Worker is deployed at that address and allows this site (ALLOWED_ORIGINS; see "GitHub Pages" in the README).`
+    : 'This page cannot reach its backend, so Send and Settings will not work. If it is hosted on Cloudflare, deploy this repo as a Cloudflare Worker (see "Deploy to Cloudflare" in the README). On GitHub Pages, set the Worker\'s address (see "GitHub Pages" in the README).';
 
 export async function readTraceStream(res, onTrace) {
   if (!(res.headers.get('content-type') || '').includes('text/event-stream')) {
