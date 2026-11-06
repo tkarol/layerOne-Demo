@@ -1,5 +1,6 @@
-// Local Node server, for running the demo on your own machine (`npm start`)
-// and for tests. On Cloudflare the same app runs from src/worker.js instead.
+// Node server: the whole app (pages and backend) in one process, for your own machine
+// (`npm start`), Docker (Dockerfile, docker-compose.yml) and the tests. On Cloudflare the
+// same app runs from src/worker.js instead. Data lives in ./data (or the files below).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -53,6 +54,11 @@ export function createServer({ env = process.env } = {}) {
   const handle = createApp({ env, storage });
 
   return http.createServer(async (req, res) => {
+    // For Docker and load balancers: is the server up?
+    if (req.url === '/healthz') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end('{"ok":true}');
+    }
     try {
       const url = `http://${req.headers.host || 'localhost'}${req.url}`;
       const hasBody = !['GET', 'HEAD'].includes(req.method);
@@ -81,8 +87,15 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   loadEnvFile(path.join(ROOT, '.env'));
   const port = Number(process.env.PORT || 3000);
   const host = process.env.HOST || '127.0.0.1';
-  createServer().listen(port, host, () => {
+  const server = createServer().listen(port, host, () => {
     console.log(`\n  LayerOne Demo → http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
     console.log('  Change Dry run / Live and the LayerOne endpoint from ⚙ Settings in the page.\n');
   });
+  // `docker stop` (and Ctrl+C): finish what's in flight, then exit. Saves are already on disk.
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    process.on(sig, () => {
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 5000).unref();
+    });
+  }
 }

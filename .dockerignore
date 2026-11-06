@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+data
+docs
+test
+.env
+.env.*
+.dev.vars
+.wrangler
+*.md
+Caddyfile
+docker-compose*.yml

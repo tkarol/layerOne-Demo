@@ -1075,3 +1075,24 @@ test('ALLOWED_ORIGINS limits which sites may call the API', async () => {
   assert.equal(allowedOrigin('https://demo.example.com', { ALLOWED_ORIGINS: 'https://demo.example.com/, https://x.example' }), 'https://demo.example.com');
   assert.equal(allowedOrigin('https://any.example', { ALLOWED_ORIGINS: '*' }), 'https://any.example');
 });
+
+test('Docker: a health check, and saves that never leave a half-written file', async () => {
+  assert.deepEqual(await (await fetch(`${base}/healthz`)).json(), { ok: true });
+  const fs = await import('node:fs');
+  const { FileStorage } = await import('../src/storage/file.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'l1-store-'));
+  const file = (n) => path.join(dir, n);
+  const s = new FileStorage({ settingsFile: file('settings.json'), tracesFile: file('traces.jsonl'), kvFile: file('profiles.json') });
+  await s.putKV('presenter:x', { id: 'x', name: 'X' });
+  await s.saveSettings({ mode: 'mock' });
+  for (let i = 0; i < 620; i++) await s.putTrace({ id: `trc_20260101000000_${String(i).padStart(6, '0')}` });
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['profiles.json', 'settings.json', 'traces.jsonl'], 'no temporary files left behind');
+  // Reopened from disk: the same data, and history trimmed to the newest 500.
+  const again = new FileStorage({ settingsFile: file('settings.json'), tracesFile: file('traces.jsonl'), kvFile: file('profiles.json') });
+  assert.equal((await again.getKV('presenter:x')).name, 'X');
+  assert.equal((await again.getSettings()).mode, 'mock');
+  const kept = await again.listTraces(1000);
+  assert.ok(kept.length <= 600 && kept.length >= 500);
+  assert.equal(kept[0].id, 'trc_20260101000000_000619');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

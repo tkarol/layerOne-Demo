@@ -17,3 +17,19 @@ jobs:
           node-version: 22
       # No dependencies to install: the app and its tests use only Node's built-ins.
       - run: npm test
+
+  # The Docker image builds, starts, and answers (see "Docker and AWS" in the README).
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t layerone-demo .
+      - run: docker run -d --name l1 -p 3000:3000 layerone-demo
+      - name: Health check and a Dry run request
+        run: |
+          for i in $(seq 1 20); do curl -fs localhost:3000/healthz && break; sleep 1; done
+          curl -fs localhost:3000/ | grep -q '<title>'
+          curl -fsN -X POST localhost:3000/api/run -d '{"prompt":"My SSN is 123-45-6789"}' | grep -q '"decision":"redacted"'
+      - if: always()
+        run: docker logs l1

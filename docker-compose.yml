@@ -1,0 +1,42 @@
+# Run the demo with Docker:  docker compose up -d --build   → http://<this machine>:3000
+# With HTTPS on your own domain (recommended on a server):
+#   DOMAIN=demo.example.com docker compose --profile https up -d --build   → https://demo.example.com
+# See "Docker and AWS" in the README.
+services:
+  app:
+    build: .
+    image: layerone-demo
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    # Optional settings (LAYERONE_BASE_URL, LAYERONE_API_KEY, SETTINGS_PASSWORD, ...), like .env.example.
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - layerone-data:/app/data
+    # Lets the server reach a LayerOne running on this same machine:
+    # Settings → Live → http://host.docker.internal:4000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # HTTPS with an automatic certificate (Let's Encrypt), for a domain that points here.
+  # Only started with --profile https; then open ports 80 and 443, not 3000.
+  https:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  layerone-data:
+  caddy-data:

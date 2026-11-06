@@ -5,7 +5,7 @@ A customer-facing demo for **Booz Allen Vellox LayerOne**, the governance and co
 * **Sample apps:** **Ask AI**, a plain company chat built for a 5-minute demo, plus five more formats, each a different kind of screen: **A day in the life** (four government missions), **Live call assist**, **Batch document review**, an **AI agent with admin tools**, and **Customer Hub** (an AI agent on a database). Every AI request runs through LayerOne. Switch LayerOne **off**, use **Compare**, or **Play the day** hands-free, and white-label it all for a specific customer.
 * **Behind the scenes:** the mechanics of any request. It shows both endpoints in the chain, traces every hop in both directions, shows LayerOne's checks and audit record, and keeps a history of every run.
 
-Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings, customer profiles and history. There is no separate server to run.
+Everything ships as **one Cloudflare Worker**: the page, the backend, and the storage for settings, customer profiles and history. Or run the same app as **one Docker container** with no Cloudflare and no outside services, for example on AWS (see *Docker and AWS*).
 
 ![Sample app: Compare with and without LayerOne](docs/sample-apps.png)
 
@@ -112,6 +112,56 @@ Good to know:
 * **Live, from this browser** works on Pages too. Your local LayerOne's CORS must then allow `https://<you>.github.io`.
 * **GitHub Pages sites are public**: anyone with the address can open the pages, including `oracle-erp.html`. The data stays behind sign-in on the Worker. Publishing Pages from a **private** repository needs a paid GitHub plan.
 * **Cloudflare Access** on the Worker (see *Protect the link*) blocks calls from the Pages site, because Access signs people in with a cookie on the Worker's own address. Use one or the other.
+
+## Docker and AWS
+
+The whole app also runs as one Docker container: pages, backend and data, with no Cloudflare and nothing else to connect to. It's plain Node with no npm packages, and the pages load no fonts or scripts from the internet. Dry run, sign-in, decks, the library, PDFs and the presenter view all work with the container fully offline. Only Live mode calls out, to your LayerOne.
+
+### On your own computer
+
+```bash
+docker compose up -d --build     # → http://localhost:3000
+docker compose logs -f           # what it's doing
+docker compose down              # stop (your data stays)
+```
+
+Everyone's data (people and PINs, decks, customers and logos, history, settings) is kept in the Docker volume `layerone-data`, so it survives restarts, rebuilds and upgrades. Settings that you'd otherwise set as Worker variables (like `LAYERONE_BASE_URL`, `LAYERONE_API_KEY`, `SETTINGS_PASSWORD`) can go in a `.env` file next to `docker-compose.yml` (see `.env.example`); they're optional, since ⚙ Settings in the page does the same.
+
+**LayerOne on the same machine.** The server in the container can reach it directly: in ⚙ Settings choose **Live** and use `http://host.docker.internal:4000` as the base URL. No "from this browser" needed.
+
+### On AWS (EC2 or Lightsail)
+
+One small server running Docker. A `t3.small` (2 GB) is plenty.
+
+1. **Launch the server.** EC2: Ubuntu 24.04, `t3.small`, 20 GB disk. Security group: SSH (22) from your IP only; HTTP (80) and HTTPS (443) from the people who'll use it (or anywhere). Attach an **Elastic IP** so the address doesn't change. Lightsail works the same way (Ubuntu instance, open 80 and 443 in Networking).
+2. **Install Docker** (on the server):
+   ```bash
+   curl -fsSL https://get.docker.com | sudo sh
+   sudo usermod -aG docker $USER && newgrp docker
+   ```
+3. **Get the app.** `git clone https://github.com/tkarol/layerOne-Demo.git && cd layerOne-Demo`. For a private repository, use a fine-grained GitHub token with read access to it: `git clone https://<token>@github.com/tkarol/layerOne-Demo.git`.
+4. **Start it with HTTPS.** Point a domain at the Elastic IP (an A record, in Route 53 or wherever your DNS is), then:
+   ```bash
+   DOMAIN=demo.example.com docker compose --profile https up -d --build
+   ```
+   Caddy gets and renews a free certificate by itself. Open `https://demo.example.com`. Use HTTPS for anything real: PINs are sent at sign-in, and browsers only allow **Live, from this browser** from an `https://` page. (Just trying it out without a domain: `docker compose up -d --build`, open port 3000 in the security group, and go to `http://<elastic ip>:3000`.)
+5. **Update** after pushing changes: `git pull && docker compose --profile https up -d --build` (with `DOMAIN=…` as before, or put `DOMAIN=demo.example.com` in `.env`).
+
+**Back up the data** (one file with everything; also consider EBS snapshots):
+
+```bash
+docker compose exec -T app tar -C /app -cf - data > layerone-backup-$(date +%F).tar
+# restore:
+docker compose exec -T app tar -C /app -xf - < layerone-backup-2026-11-06.tar && docker compose restart app
+```
+
+Good to know:
+
+* **One copy at a time.** Data is kept in files on the server, so run one container, not several behind a load balancer. That's plenty for a sales team.
+* **Where's LayerOne?** A server on AWS can't reach a LayerOne on your laptop any more than Cloudflare can. Run LayerOne on the same server (then **Live** with `http://host.docker.internal:4000`), give it an address the server can reach, or use **Live, from this browser**.
+* **Other AWS services.** **ECS on Fargate** works too, with an **EFS** volume mounted at `/app/data` and the task count fixed at 1 (more to set up, nothing to patch). **App Runner** has no lasting disk, so everyone's data would be lost on every deploy. Don't use it as is.
+* **Coming from Cloudflare.** Data saved on the Worker (people's PINs, decks, customers) doesn't move over by itself: the container starts fresh, with the ready-made decks (like AWS re:Invent) added on first start, and people choose their PIN again.
+* `GET /healthz` answers `{"ok":true}` for load balancers and monitoring; the image's Docker health check uses it.
 
 ## Overview: a short pitch deck
 
@@ -561,7 +611,8 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/worker.js` | Cloudflare Worker entry + Durable Object storage |
 | `public/site.js`, `.github/workflows/pages.yml` | GitHub Pages: where the backend is (blank = same address), and the workflow that publishes the pages with the Worker's address |
 | `src/core/` | The backend, shared by the Worker and the local server: routing, LayerOne adapter, workflow, settings, dry-run stand-ins |
-| `src/node-server.js`, `src/storage/file.js` | Optional local server for testing on your own machine |
+| `src/node-server.js`, `src/storage/file.js` | The Node server (`npm start`, Docker, tests) and its file storage in `data/` |
+| `Dockerfile`, `docker-compose.yml`, `Caddyfile` | Docker: the app in one container, its data volume, and optional HTTPS (see *Docker and AWS*) |
 | `wrangler.jsonc` | Cloudflare configuration |
 
 ## API
@@ -583,7 +634,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 
 ## Running locally (optional)
 
-Not needed for Cloudflare, but handy for development. Requires Node 20+; there are no npm dependencies.
+Not needed for Cloudflare, but handy for development. Requires Node 20+; there are no npm dependencies. For Docker, see *Docker and AWS*.
 
 ```bash
 npm start            # local Node server on http://localhost:3000

@@ -1,6 +1,18 @@
-// Local storage for the Node server: settings in a JSON file, history as JSON Lines.
+// Storage for the Node server (npm start, Docker): settings in a JSON file, everyone's
+// people, decks, customers and history in another, signed-out history as JSON Lines.
+// Every save writes a new file and renames it into place, so a crash or a full disk
+// mid-save never leaves a half-written file behind.
 import fs from 'node:fs';
 import path from 'node:path';
+
+const MAX_TRACES = 500; // signed-out history, like the Worker
+
+function writeAtomic(file, text, mode = 0o600) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, text, { mode });
+  fs.renameSync(tmp, file);
+}
 
 export class FileStorage {
   constructor({ settingsFile, tracesFile, kvFile }) {
@@ -32,17 +44,22 @@ export class FileStorage {
     }
   }
   async saveSettings(settings) {
-    fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
-    fs.writeFileSync(this.settingsFile, JSON.stringify(settings, null, 2), { mode: 0o600 });
+    writeAtomic(this.settingsFile, JSON.stringify(settings, null, 2));
   }
   async clearSettings() {
-    if (fs.existsSync(this.settingsFile)) fs.rmSync(this.settingsFile);
+    fs.rmSync(this.settingsFile, { force: true });
   }
 
   async putTrace(trace) {
     this.traces.set(trace.id, trace);
     fs.mkdirSync(path.dirname(this.tracesFile), { recursive: true });
     fs.appendFileSync(this.tracesFile, JSON.stringify(trace) + '\n');
+    // Keep the newest MAX_TRACES (rewriting the file once in a while, not on every run).
+    if (this.traces.size > MAX_TRACES + 100) {
+      const keep = [...this.traces.values()].sort((a, b) => b.id.localeCompare(a.id)).slice(0, MAX_TRACES);
+      this.traces = new Map(keep.reverse().map((t) => [t.id, t]));
+      writeAtomic(this.tracesFile, [...this.traces.values()].map((t) => JSON.stringify(t) + '\n').join(''));
+    }
   }
   async getTrace(id) {
     return this.traces.get(id) ?? null;
@@ -57,8 +74,7 @@ export class FileStorage {
 
   // Small key/value store for customer profiles (white-labeling).
   saveKV() {
-    fs.mkdirSync(path.dirname(this.kvFile), { recursive: true });
-    fs.writeFileSync(this.kvFile, JSON.stringify(this.kv, null, 2));
+    writeAtomic(this.kvFile, JSON.stringify(this.kv));
   }
   async getKV(key) {
     return this.kv[key] ?? null;
