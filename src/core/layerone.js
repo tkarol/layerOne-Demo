@@ -12,8 +12,8 @@ export function buildRequest({ prompt, traceId, origin, system, model, maxTokens
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    'X-Request-Id': traceId,
-    'X-Demo-Client': 'claims-assistant-web-app',
+    // Sent from the presenter's browser: only headers a gateway's CORS rules are likely to allow.
+    ...(cfg.via === 'browser' ? {} : { 'X-Request-Id': traceId, 'X-Demo-Client': 'claims-assistant-web-app' }),
     ...layeroneHeaders(cfg),
     ...cfg.extraHeaders,
   };

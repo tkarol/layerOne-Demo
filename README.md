@@ -51,11 +51,28 @@ Open the demo, click **⚙ Settings**, choose **Live**, and enter your LayerOne 
 
 Alternatively, set the API key as a secret so it never has to be typed into the page: in the dashboard, open the Worker, go to **Settings → Variables and Secrets → Add**, choose type **Secret**, name it `LAYERONE_API_KEY`, and paste the value.
 
+### LayerOne on your own computer: send from this browser
+
+The demo on Cloudflare can't reach a LayerOne gateway that runs on your laptop (`http://localhost:4000`): `localhost` on Cloudflare's servers is Cloudflare, not your Mac. For that case the page can send the requests itself:
+
+1. Click **⚙ Settings → Send requests from this browser instead…** (or the **Live: this browser** badge once it's on).
+2. Choose **From this browser**, and enter the URL (`http://localhost:4000/v1/chat/completions`, or just `http://localhost:4000`), the model (for example `haiku-5-5`) and your LayerOne key.
+3. Click **Test from this browser**. It sends "Hello, how are you?" with exactly the headers a real run uses, and shows the reply or what went wrong. The first time, the browser may ask to **access other apps and services on this device** (or **devices on your local network**): click **Allow**. Then **Save**.
+
+What happens on each run: the server still builds the request and keeps the trace in History, but hands the call to your browser, which sends it to LayerOne (adding the key) and passes LayerOne's answer back to be checked and shown. Every tab works the same: Behind the scenes, the sample apps, Compare. The trace shows **Browser → LayerOne** for that hop and LayerOne's real response time.
+
+* **Nothing else changes.** **From the server** stays the default, and the Settings above (Dry run or Live) still apply on every other computer. The choice, URL and key are saved in this browser only (on this device, for everyone using this browser profile).
+* **The key stays in the browser.** It's never sent to the server, and the server never sends its own saved key to the browser. Anyone using this browser profile could read it, so use a key meant for demos.
+* **LayerOne switched off** in a sample app always goes from the server (straight to the model), as before.
+* **What LayerOne needs:** CORS that allows this demo's origin (your `*.workers.dev` address) and the `Authorization`, `Content-Type` and `x-layerone-*` headers. To show LayerOne's decision headers in the trace, it must list them in `Access-Control-Expose-Headers`. Otherwise the decision is read from the response body or status.
+* **Browser:** Chrome or Edge. Safari blocks `http://localhost` from an `https://` page.
+* The **Connect** tab's checks and request builder still run from the server.
+
 ### The Connect tab
 
 The **Connect** tab helps you get this demo talking to your LayerOne deployment:
 
-* **Quick setup:** the same two paths as the LayerOne docs. **Hosted (SaaS)**: paste the provisioned base URL and API key. **Self-hosted**: your own proxy (default `http://localhost:4000`) with traces in MLflow (`http://localhost:5000`). Enter the agent ID (required) and project ID (recommended), then **Save as Live and run checks**. A base URL that already ends in `/v1`, as OpenAI clients expect, isn't doubled. Pasted URLs are tidied: a trailing `/chat/completions` and a default port (`https://host:443`) are removed. An `https://` URL needs no port; a self-hosted proxy keeps its port (for example `:4000`), but when the demo runs on Cloudflare, outbound requests only work on standard ports, and the checks say so if that is the problem. Note that a Cloudflare Worker can't reach `localhost`, so for a local proxy run the demo locally too.
+* **Quick setup:** the same two paths as the LayerOne docs. **Hosted (SaaS)**: paste the provisioned base URL and API key. **Self-hosted**: your own proxy (default `http://localhost:4000`) with traces in MLflow (`http://localhost:5000`). Enter the agent ID (required) and project ID (recommended), then **Save as Live and run checks**. A base URL that already ends in `/v1`, as OpenAI clients expect, isn't doubled. Pasted URLs are tidied: a trailing `/chat/completions` and a default port (`https://host:443`) are removed. An `https://` URL needs no port; a self-hosted proxy keeps its port (for example `:4000`), but when the demo runs on Cloudflare, outbound requests only work on standard ports, and the checks say so if that is the problem. Note that a Cloudflare Worker can't reach `localhost`: for a local proxy, use **Send from this browser** (above) or run the demo locally too.
 * **Try it like the docs (Mode B · Proxy gateway):** the docs' snippet as a form: `base_url`, `api_key` (the saved key, or one for this test only, never saved), `model`, the message and the three `x-layerone-*` headers. The Python on the right updates as you type, and **Run** sends exactly that request: like the OpenAI SDK, it posts to `base_url + "/chat/completions"` (so `http://localhost:4000` → `http://localhost:4000/chat/completions`) and prints `resp.choices[0].message.content`. If `base_url` is a different host than Settings, one click makes it the LayerOne URL. **Mode A · Python SDK** (in-process) is shown as a copyable snippet; it runs inside your agent, so it can't be tried from the page.
 * **LayerOne headers:** every request to LayerOne carries `x-layerone-agent-id`, `x-layerone-run-id` (one per day unless you set one) and, when set, `x-layerone-project-id`. Set them in **⚙ Settings → LayerOne identity**.
 
@@ -408,7 +425,7 @@ In Live mode the request and response sides are filled in from the `stage` field
 | Credentials | None needed | LayerOne API key |
 | Good for | Rehearsing, demos before preview access, demos without a connection | The real thing |
 
-The header badge always shows **Dry run** or **Live: LayerOne**. Dry run also shows a note under the intro, so the stand-in is never mistaken for the real product.
+The header badge always shows **Dry run**, **Live: LayerOne** or, when this browser sends the requests, **Live: this browser**. Dry run also shows a note under the intro, so the stand-in is never mistaken for the real product.
 
 ## Settings panel
 
@@ -514,6 +531,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/layouts.js` | Decks: validation, sharing and permissions (`/api/layouts`), deck pages for `/d/` links |
 | `src/core/seeds.js` | Ready-made customers and decks, added once |
 | `public/oracle-erp.html`, `public/oracle-erp.js`, `public/oracle-erp.css` | A standalone, unlinked proof-of-concept page at **/oracle-erp** (Oracle Fusion Cloud ERP for state and local government: a 6-slide deck, and an architecture view with click-to-explain parts and three step-by-step walkthroughs: a purchase, a federal grant and a tax payment). Unrelated to the Vellox pages: no product switch, no Booz Allen branding, `noindex`. Oracle branding: save the official Oracle logo as `public/brand/oracle-logo.svg` and it replaces the text **ORACLE** wordmark in the header and on the title slide (use the approved file from Oracle's brand or partner resources, not a recreation) |
+| `src/core/browser-route.js`, `public/stream.js` | Send from this browser: the server builds and records, the browser makes the call |
 | `src/core/connect.js`, `public/connect.js` | Connect tab: connection checks, commands and the request builder |
 | `src/core/profiles.js` | Customer profiles: renaming, branding, step edits |
 | `public/customize.js` | The Customize dialog |
@@ -527,6 +545,7 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | Route | |
 | --- | --- |
 | `POST /api/run` `{prompt, scenario?}` | Run a request; streams trace snapshots as server-sent events |
+| … with `via: {url, model?, step: 'build'}`, then `via: {url, model?, traceId, result}` | Send from this browser: the first call returns the request to send (no key) and the first trace snapshot; the second takes the browser's result (`{status, statusText, headers, body, ms}` or `{error, ms}`) and streams the rest. Also on `/api/app/run` |
 | `GET /api/apps` | The sample apps as the active customer profile presents them (`?default=1` for the originals) |
 | `GET /api/profiles` · `POST /api/profiles` · `GET`/`PUT`/`DELETE /api/profiles/:id` · `PUT /api/profiles/active` | Customer profiles |
 | `POST /api/app/run` `{app, workflow, protected, model?}` | Run a sample-app action with LayerOne on (`protected: true`) or off; streams like `/api/run` |

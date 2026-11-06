@@ -1,6 +1,6 @@
 // Shared by the sample apps with their own screens (live call, batch queue,
 // tool-using agent): run one AI step through LayerOne and describe the outcome.
-import { readTraceStream, LEAK_RE, REDACTED_RE } from './stream.js';
+import { readTraceStream, LEAK_RE, REDACTED_RE, postRun } from './stream.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -14,11 +14,7 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // One AI step through /api/app/run; onTrace gets each live snapshot. Resolves with the final trace.
 export async function runStep(appId, wfId, prot, onTrace = () => {}) {
-  const res = await fetch('/api/app/run', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ app: appId, workflow: wfId, protected: prot }),
-  });
+  const res = await postRun('/api/app/run', { app: appId, workflow: wfId, protected: prot });
   return readTraceStream(res, onTrace);
 }
 

@@ -944,3 +944,54 @@ test('recently presented: who presented which deck on which product', async () =
   assert.equal((await api('/api/presented', 'GET', null, as(tyler))).data.presented.length, log.length);
   await api(`/api/layouts/${deck.id}`, 'DELETE', null, as(tyler));
 });
+
+test('send from this browser: the server builds the request without its key, then records the browser’s result', async () => {
+  const post = (path, body) => fetch(`${base}${path}`, { method: 'POST', body: JSON.stringify(body) });
+  const frames = async (res) => (await res.text()).split('\n\n').filter(Boolean).map((f) => JSON.parse(f.slice(6)));
+  await settings('PUT', { mode: 'live', baseUrl: 'https://layerone.example.gov', apiKey: 'sk-server-secret-9876' });
+  try {
+    // A bad URL is refused up front.
+    assert.equal((await post('/api/run', { prompt: 'hi', via: { url: 'localhost', step: 'build' } })).status, 400);
+
+    // Step 1: build. A base URL gets the chat path; the browser's model is used.
+    const built = await (await post('/api/run', { prompt: 'Hello, how are you?', via: { url: 'http://localhost:4000/', model: 'haiku-5-5', step: 'build' } })).json();
+    assert.equal(built.request.url, 'http://localhost:4000/v1/chat/completions');
+    assert.equal(JSON.parse(built.request.body).model, 'haiku-5-5');
+    assert.equal(built.request.headers['x-layerone-run-id'].slice(0, 5), 'demo-');
+    assert.equal(built.request.authHeader, 'Authorization');
+    assert.doesNotMatch(JSON.stringify(built), /sk-server-secret|X-Demo/);
+    assert.equal(built.trace.steps.find((s) => s.key === 'gateway').status, 'running');
+    assert.equal(built.trace.via, 'browser');
+    assert.match(built.trace.request.headers.Authorization, /added by the browser/);
+    assert.equal((await fetch(`${base}/api/traces/${built.trace.id}`)).status, 404, 'nothing stored until the result is in');
+
+    // Step 3: the browser's result finishes the same trace, with LayerOne's real response time.
+    const result = { status: 200, statusText: 'OK', headers: { 'content-type': 'application/json', 'x-layerone-decision': 'allowed' }, body: JSON.stringify({ choices: [{ message: { content: 'Doing well!' } }] }), ms: 812 };
+    const fs = await frames(await post('/api/run', { prompt: 'Hello, how are you?', via: { url: 'http://localhost:4000/', model: 'haiku-5-5', traceId: built.trace.id, result } }));
+    assert.ok(fs.every((t) => t.steps.find((s) => s.key === 'gateway').status !== 'running'), 'only the steps after the call are sent');
+    const t = fs.at(-1);
+    assert.equal(t.id, built.trace.id);
+    assert.equal(t.status, 'completed');
+    assert.equal(t.output, 'Doing well!');
+    assert.equal(t.response.latencyMs, 812);
+    assert.equal(t.steps.find((s) => s.key === 'gateway').durationMs, 812);
+    assert.equal(t.steps.find((s) => s.key === 'outbound').actor, 'Browser → LayerOne');
+    const stored = await (await fetch(`${base}/api/traces/${t.id}`)).json();
+    assert.equal(stored.via, 'browser');
+    assert.doesNotMatch(JSON.stringify(stored), /sk-server-secret/);
+
+    // A browser that couldn't reach LayerOne says why.
+    const down = (await frames(await post('/api/run', { prompt: 'hi', via: { url: 'http://localhost:4000', result: { error: 'This browser could not reach http://localhost:4000', ms: 3 } } }))).at(-1);
+    assert.equal(down.status, 'error');
+    assert.match(down.error, /Could not reach LayerOne: This browser could not reach/);
+
+    // Sample apps: LayerOne ON goes the browser's way; OFF always goes from the server.
+    const app = await (await post('/api/app/run', { app: 'benefits', workflow: 'decision-notice', protected: true, via: { url: 'http://localhost:4000', step: 'build' } })).json();
+    assert.ok(app.request?.url.startsWith('http://localhost:4000/'));
+    const off = await post('/api/app/run', { app: 'benefits', workflow: 'decision-notice', protected: false, via: { url: 'http://localhost:4000', step: 'build' } });
+    assert.match(off.headers.get('content-type'), /text\/event-stream/);
+    assert.equal((await frames(off)).at(-1).via, 'server');
+  } finally {
+    await settings('DELETE');
+  }
+});

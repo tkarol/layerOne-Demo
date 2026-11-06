@@ -5,6 +5,7 @@ import { envConfig, mergeSaved, publicConfig } from './config.js';
 import { SCENARIOS } from './scenarios.js';
 import { publicApps, publicPitch, findWorkflow, getActiveProfile, listProfiles, validateProfile } from './profiles.js';
 import { createTrace, runWorkflow } from './workflow.js';
+import { viaConfig, buildForBrowser, finishOptions } from './browser-route.js';
 import { handleMockChat } from './mock-layerone.js';
 import { handleMockModel, handleMockJudge } from './mock-model.js';
 import { validate, publicSettings, toSaved, testConnection } from './settings.js';
@@ -59,8 +60,12 @@ export function createApp({ env, storage }) {
   };
 
   // Run one request and stream a trace snapshot after every step (server-sent events).
-  function streamRun(input, cfg, origin, waitUntil, store = storage) {
+  // `opts` (browser route): the trace id from step 1, the browser's result as `fetchFn`,
+  // which snapshots to send (`filter`) and a final touch to each (`patch`).
+  function streamRun(input, cfg, origin, waitUntil, store = storage, opts = {}) {
     const trace = createTrace(input, cfg, origin);
+    if (opts.traceId) trace.id = opts.traceId;
+    const out = opts.patch || ((t) => t);
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
@@ -75,14 +80,15 @@ export function createApp({ env, storage }) {
           cfg,
           origin,
           input,
-          fetchFn: makeFetch(origin),
+          fetchFn: opts.fetchFn || makeFetch(origin),
           emit: (snapshot, isFinal) => {
-            send(snapshot);
+            snapshot = out(snapshot);
+            if (isFinal || !opts.filter || opts.filter(snapshot)) send(snapshot);
             if (isFinal) final = snapshot;
           },
         });
       } catch (err) {
-        final = { ...structuredClone(trace), status: 'error', error: `Internal error: ${err.message}` };
+        final = out({ ...structuredClone(trace), status: 'error', error: `Internal error: ${err.message}` });
         send(final);
       }
       if (final) await store.putTrace(final);
@@ -94,6 +100,21 @@ export function createApp({ env, storage }) {
     return new Response(readable, {
       headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no' },
     });
+  }
+
+  // A run sent the usual way (from this server), or from the presenter's browser
+  // (browser-route.js) when `via` is given. LayerOne switched off always goes from here.
+  async function runVia(input, via, cfg, origin, waitUntil, store) {
+    if (!via || input.protected === false) return streamRun(input, cfg, origin, waitUntil, store);
+    const v = viaConfig(cfg, via);
+    if (v.error) return json(400, { error: v.error });
+    if (via.step === 'build') {
+      const built = await buildForBrowser(input, v.cfg);
+      if (built.request) return json(200, built);
+      await store.putTrace(built.trace);
+      return json(200, built);
+    }
+    return streamRun(input, v.cfg, origin, waitUntil, store, finishOptions(via, v.cfg));
   }
 
   // Changing settings or customer profiles honors ALLOW_UI_SETTINGS and SETTINGS_PASSWORD.
@@ -232,9 +253,9 @@ export function createApp({ env, storage }) {
 
       // ----- Run a request; streams trace snapshots as server-sent events -----
       if (pathname === '/api/run' && method === 'POST') {
-        const { prompt, scenario } = await readJson(request);
+        const { prompt, scenario, via } = await readJson(request);
         if (!prompt || typeof prompt !== 'string') return json(400, { error: 'prompt is required' });
-        return streamRun({ prompt: prompt.slice(0, 20000), scenario }, await configNow(), origin, waitUntil, mine);
+        return runVia({ prompt: prompt.slice(0, 20000), scenario }, via, await configNow(), origin, waitUntil, mine);
       }
 
       // ----- Sample applications -----
@@ -335,7 +356,7 @@ export function createApp({ env, storage }) {
         const message = workflow.id === FREE_WORKFLOW ? String(body.message ?? '').trim().slice(0, MAX_MESSAGE) : '';
         if (workflow.id === FREE_WORKFLOW && !message) return json(400, { error: 'Type a message first' });
         const ai = workflow.build(workflow, { model, message });
-        return streamRun(
+        return runVia(
           {
             prompt: ai.prompt,
             scenario: `${app.id}:${workflow.id}`,
@@ -347,6 +368,7 @@ export function createApp({ env, storage }) {
             maxTokens: ai.maxTokens,
             demoWorkflow: `${app.id}:${workflow.id}`,
           },
+          body.via,
           cfg,
           origin,
           waitUntil,

@@ -1,6 +1,6 @@
 // "Ask AI": a company AI chat. Under every message, one line says what
 // LayerOne did and what the AI model actually received.
-import { readTraceStream, LEAK_RE, REDACTED_RE } from './stream.js';
+import { readTraceStream, LEAK_RE, REDACTED_RE, postRun } from './stream.js';
 import { cmpCols } from './fmt-common.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -220,11 +220,7 @@ async function send(wfId, text, prot = ctx.isProtected()) {
   if (wfId === 'free') s.draft = '';
   draw();
   try {
-    const res = await fetch('/api/app/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app: ctx.app.id, workflow: wfId, protected: prot, message: wfId === 'free' ? message : undefined }),
-    });
+    const res = await postRun('/api/app/run', { app: ctx.app.id, workflow: wfId, protected: prot, message: wfId === 'free' ? message : undefined });
     await readTraceStream(res, (tr) => (turn.trace = tr));
   } catch (err) {
     turn.error = err.message;
@@ -242,11 +238,7 @@ async function sendBoth(wfId, message) {
   draw();
   const go = async (slot, prot) => {
     try {
-      const res = await fetch('/api/app/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app: ctx.app.id, workflow: wfId, protected: prot, message: wfId === 'free' ? message : undefined }),
-      });
+      const res = await postRun('/api/app/run', { app: ctx.app.id, workflow: wfId, protected: prot, message: wfId === 'free' ? message : undefined });
       await readTraceStream(res, (tr) => ((slot.trace = tr), draw()));
     } catch (err) {
       slot.error = err.message;

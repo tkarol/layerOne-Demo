@@ -13,6 +13,13 @@ const STEPS = [
   { key: 'deliver', label: 'Answer shown to the user', actor: 'Web Application → User' },
 ];
 
+// Step labels when the presenter's browser sends the request (LayerOne running on their
+// own computer, which the server can't reach). The server builds it and records the result.
+const BROWSER_STEPS = {
+  outbound: { label: 'Request sent to LayerOne from the presenter’s browser', actor: 'Browser → LayerOne' },
+  inbound: { label: 'Response received from LayerOne in the browser', actor: 'LayerOne → Browser' },
+};
+
 // Step labels when LayerOne is switched off (sample apps): the app calls the model directly.
 const BYPASS_STEPS = {
   outbound: { label: 'Request sent directly to the AI model (LayerOne switched off)', actor: 'Web Application → AI Model' },
@@ -48,7 +55,8 @@ export function createTrace(input, cfg, origin) {
     promptChars: input.prompt.length,
     endpoint: { method: 'POST', url: bypass ? direct.url : endpointUrl(cfg, origin) },
     upstream: bypass ? null : configuredUpstream(cfg, origin),
-    steps: STEPS.map((s) => ({ ...s, ...(bypass ? BYPASS_STEPS[s.key] : {}), status: 'pending', startedAt: null, durationMs: null, detail: null })),
+    via: !bypass && cfg.via === 'browser' ? 'browser' : 'server',
+    steps: STEPS.map((s) => ({ ...s, ...(bypass ? BYPASS_STEPS[s.key] : cfg.via === 'browser' ? BROWSER_STEPS[s.key] : {}), status: 'pending', startedAt: null, durationMs: null, detail: null })),
     request: null,
     response: null,
     governance: null,

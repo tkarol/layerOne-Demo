@@ -1,7 +1,7 @@
 // Sample applications: everyday work tools whose AI features run through
 // LayerOne, with a switch to turn LayerOne off, a side-by-side comparison,
 // customer profiles (white-labeling), step editing and a guided "Play the day".
-import { readTraceStream, LEAK_RE, REDACTED_RE } from './stream.js';
+import { readTraceStream, LEAK_RE, REDACTED_RE, postRun } from './stream.js';
 import { openCustomize, authHeaders } from './customize.js';
 import { mountDataApp } from './data-app.js';
 import { mountChatApp } from './chat-app.js';
@@ -496,11 +496,7 @@ async function runOne(k, prot) {
   try {
     const opts = modelOptions(wf);
     const model = opts.length ? state.models[k] || opts.find((m) => m.default)?.id || opts[0].id : undefined;
-    const res = await fetch('/api/app/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app: state.appId, workflow: wf.id, protected: prot, model }),
-    });
+    const res = await postRun('/api/app/run', { app: state.appId, workflow: wf.id, protected: prot, model });
     await readTraceStream(res, (t) => (slot.trace = t));
   } catch (err) {
     slot.error = err.message;

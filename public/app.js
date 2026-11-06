@@ -1,4 +1,4 @@
-import { NO_BACKEND_MSG, readTraceStream, LEAK_RE } from './stream.js';
+import { NO_BACKEND_MSG, readTraceStream, LEAK_RE, postRun, browserRoute, saveBrowserRoute, callFromBrowser } from './stream.js';
 import { initSample } from './sample.js';
 import { mountConnect } from './connect.js';
 import { mountDeck } from './deck.js';
@@ -542,7 +542,7 @@ function initViews() {
   // Settings saved from somewhere else (the Connect tab's quick setup).
   window.addEventListener('l1:settings-saved', async () => {
     state.selectedId = null;
-    state.config = await api('/api/config');
+    state.config = withRoute((state.rawConfig = await api('/api/config')));
     renderConfig();
     render();
   });
@@ -566,14 +566,18 @@ function initViews() {
 function renderConfig() {
   const c = state.config;
   const mock = c.mode === 'mock';
+  const route = browserRoute();
   const badge = $('#modeBadge');
-  badge.textContent = mock ? 'Dry run' : 'Live: LayerOne';
+  badge.textContent = route.on ? 'Live: this browser' : mock ? 'Dry run' : 'Live: LayerOne';
   badge.className = `badge ${mock ? 'mock' : 'live'}`;
-  badge.title = `${c.endpoint.url}\nClick to change in Settings`;
+  badge.title = `${c.endpoint.url}\nClick to change`;
+  badge.onclick = route.on ? openRoute : openSettings;
   const note = $('#modeNote');
   note.hidden = false;
   note.className = 'mode-note';
-  if (mock) {
+  if (route.on) {
+    note.innerHTML = `Requests go from this browser to <code>${esc(route.url)}</code> (set on this device). <a data-open-route>Change</a>`;
+  } else if (mock) {
     note.innerHTML = 'Dry run: requests go to a built-in stand-in for LayerOne, not the real product. <a data-open-settings>Change in Settings</a>';
   } else if (!c.configured) {
     note.className = 'mode-note bad';
@@ -584,6 +588,7 @@ function renderConfig() {
     note.hidden = true;
   }
   note.querySelectorAll('[data-open-settings]').forEach((a) => (a.onclick = openSettings));
+  note.querySelectorAll('[data-open-route]').forEach((a) => (a.onclick = openRoute));
   $('#send').textContent = mock ? 'Send through LayerOne (dry run)' : 'Send through LayerOne';
   window.dispatchEvent(new CustomEvent('l1:config', { detail: c }));
 }
@@ -737,7 +742,7 @@ async function saveSettings(e) {
     }
     $('#settings').close();
     state.selectedId = null; // show the newly configured endpoints, not a past request's
-    state.config = await api('/api/config');
+    state.config = withRoute((state.rawConfig = await api('/api/config')));
     renderConfig();
     render();
     toast(data.notice || `Saved. ${data.settings.mode === 'mock' ? 'Dry run is on.' : `Live: requests now go to ${data.settings.endpoint}`}`);
@@ -746,7 +751,132 @@ async function saveSettings(e) {
   }
 }
 
+// ---------- sending from this browser (stream.js) ----------
+// What the page shows when this browser sends the requests: Live, to its own URL.
+function withRoute(c) {
+  const r = browserRoute();
+  if (!c || !r.on) return c;
+  return { ...c, mode: 'live', via: 'browser', endpoint: { method: 'POST', url: r.url }, upstream: c.mode === 'mock' ? null : c.upstream, model: r.model || c.model, configured: true, authConfigured: Boolean(r.key) };
+}
+
+const routeForm = () => $('#routeForm');
+
+function readRoute() {
+  const f = routeForm();
+  return { on: f.on.value === '1', url: f.url.value.trim(), key: f.key.value, model: f.model.value.trim() };
+}
+
+function routeError(r) {
+  if (!r.on) return '';
+  try {
+    if (!['http:', 'https:'].includes(new URL(r.url).protocol)) throw 0;
+  } catch {
+    return 'Enter the full URL, like http://localhost:4000/v1/chat/completions';
+  }
+  return '';
+}
+
+function drawRoute() {
+  const f = routeForm();
+  $('#routeFields').classList.toggle('dim', f.on.value !== '1');
+  const err = routeError(readRoute());
+  f.url.classList.toggle('invalid', Boolean(err) && f.url.dataset.touched === '1');
+  f.querySelector('[data-err="url"]').textContent = f.url.dataset.touched === '1' ? err : '';
+}
+
+function openRoute(e) {
+  e?.preventDefault?.();
+  const r = browserRoute();
+  const f = routeForm();
+  f.on.value = r.on ? '1' : '0';
+  f.url.value = r.url;
+  f.model.value = r.model;
+  f.key.value = r.key;
+  f.url.dataset.touched = '';
+  $('#routeResult').hidden = true;
+  drawRoute();
+  if ($('#settings').open) $('#settings').close();
+  $('#routeDlg').showModal();
+}
+
+async function testRoute() {
+  const r = readRoute();
+  const out = $('#routeResult');
+  routeForm().url.dataset.touched = '1';
+  const err = routeError({ ...r, on: true });
+  drawRoute();
+  out.hidden = false;
+  if (err) {
+    out.className = 'test-result bad';
+    out.textContent = err;
+    return;
+  }
+  out.className = 'test-result pending';
+  out.textContent = 'Sending "Hello, how are you?" from this browser…';
+  const btn = $('#routeTest');
+  btn.disabled = true;
+  try {
+    // The exact request a run sends (built by the server, without the key), so this also
+    // checks that LayerOne's CORS rules allow every header.
+    const prep = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Hello, how are you?', scenario: 'custom', via: { url: r.url, model: r.model, step: 'build' } }),
+    });
+    const built = await prep.json().catch(() => null);
+    if (!built?.request) {
+      out.className = 'test-result bad';
+      out.textContent = `✕ ${built?.error || built?.trace?.error || NO_BACKEND_MSG}`;
+      return;
+    }
+    const { url } = built.request;
+    const res = await callFromBrowser(built.request, r.key);
+    if (res.error) {
+      out.className = 'test-result bad';
+      out.textContent = `✕ ${res.error}`;
+      return;
+    }
+    let reply = '';
+    try {
+      reply = JSON.parse(res.body).choices?.[0]?.message?.content || '';
+    } catch {}
+    const ok = res.status >= 200 && res.status < 300;
+    const hint = { 401: 'Check the API key.', 403: 'Check the API key and permissions.', 404: 'Check the URL.' }[res.status] || '';
+    out.className = `test-result ${ok ? 'ok' : 'bad'}`;
+    out.innerHTML = `${ok ? '✓ Connected from this browser' : '✕ Reached LayerOne, but it returned an error'} · HTTP ${res.status} ${esc(res.statusText)} in ${fmtMs(res.ms)}${hint ? ` · ${esc(hint)}` : ''}
+      <small>${esc(url)}${reply ? ` · Reply: "${esc(reply.slice(0, 200))}"` : !ok ? ` · ${esc(String(res.body).slice(0, 200))}` : ''}</small>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function saveRoute(e) {
+  e.preventDefault();
+  const r = readRoute();
+  routeForm().url.dataset.touched = '1';
+  if (routeError(r)) return drawRoute();
+  saveBrowserRoute(r);
+  $('#routeDlg').close();
+  state.config = withRoute(state.rawConfig);
+  state.selectedId = null;
+  renderConfig();
+  render();
+  toast(r.on ? `Requests now go from this browser to ${r.url}.` : 'Requests go from the server again.');
+}
+
+function initRoute() {
+  $('#openRoute').onclick = openRoute;
+  $('#routeClose').onclick = () => $('#routeDlg').close();
+  $('#routeTest').onclick = testRoute;
+  routeForm().addEventListener('submit', saveRoute);
+  routeForm().addEventListener('input', (e) => {
+    if (e.target.name === 'url') e.target.dataset.touched = '1';
+    drawRoute();
+  });
+}
+
 function initSettings() {
+  initRoute();
   $('#openSettings').onclick = openSettings;
   $('#modeBadge').onclick = openSettings;
   $('#settingsClose').onclick = () => $('#settings').close();
@@ -765,7 +895,7 @@ function initSettings() {
       return;
     }
     fillForm(settings);
-    state.config = await api('/api/config');
+    state.config = withRoute((state.rawConfig = await api('/api/config')));
     renderConfig();
     render();
     toast('Settings reset to the defaults.');
@@ -781,7 +911,7 @@ async function send() {
   try {
     const preset = state.scenarios.find((s) => s.id === state.scenario);
     const scenario = preset && preset.prompt === prompt ? preset.id : 'custom';
-    const res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, scenario }) });
+    const res = await postRun('/api/run', { prompt, scenario });
     // The server streams a snapshot of the trace after every step.
     await readTraceStream(res, (trace) => {
       if (state.selectedId !== trace.id) {
@@ -834,7 +964,8 @@ async function init() {
 
   initSettings();
   try {
-    [state.config, state.scenarios, state.history] = await Promise.all([api('/api/config'), api('/api/scenarios'), api('/api/traces')]);
+    [state.rawConfig, state.scenarios, state.history] = await Promise.all([api('/api/config'), api('/api/scenarios'), api('/api/traces')]);
+    state.config = withRoute(state.rawConfig);
   } catch (err) {
     const note = $('#modeNote');
     note.hidden = false;
