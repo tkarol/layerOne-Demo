@@ -2365,7 +2365,7 @@ button.lib-acct { cursor: pointer; }
 .ev-stat small { margin-top: 0.3cqw; color: var(--d-dim); font-size: 0.68em; letter-spacing: 0.03em; }
 .ev-tl { display: grid; gap: 1.1cqw; }
 .ev-tl-h { text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.75em; color: var(--d-muted); font-weight: 700; }
-.ev-tl-items { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.4cqw; }
+.ev-tl-items { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.4cqw; }
 .ev-tl-items::before { content: ''; position: absolute; left: 0; right: 0; top: 0.5cqw; height: 2px; background: linear-gradient(90deg, rgb(248 113 113 / 65%), rgb(248 113 113 / 15%)); transform-origin: left; animation: ev-draw 1.2s 0.5s both; }
 .ev-inc { position: relative; display: grid; align-content: start; gap: 0.3cqw; padding-top: 1.9cqw; animation: d-rise 0.5s calc(0.7s + var(--i) * 0.15s) both; }
 .ev-inc-dot { position: absolute; top: 0; left: 0; width: 1.1cqw; height: 1.1cqw; border-radius: 50%; background: var(--d-bad); box-shadow: 0 0 1cqw var(--d-bad); }
