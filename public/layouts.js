@@ -32,7 +32,12 @@ export function openLayoutEditor(opts) {
   const layout = opts.layout?.products?.[deck.id] || null; // this product's part of the deck
   const official = Object.fromEntries(deck.slides.map((s) => [s.id, s]));
   // The working copy: every slide, with official text filled in where the layout has none.
-  const order = (layout?.order?.length ? [...layout.order.filter((id) => official[id]), ...deck.slides.map((s) => s.id).filter((id) => !layout.order.includes(id))] : deck.slides.map((s) => s.id));
+  // Add-on slides (not in the official deck) come last, unticked, until a deck adds them.
+  const inOrder = new Set(layout?.order || []);
+  const order = [
+    ...(layout?.order?.length ? [...layout.order.filter((id) => official[id]), ...deck.slides.filter((s) => !s.optional && !inOrder.has(s.id)).map((s) => s.id)] : deck.slides.filter((s) => !s.optional).map((s) => s.id)),
+    ...deck.slides.filter((s) => s.optional && !inOrder.has(s.id)).map((s) => s.id),
+  ];
   const ui = {
     ...opts,
     name: opts.layout?.name || 'My deck',
@@ -44,7 +49,8 @@ export function openLayoutEditor(opts) {
       return {
         id,
         official: s,
-        show: !layout?.hidden?.includes(id),
+        show: s.optional ? inOrder.has(id) && !layout?.hidden?.includes(id) : !layout?.hidden?.includes(id),
+        extra: Boolean(s.optional),
         title: layout?.titles?.[id] || '',
         key: o.key ?? toText(s.talk.key),
         points: o.points ? [...o.points] : s.talk.points.map(toText),
@@ -90,6 +96,7 @@ function draw(ui) {
         <label class="le-show"><input type="checkbox" data-show="${n}" ${r.show ? 'checked' : ''} /> Show</label>
         <span class="le-n">${n + 1}</span>
         <input class="le-title" data-title="${n}" value="${esc(r.title)}" placeholder="${esc(plainTitle(r.official.title || 'Title slide'))}" aria-label="Slide title" />
+        ${r.extra ? `<span class="le-extra" title="Not in the official deck: tick Show to add it to this one">add-on${r.official.group ? ` · ${esc(r.official.group)}` : ''}</span>` : ''}
         ${edited(r) ? '<span class="le-edited">edited</span>' : ''}
         ${r.stale ? '<span class="le-stale" title="Booz Allen updated the official talk track for this slide after it was rewritten here">official updated</span>' : ''}
         <button type="button" class="le-open" data-open="${n}" aria-expanded="${r.open}">${r.open ? 'Close' : 'Talk track'} ${r.open ? '▴' : '▾'}</button>
@@ -217,9 +224,11 @@ function wire(ui) {
       ui.error = 'Show at least one slide.';
       return draw(ui);
     }
-    // Only this product's changes; the official order isn't stored.
-    const order = ui.rows.map((r) => r.id);
-    const part = { order: order.join() === ui.deck.slides.map((s) => s.id).join() ? [] : order, hidden: ui.rows.filter((r) => !r.show).map((r) => r.id), titles: {}, talk: {} };
+    // Only this product's changes; the official order isn't stored. An add-on slide is in the
+    // deck when it's ticked (it joins the order), and simply left out when it isn't.
+    const order = ui.rows.filter((r) => !r.extra || r.show).map((r) => r.id);
+    const officialOrder = ui.deck.slides.filter((s) => !s.optional).map((s) => s.id);
+    const part = { order: order.join() === officialOrder.join() ? [] : order, hidden: ui.rows.filter((r) => !r.show && !r.extra).map((r) => r.id), titles: {}, talk: {} };
     // Only this product's slides: the deck's name and customer aren't touched here.
     const body = ui.layout?.id ? { products: { [ui.deck.id]: part } } : { name: ui.name.trim(), customer: ui.customer || null, products: { [ui.deck.id]: part } };
     for (const r of ui.rows) {

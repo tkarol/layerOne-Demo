@@ -8,6 +8,10 @@
 // data with each other, so nothing here shows one product feeding another.
 import { createDeck, icon, $, esc } from './deck-core.js';
 import { loadTailoring, tailorButton, openTailor } from './tailor.js';
+import { eventSlides } from './vellox-event.js';
+import { setT as setReverserT } from './reverser-slides.js';
+import { setT as setRangerT } from './ranger-slides.js';
+import { setT as setNavigatorT } from './navigator-slides.js';
 
 let T = { p: {} };
 const tx = (k, fallback) => (T.p[k] ? esc(T.p[k]) : fallback);
@@ -360,17 +364,30 @@ function initTheme() {
   };
 }
 
+// The official six, plus the event story's add-on slides (vellox-event.js), which only
+// show in decks that include them.
+const ALL_SLIDES = [...SLIDES, ...eventSlides({ P, chip, tx })];
+
 const deck = createDeck({
-  slides: SLIDES,
+  slides: ALL_SLIDES,
   label: 'Vellox',
   storageKey: 'vx',
-  context: async () => (T = await loadTailoring('vellox')),
+  // The borrowed product slides follow the customer's details for their own product too.
+  context: async () => {
+    const [v, rv, rg, nv] = await Promise.all(['vellox', 'reverser', 'ranger', 'navigator'].map((k) => loadTailoring(k)));
+    setReverserT(rv);
+    setRangerT(rg);
+    setNavigatorT(nv);
+    return (T = v);
+  },
   onGoto: () => setView('architecture'),
 });
 
 const TAILOR_FIELDS = [
   { k: 'lead', label: 'Title slide tagline', where: 'slide 1', placeholder: 'AI-native cyber defense, built on adversary tradecraft.', full: true },
   { k: 'next', label: 'Next step', where: 'last slide', placeholder: 'pick the bottleneck that hurts most, and pilot that product on your own data.', full: true },
+  { k: 'booth', label: 'Booth or room', where: 'event slides: welcome and closing', placeholder: 'Booth #1234' },
+  { k: 'cta', label: 'Closing line', where: 'event slides: closing', placeholder: 'boozallen.com/expertise/products/vellox', full: true },
 ];
 async function retailor() {
   await deck.refresh();

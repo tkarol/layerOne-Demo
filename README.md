@@ -234,7 +234,7 @@ The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Customer** (when t
 
 `src/core/seeds.js` adds ready-made customers and decks to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
 
-* **AWS re:Invent** (Tyler's customer, AWS-orange accent, a webinar call to action on the Vellox deck's last slide) and its deck **AWS re:Invent webinar** for the Vellox suite. The deck rewrites the talk track for a large virtual audience: polls and chat or Q&A prompts in place of discovery questions, timing cues (about 18 minutes plus Q&A), a single call to action (a 30-minute working session), and the last slide retitled *Where to start after today*. Open it from the library, or from **Deck ▾** on any page.
+* **AWS re:Invent** (Tyler's customer, AWS-orange accent) and its deck **AWS re:Invent 2026**: the 15-slide event story on the Vellox page (see *Event story slides* below), with timing notes on every slide (about 25 minutes plus questions), a poll on slide 4 that the close comes back to, and lead-ins that hand each product to the next. It began as a 6-slide webinar version (polls and chat prompts, about 18 minutes); a one-time update in November 2026 replaced it with the event story, and the webinar version is still in the deck's history (**Deck settings → Earlier versions**) if you want it back. Set the booth in **✎ Customer → Booth** before the event. Open it from the library, or from **Deck ▾** on any page.
 
 ### Presenting
 
@@ -264,7 +264,22 @@ Storage is a key/value store that reads every customer and deck to list them: fi
 * **Overview:** a 6-slide deck with talking points: the title (the four products around a Vellox core); *AI changed both sides* (a chart of the growing gap between attackers with AI and defenders today, next to the four places defenders fall behind, each matched to a product); *four products, one mission* (Reverser, Ranger, Navigator and LayerOne around a "human operators + AI agents" hub, each with its role and status: Reverser, Ranger and Navigator generally available, LayerOne limited preview); *when a new threat lands* (Ranger spots it and Reverser takes it apart **at the same time**, then your analysts decide with both answers in hand, while Navigator and LayerOne are always on); *built on adversary tradecraft*; and *start where it hurts most* (each bottleneck links straight to its product page). The slides play once with measured animations, then settle.
 * **Products are separate today:** they don't exchange data with each other, so nothing on this page shows one product feeding another. The talking points say so, and treat "do they work together?" as an objection.
 * **Architecture (“The suite around your environment”):** the four products around *your environment*, each connected only to it. **Explore:** click a product to light it up and get a card with its status and an **Open** button to its page. **Follow one threat:** the same story, step by step (Ranger and Reverser light up together).
-* **✎ Customer:** the title tagline and the next step.
+* **✎ Customer:** the title tagline and the next step; for the event slides, the booth or room and a closing line.
+
+### Event story slides (add-ons)
+
+Fourteen more slides live on the Vellox page for a keynote-style talk across the whole suite (built for AWS re:Invent 2026). They're **add-ons**: never in the official Vellox deck (still 6 slides), and offered in **Edit the Vellox slides** marked *add-on*; tick **Show** to add one to your deck. The **AWS re:Invent 2026** deck uses all of them:
+
+1. The Vellox cover (the official title slide)
+2. **Why we're at re:Invent:** you're building with AI on AWS; so are attackers; Booz Allen and AWS (AWS Premier Tier Services Partner, AWS Federal Government Partner of the Year 2024 and 2025, Vellox Reverser built on AWS). An agenda, and the booth.
+3. **The threat, by the numbers:** 29-minute average breakout, fastest 27 seconds (CrowdStrike 2026 GTR); 31% of breaches start with an exploited vulnerability (Verizon 2026 DBIR); 14-day median dwell time (Mandiant M-Trends 2026); $4.99M average breach (IBM 2026). Recent headlines: Shai-Hulud (CISA), GTG-1002 (Anthropic), LiteLLM, JadePuffer (Sysdig).
+4. **What keeps security leaders up at night:** four questions, each with one supporting figure and its source, and a poll.
+5. **Fight SI with SI: why we built Vellox:** Booz Allen's own lines from the Vellox page, and each question mapped to its product.
+6. to 13. **Each product, then how it works:** an intro with the official logo, status, Booz Allen's headline and description, and the question it answers; then that product's own how-it-works slide, borrowed unchanged from its page (Reverser: *Watch it run. Read the code.*; Ranger: *Detection from the inside out*; Navigator: *A living compliance layer*; LayerOne: *One gateway for every AI request*). Product pages keep their full interactive architecture views for deeper conversations.
+14. **Vellox in practice:** the Shai-Hulud npm worm, step by step, with the four products working side by side (labeled as an illustrative replay; the products don't exchange data today).
+15. **What Vellox means for you:** Know, Defend, Assure, Trust your environment (from Booz Allen's Vellox film), and *come see it live* at the booth.
+
+Every figure and incident is named with its source in the talking points, along with caveats where reporting differs. "SI" is Booz Allen's term on the Vellox page ("Super Intelligence, previously referred to as AI"); the talking points explain it once. Check product statuses and figures the week of the event.
 
 ## Vellox Reverser: a separate product page
 
@@ -593,6 +608,8 @@ What happens in Live mode depends on the policies configured in your LayerOne te
 | `src/core/data-app.js`, `public/data-app.js` | Customer Hub: the database app, its stand-in AI agent and LayerOne's query checks |
 | `public/deck.js` | Overview tab: the LayerOne pitch deck (slides, talking points) |
 | `public/deck-core.js` | The slide engine all four decks share (keys, Present, talking points, icons) |
+| `public/reverser-slides.js`, `public/ranger-slides.js`, `public/navigator-slides.js`, `public/layerone-slides.js` | Each product's slides, shared by its own page and the Vellox page's event story |
+| `public/vellox-event.js` | The event story's add-on slides on the Vellox page (see *Event story slides*) |
 | `public/reverser.html`, `public/reverser.js` | The separate Vellox Reverser page: deck and architecture explainer |
 | `public/ranger.html`, `public/ranger.js` | The separate Vellox Ranger page: deck and architecture explainer |
 | `public/navigator.html`, `public/navigator.js` | The separate Vellox Navigator page: deck and architecture explainer |

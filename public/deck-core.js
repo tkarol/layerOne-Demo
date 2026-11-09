@@ -78,17 +78,25 @@ const DECK_IDS = { vx: 'vellox', l1: 'layerone', rv: 'reverser', rg: 'ranger', n
 
 // The slide order for a layout: its own order, with any official slide it doesn't
 // know yet (added after it was saved) placed right after its official neighbor.
+// Add-on slides (`optional`, like the event slides on the Vellox page) are never in the
+// official deck: they show only where a deck's own order includes them.
 export function layoutOrder(allSlides, layout) {
-  if (!layout?.order?.length) return allSlides;
+  if (!layout?.order?.length) return allSlides.filter((x) => !x.optional);
   const byId = Object.fromEntries(allSlides.map((x) => [x.id, x]));
   const out = layout.order.map((id) => byId[id]).filter(Boolean);
   allSlides.forEach((x, i) => {
-    if (out.includes(x)) return;
+    if (out.includes(x) || x.optional) return;
     const prev = allSlides.slice(0, i).reverse().find((p) => out.includes(p));
     out.splice(prev ? out.indexOf(prev) + 1 : 0, 0, x);
   });
   return out;
 }
+
+// How a slide is marked for its styles: its own id, or (a slide shown on another
+// product's page, like Reverser's on the Vellox page) the id and the page style it
+// was built with.
+const slideAs = (s) => s.as || s.id;
+const slideCls = (s) => (s.scope ? ` ${s.scope}` : '');
 
 export function createDeck({ slides: allSlides, label, storageKey = 'deck', context = async () => ({}), onGoto = () => {} }) {
   const st = { i: 0, notes: true, ctx: {}, layout: null };
@@ -138,7 +146,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
   const markup = (n) => {
     const s = slides[n];
     const title = titleFor(s);
-    return `${title ? `<h2 class="d-h">${title}</h2>` : ''}${s.html(st.ctx)}<div class="d-foot"><span>${esc(label)}</span><span>${n + 1} / ${slides.length}</span></div>`;
+    return `${title && !s.titleHidden ? `<h2 class="d-h">${title}</h2>` : ''}${s.html(st.ctx)}<div class="d-foot"><span>${esc(label)}</span><span>${n + 1} / ${slides.length}</span></div>`;
   };
   // The talking points for a slide (the panel under the slide, and the presenter view).
   const notesHTML = (n) => {
@@ -172,6 +180,8 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
       titles: slides.map((x) => String(titleFor(x) || 'Title slide').replace(/<[^>]+>/g, ' ')),
       current: markup(st.i),
       next: st.i < slides.length - 1 ? markup(st.i + 1) : null,
+      currentAs: { slide: slideAs(slides[st.i]), cls: slideCls(slides[st.i]) },
+      nextAs: st.i < slides.length - 1 ? { slide: slideAs(slides[st.i + 1]), cls: slideCls(slides[st.i + 1]) } : null,
       notes: notesHTML(st.i),
       ...scope(),
     });
@@ -217,9 +227,9 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
     }
     const s = slides[st.i];
     const slide = $('.slide', root);
-    slide.dataset.slide = s.id;
+    slide.dataset.slide = slideAs(s);
+    slide.className = `slide${slideCls(s)}`;
     slide.innerHTML = markup(st.i);
-    slide.classList.remove('in');
     void slide.offsetWidth; // restart the entrance animation
     slide.classList.add('in');
     $('.deck-hit.prev', root).hidden = st.i === 0;
@@ -292,7 +302,7 @@ export function createDeck({ slides: allSlides, label, storageKey = 'deck', cont
 
   // Print mode: every slide in its finished state, handed to the PDF page that framed us.
   function printAll() {
-    const sheets = slides.map((_, n) => `<section class="print-sheet"><div class="deck-stage"><div class="slide in" data-slide="${esc(slides[n].id)}">${markup(n)}</div></div></section>`);
+    const sheets = slides.map((_, n) => `<section class="print-sheet"><div class="deck-stage"><div class="slide in${slideCls(slides[n])}" data-slide="${esc(slideAs(slides[n]))}">${markup(n)}</div></div></section>`);
     root.innerHTML = `<div class="print-sheets">${sheets.join('')}</div>`;
     const msg = { type: 'deck-print', product: deckId, label, sheets, ctx: { customer: st.ctx.customer || null, prepared: st.ctx.prepared || null, logo: st.ctx.logo || null }, deck: st.layout?.name || null, ...scope() };
     if (window.parent !== window) window.parent.postMessage(msg, location.origin);

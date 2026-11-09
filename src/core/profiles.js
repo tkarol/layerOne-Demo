@@ -102,7 +102,7 @@ const PITCH_FIELDS = {
   reverser: { lead: 120, callout: 140, file: 60, tools: 120, next: 200 },
   ranger: { lead: 120, jewel: 40, tools: 120, review: 10, next: 200 },
   navigator: { lead: 120, system: 50, baseline: 60, reviewer: 40, next: 200 },
-  vellox: { lead: 120, next: 200 },
+  vellox: { lead: 120, next: 200, booth: 40, cta: 120 },
 };
 
 function validatePitch(input, errors) {

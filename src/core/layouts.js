@@ -133,7 +133,7 @@ export async function migrateSuiteDecks(storage) {
 // Version history: each save keeps the version it replaced (the last HISTORY of them),
 // so a deck can be put back the way it was.
 const HISTORY = 25;
-async function keepVersion(storage, deck) {
+export async function keepVersion(storage, deck) {
   const list = (await storage.getKV(`deck-history:${deck.id}`)) || [];
   list.push({ at: deck.updatedAt, by: deck.updatedBy || deck.owner, name: deck.name, products: deck.products || {} });
   await storage.putKV(`deck-history:${deck.id}`, list.slice(-HISTORY));

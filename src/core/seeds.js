@@ -3,7 +3,7 @@
 // after that it's ordinary data, so its owner can edit, copy or delete it and it
 // won't come back.
 import { validateProfile } from './profiles.js';
-import { validateLayout } from './layouts.js';
+import { validateLayout, keepVersion } from './layouts.js';
 
 const DONE_KEY = 'seeds:applied';
 
@@ -113,7 +113,57 @@ const REINVENT = {
   },
 };
 
-export const SEEDS = [REINVENT];
+// November 2026: Tyler's re:Invent deck becomes the 15-slide event story: the Vellox
+// cover, then the event slides (public/vellox-event.js, add-ons on the Vellox page) with
+// each product's own how-it-works slide. Runs once; the deck's previous version stays in
+// its history (Deck settings → Earlier versions), and a deck its owner deleted stays gone.
+const EVENT_ORDER = ['title', 'ev-welcome', 'ev-threat', 'ev-leaders', 'ev-why', 'ev-reverser', 'ev-reverser-how', 'ev-ranger', 'ev-ranger-how', 'ev-navigator', 'ev-navigator-how', 'ev-layerone', 'ev-layerone-how', 'ev-practice', 'ev-close'];
+const min = (m) => `About ${m} min.`;
+const REINVENT_EVENT = {
+  id: 'reinvent-event-story-2026',
+  part: {
+    order: EVENT_ORDER,
+    hidden: ['shift', 'suite', 'together', 'why', 'start'], // the official Vellox slides this story replaces
+    talk: {
+      title: {
+        key: 'Welcome to re:Invent. In the next 25 minutes: how AI changed the threat, what security leaders tell us keeps them up, and how Vellox answers it.',
+        points: [
+          '**Introduce yourself** and Booz Allen in one line.',
+          '**Set expectations:** four products, one story, and a real attack replayed near the end. Live demos at the booth afterwards.',
+          '**Present full screen** (F) and open the presenter view (P) on your laptop: these notes, the next slide and a timer.',
+        ],
+        ask: '',
+        next: 'First, why we’re at re:Invent at all.',
+        notes: `${min(1)} Before the event: add the booth in ✎ Customer → Booth (it shows on slides 2 and 15), and check product status with the Vellox team that week.`,
+      },
+      'ev-welcome': { notes: `${min(1.5)} Get the show of hands; it sets up everything after.` },
+      'ev-threat': { notes: `${min(2.5)} Read two numbers (29 minutes, 14 days), then the four headlines. Sources are on the slide and in the points.` },
+      'ev-leaders': { notes: `${min(2)} Run the poll (or show of hands) here and remember the answer for slide 15.` },
+      'ev-why': { notes: `${min(2)} Explain “SI” once, then move on.` },
+      'ev-reverser': { notes: `${min(1.5)} The AWS line lands well here: Reverser is built on AWS.` },
+      'ev-reverser-how': { next: 'Second question: is someone already inside, and would you see them?', notes: `${min(1.5)} Let the animation run, then narrate.` },
+      'ev-ranger': { notes: min(1.5) },
+      'ev-ranger-how': { next: 'Third question: can you prove you’re secure today, not just at the last audit?', notes: `${min(1.5)} Read the rings from the middle out.` },
+      'ev-navigator': { notes: min(1.5) },
+      'ev-navigator-how': { next: 'Fourth question: what are your AI agents doing, and who said they could?', notes: min(1.5) },
+      'ev-layerone': { notes: `${min(1.5)} Say “limited preview” plainly.` },
+      'ev-layerone-how': { next: 'Now let’s put all four against a real attack.', notes: `${min(1.5)} Let the traffic play once.` },
+      'ev-practice': { notes: `${min(3)} Walk the top row left to right, then the four bars. Close with “side by side, not integrated”.` },
+      'ev-close': { notes: `${min(1.5)} Then questions. Point back to the poll result, and end on the booth.` },
+    },
+  },
+  async apply(storage) {
+    const id = REINVENT.layout.id;
+    const deck = await storage.getKV(`layout:${id}`);
+    if (!deck) return;
+    const { layout, ok } = validateLayout({ name: 'AWS re:Invent 2026', products: { vellox: this.part } }, deck);
+    if (!ok) return;
+    await keepVersion(storage, deck);
+    await storage.putKV(`layout:${id}`, { ...layout, id, owner: deck.owner, updatedBy: deck.owner });
+  },
+};
+
+export const SEEDS = [REINVENT, REINVENT_EVENT];
 
 export async function applySeeds(storage) {
   const done = (await storage.getKV(DONE_KEY)) || [];

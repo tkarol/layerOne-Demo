@@ -752,10 +752,22 @@ test('the AWS re:Invent webinar ships as Tyler’s customer with its own Vellox 
   assert.equal(lays[0].mine, true);
   const lay = (await api(`/api/layouts/${lays[0].id}`, 'GET', null, as(tyler))).data;
   assert.deepEqual(Object.keys(lay.products), ['vellox']);
-  assert.equal(lay.products.vellox.titles.start, 'Where to start after today');
-  assert.deepEqual(Object.keys(lay.products.vellox.talk).sort(), ['shift', 'start', 'suite', 'title', 'together', 'why']);
-  assert.match(lay.products.vellox.talk.title.ask, /Poll/);
+  // Then updated once to the 15-slide event story, keeping the first version in its history.
+  const v = lay.products.vellox;
+  assert.equal(lay.name, 'AWS re:Invent 2026');
+  assert.equal(v.order.length, 15);
+  assert.deepEqual([v.order[0], v.order[1], v.order[14]], ['title', 'ev-welcome', 'ev-close']);
+  assert.deepEqual(v.hidden.sort(), ['shift', 'start', 'suite', 'together', 'why']);
+  assert.match(v.talk['ev-ranger-how'].next, /Third question/);
+  assert.match(v.talk.title.notes, /Booth/);
+  const hist = (await api(`/api/layouts/${lay.id}/history`, 'GET', null, as(tyler))).data;
+  const versions = hist.versions || hist;
+  assert.ok(versions.some((h) => h.name === 'AWS re:Invent webinar'), 'the webinar version is kept');
+  // Booth and closing line are customer details for the event slides.
   assert.match((await api('/api/pitch', 'GET', null, { 'X-Customer': cust.id })).data.pitch.vellox.next, /working session/);
+  const put = await api(`/api/profiles/${cust.id}`, 'PUT', { name: 'AWS re:Invent', pitch: { vellox: { next: 'book a 30-minute working session.', booth: 'Booth #1234', cta: 'boozallen.com' } } }, as(tyler));
+  assert.equal(put.status, 200);
+  assert.equal(put.data.pitch.vellox.booth, 'Booth #1234');
 });
 
 test('accounts and decks: roles, account teams, deck links, and copying a deck to another account', async () => {

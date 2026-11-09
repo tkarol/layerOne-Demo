@@ -19,9 +19,9 @@ if (!('BroadcastChannel' in window) || !k) {
     const s = Math.max(0, Math.floor(ms / 1000));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   };
-  const stage = (html, m, cls = '') =>
+  const stage = (html, m, cls = '', as = null) =>
     html
-      ? `<div class="${esc(m.main)} pv-scope"><div class="deck-stage ${cls}"><div class="slide in">${html}</div></div></div>`
+      ? `<div class="${esc(m.main)} pv-scope"><div class="deck-stage ${cls}"><div class="slide in${esc(as?.cls || '')}" data-slide="${esc(as?.slide || '')}">${html}</div></div></div>`
       : '<div class="pv-end">End of the deck</div>';
 
   function draw(m) {
@@ -41,9 +41,9 @@ if (!('BroadcastChannel' in window) || !k) {
         </div>
       </header>
       <main class="pv-main">
-        <section class="pv-now"><div class="pv-lbl">Now</div>${stage(m.current, m)}</section>
+        <section class="pv-now"><div class="pv-lbl">Now</div>${stage(m.current, m, '', m.currentAs)}</section>
         <section class="pv-side">
-          <div class="pv-lbl">Next${m.i < m.n - 1 ? ` · ${esc(m.titles[m.i + 1])}` : ''}</div>${stage(m.next, m, 'pv-small')}
+          <div class="pv-lbl">Next${m.i < m.n - 1 ? ` · ${esc(m.titles[m.i + 1])}` : ''}</div>${stage(m.next, m, 'pv-small', m.nextAs)}
           <div class="pv-lbl">Talking points</div>
           <div class="pv-notes deck-notes">${m.notes}</div>
         </section>
