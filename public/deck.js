@@ -16,8 +16,7 @@ const SLIDES = [
     id: 'title',
     html: (ctx) => `
       <div class="d-title">
-        <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
-        <h1>LayerOne</h1>
+        <h1 class="d-logo" data-p="layerone"><img src="brand/vellox-layerone.png" alt="Vellox LayerOne, a Booz Allen product" /></h1>
         <p class="d-lead">Govern every AI request your organization makes, <span>in one place.</span></p>
         ${ctx.logo ? `<img class="d-cust-logo" src="${esc(ctx.logo)}" alt="" />` : ''}${ctx.prepared ? `<div class="d-for">Prepared for <b>${esc(ctx.prepared)}</b></div>` : ''}
       </div>

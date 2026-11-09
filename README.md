@@ -23,7 +23,10 @@ Everything ships as **one Cloudflare Worker**: the page, the backend, and the st
 
 The demo shell (header, tabs, buttons, Settings) uses a monochrome Booz Allen look: black and white, with a text lockup **Booz Allen | Vellox LayerOne**. Green, amber and red are kept, because they carry meaning (allowed, removed, blocked). The sample apps keep their own fictional brands.
 
-* **Official logo:** save the white (reversed) Booz Allen logo as `public/brand/logo.svg`. It replaces the text wordmark automatically; until then, the text is shown. Use the approved file from Booz Allen's brand team rather than a recreation.
+* **Official logos** (in `public/brand/`, downloaded unchanged from [boozallen.com's Vellox page](https://www.boozallen.com/expertise/products/vellox.html); sources and checksums in `docs/brand-logos.md`). All are white on transparent, made for dark backgrounds:
+  * `logo.svg`: the Booz Allen logo, in every page header and on the Vellox title slide and the PDF cover.
+  * `vellox.svg` (Vellox, Agentic Cyber Product Suite), `vellox-layerone.png`, `vellox-reverser.png`, `vellox-ranger.png`, `vellox-navigator.svg` (each "A Booz Allen Product"): the title slide of each product's deck. Page headers keep the product name as text, since the lockups are too small to read there.
+  * To update one, replace the file with the new official one under the same name.
 * **Colors:** the tokens at the top of `public/styles.css` (`--chrome`, `--accent`, and the rest) control the whole shell, with separate values for dark mode.
 * **Brand color:** every product uses one brand color instead of a color per product. By default it's **Booz Allen's teal**, taken from boozallen.com's own stylesheet: `--brand-rgb: 35 210 215` (#23D2D7, their accent on dark backgrounds, `--bah-theme-accent-color`) for the slides, diagrams and top bar, and `--brand-ink: #00636d` (their teal for text and links on light backgrounds) for text on light pages. When the open deck is for a customer with a brand color, that color replaces both on every product page, adjusted automatically so it stays readable (at least 4.5:1 contrast) on dark slides and light pages. Products are told apart by their icons and names. Colors that carry meaning stay as they are: green for allowed/done/generally available, amber for redacted/limited preview/never ran, red for blocked/threats.
 

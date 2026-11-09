@@ -32,8 +32,7 @@ const SLIDES = [
     id: 'title',
     html: (ctx) => `
       <div class="d-title">
-        <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
-        <h1>Reverser</h1>
+        <h1 class="d-logo" data-p="reverser"><img src="brand/vellox-reverser.png" alt="Vellox Reverser, a Booz Allen product" /></h1>
         <p class="d-lead">${tx('lead', 'Malware reverse engineering, <span>at machine speed.</span>')}</p>
         ${prepared(ctx)}
       </div>

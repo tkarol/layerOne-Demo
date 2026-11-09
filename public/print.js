@@ -48,7 +48,7 @@ function cover(first) {
   const names = PRODUCTS.filter(([id]) => want.has(id)).map(([, n]) => n);
   return `<section class="print-sheet pr-cover"><div class="deck-stage"><div class="slide in">
     <div class="pr-cover-in">
-      <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
+      <img class="d-bah" src="brand/logo.svg" alt="Booz Allen" />
       ${c.logo ? `<img class="pr-cover-logo" src="${esc(c.logo)}" alt="" />` : ''}
       <h1>${c.customer ? `Vellox for ${esc(c.customer)}` : 'Vellox'}</h1>
       <p class="d-lead">AI-native cyber defense, <span>built on adversary tradecraft.</span></p>

@@ -495,6 +495,13 @@ details[open] > summary::before { transform: rotate(90deg); }
 .d-kicker { display: flex; align-items: center; gap: 0.9cqw; text-transform: uppercase; letter-spacing: 0.24em; font-size: 0.82em; color: var(--d-muted); font-weight: 650; }
 .d-dot { width: 0.7cqw; height: 0.7cqw; border-radius: 50%; background: var(--d-acc); box-shadow: 0 0 1.2cqw var(--d-acc); }
 /* Solid text, not a background-clipped gradient: clipped gradients cut off descenders and the last letter in some browsers. */
+/* Official logos (public/brand, from boozallen.com; white, for these dark slides). */
+.d-title h1.d-logo { line-height: 0; text-shadow: none; }
+.d-logo img { display: block; width: auto; max-width: 100%; height: 10cqw; object-fit: contain; object-position: left center; filter: drop-shadow(0 0.3cqw 1.2cqw rgb(0 0 0 / 35%)); }
+.d-logo[data-p='vellox'] img { height: 15cqw; }
+.d-logo[data-p='reverser'] img, .d-logo[data-p='ranger'] img { height: 11.5cqw; }
+.d-logo[data-p='navigator'] img, .d-logo[data-p='layerone'] img { height: 8.6cqw; margin-bottom: 1.6cqw; }
+.d-bah { display: block; height: 2.3cqw; width: auto; opacity: 0.92; }
 .d-title h1 { width: max-content; max-width: 100%; font-size: 7.4em; line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; color: #fff; text-shadow: 0 0.04em 0.3em rgb(0 0 0 / 35%); overflow-wrap: normal; }
 .d-lead { margin: 0; font-size: 2em; line-height: 1.22; letter-spacing: -0.015em; color: var(--d-muted); }
 .d-lead span { color: var(--d-text); }

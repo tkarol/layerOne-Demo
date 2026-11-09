@@ -71,8 +71,7 @@ const SLIDES = [
     id: 'title',
     html: (ctx) => `
       <div class="d-title">
-        <div class="d-kicker"><span class="d-dot"></span>Booz Allen · Vellox</div>
-        <h1>Ranger</h1>
+        <h1 class="d-logo" data-p="ranger"><img src="brand/vellox-ranger.png" alt="Vellox Ranger, a Booz Allen product" /></h1>
         <p class="d-lead">${tx('lead', 'Detections built for your environment, <span>not someone else’s.</span>')}</p>
         ${prepared(ctx)}
       </div>
