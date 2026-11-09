@@ -77,6 +77,8 @@ export function validateLayout(input, existing) {
   // Leaving the account out keeps the deck's account; null or '' makes it a general deck.
   const given = 'customer' in input ? input.customer : existing?.customer;
   const customer = typeof given === 'string' && /^p_[0-9a-f]+$/.test(given) ? given : null;
+  // Guests (signed in as a guest) can open this deck, read-only. Off unless switched on.
+  const guests = 'guests' in input ? input.guests === true : Boolean(existing?.guests);
   const layout = {
     id: existing?.id || `l_${randomHex(6)}`,
     name,
@@ -84,6 +86,7 @@ export function validateLayout(input, existing) {
     products,
     owner: existing?.owner,
     updatedAt: new Date().toISOString(),
+    ...(guests ? { guests: true } : {}),
   };
   return { layout, errors, ok: Object.keys(errors).length === 0 };
 }
@@ -154,7 +157,25 @@ const summary = (l, me, accounts) => ({
   updatedBy: l.updatedBy || l.owner,
   mine: Boolean(me && l.owner === me.id),
   canEdit: canEditDeck(l, me, accounts.get(l.customer)),
+  guests: Boolean(l.guests),
 });
+
+// Decks their owners opened to guests (Deck settings → Guests can view this deck).
+// Guests see them read-only, without the private notes on each slide.
+export const guestDecks = async (storage) => (await storage.listKV('layout:l_')).filter((l) => l?.guests);
+export function forGuests(l) {
+  const products = {};
+  for (const [pid, part] of Object.entries(l.products || {})) {
+    const talk = {};
+    for (const [id, t] of Object.entries(part.talk || {})) {
+      const { notes, ...rest } = t;
+      if (Object.keys(rest).some((k) => k !== 'base')) talk[id] = rest;
+    }
+    products[pid] = { ...part, talk };
+  }
+  return { ...l, products, mine: false, canEdit: false };
+}
+export const guestSummary = (l) => ({ id: l.id, name: l.name, products: DECKS.filter((d) => l.products?.[d]), customer: l.customer || null, owner: l.owner, updatedAt: l.updatedAt, updatedBy: l.updatedBy || l.owner, mine: false, canEdit: false, guests: true });
 const accountsById = async (storage) => new Map((await storage.listKV('profile:p_')).filter(Boolean).map((p) => [p.id, p]));
 
 // One-time move: slide changes that used to live on customers (Tailor: hidden
@@ -223,7 +244,7 @@ export async function handleLayoutApi(request, { storage, pathname, method, read
   if (method === 'POST' && action === 'copy') {
     const body = await readJson(request);
     const customer = 'customer' in body ? body.customer || null : existing.customer;
-    const { layout, errors, ok } = validateLayout({ ...existing, customer, name: String(body.name || `${existing.name} (copy)`).slice(0, MAX.name) });
+    const { layout, errors, ok } = validateLayout({ ...existing, customer, guests: false, name: String(body.name || `${existing.name} (copy)`).slice(0, MAX.name) });
     if (!ok) return json(400, { error: 'Some fields are invalid', errors });
     if (!(await checkAccount(layout.customer))) return json(400, { error: 'That account doesn’t exist' });
     layout.owner = me.id;

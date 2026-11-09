@@ -679,11 +679,12 @@ test('guests look around read-only, in their own sandbox, and never see customer
   ];
   for (const [p, m, body] of denied) assert.equal((await api(p, m, body, as(guest))).status, 403, `${m} ${p}`);
 
-  // Customers and SEs' layouts stay hidden; decks are always the standard version.
-  assert.deepEqual((await api('/api/profiles', 'GET', null, as(guest))).data.profiles, []);
+  // Customers and SEs' layouts stay hidden (only decks shared with guests, and their customers,
+  // show: see the next test); decks are the standard version.
+  assert.ok(!(await api('/api/profiles', 'GET', null, as(guest))).data.profiles.some((p) => p.id === cust));
   assert.equal((await api(`/api/profiles/${cust}`, 'GET', null, as(guest))).status, 403);
-  assert.deepEqual((await api('/api/layouts?deck=ranger', 'GET', null, as(guest))).data.layouts, []);
-  assert.equal((await api(`/api/layouts/${lay}`, 'GET', null, as(guest))).status, 403);
+  assert.ok(!(await api('/api/layouts?deck=ranger', 'GET', null, as(guest))).data.layouts.some((l) => l.id === lay));
+  assert.equal((await api(`/api/layouts/${lay}`, 'GET', null, as(guest))).status, 404);
   assert.equal((await api('/api/pitch', 'GET', null, { ...as(guest), 'X-Customer': cust })).data.customer, null);
 
   // The demos work, in a sandbox per guest visit.
@@ -1107,4 +1108,39 @@ test('Docker: a health check, and saves that never leave a half-written file', a
   assert.ok(kept.length <= 600 && kept.length >= 500);
   assert.equal(kept[0].id, 'trc_20260101000000_000619');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('guests can open a deck its owner shared with guests (read-only, no private notes), and nothing else', async () => {
+  const as = (token) => ({ 'X-Presenter-Token': token });
+  const tyler = (await api('/api/presenters/login', 'POST', { id: 'tyler', pin: '2468' })).data.token;
+  const guest = (await api('/api/presenters/guest', 'POST')).data.token;
+  // The re:Invent deck is shared with guests from the start; a fresh deck isn't.
+  const mineDeck = (await api('/api/layouts', 'POST', { name: 'Private deck', products: { vellox: { hidden: ['shift'] } } }, as(tyler))).data;
+  assert.equal(mineDeck.guests, undefined);
+  const list = (await api('/api/layouts', 'GET', null, as(guest))).data.layouts;
+  assert.deepEqual(list.map((l) => l.id), ['l_a75e1e2026']);
+  assert.equal(list[0].canEdit, false);
+  const deck = (await api('/api/layouts/l_a75e1e2026', 'GET', null, as(guest))).data;
+  assert.equal(deck.products.vellox.order.length, 15);
+  assert.equal(deck.products.vellox.talk.title.notes, undefined, 'private notes stay hidden');
+  assert.match(deck.products.vellox.talk.title.key, /Welcome to re:Invent/);
+  assert.equal((await api(`/api/layouts/${mineDeck.id}`, 'GET', null, as(guest))).status, 404);
+  assert.equal((await api('/api/layouts/l_a75e1e2026', 'PUT', { name: 'x' }, as(guest))).status, 403);
+  // Only that deck's customer, with its branding and booth; not other customers.
+  const profiles = (await api('/api/profiles', 'GET', null, as(guest))).data.profiles;
+  assert.deepEqual(profiles.map((p) => p.name), ['AWS re:Invent']);
+  assert.equal(profiles[0].team, undefined);
+  const pitch = (await api('/api/pitch', 'GET', null, { ...as(guest), 'X-Customer': 'p_a75e1e2026' })).data;
+  assert.equal(pitch.customer?.name, 'AWS re:Invent');
+  const other = (await api('/api/profiles', 'POST', { name: 'Not shared' }, as(tyler))).data;
+  assert.equal((await api('/api/pitch', 'GET', null, { ...as(guest), 'X-Customer': other.id })).data.customer, null);
+  assert.equal((await api(`/api/profiles/${other.id}/logo`, 'GET', null, as(guest))).status, 403);
+  // The owner switches it off in Deck settings; copies never start shared.
+  const copy = (await api('/api/layouts/l_a75e1e2026/copy', 'POST', { name: 'My copy' }, as(tyler))).data;
+  assert.equal(copy.guests, undefined);
+  assert.equal((await api('/api/layouts/l_a75e1e2026', 'PUT', { guests: false }, as(tyler))).data.guests, undefined);
+  assert.deepEqual((await api('/api/layouts', 'GET', null, as(guest))).data.layouts, []);
+  assert.equal((await api('/api/layouts/l_a75e1e2026', 'PUT', { guests: true }, as(tyler))).data.guests, true);
+  for (const id of [mineDeck.id, copy.id]) await api(`/api/layouts/${id}`, 'DELETE', null, as(tyler));
+  await api(`/api/profiles/${other.id}`, 'DELETE', null, as(tyler));
 });

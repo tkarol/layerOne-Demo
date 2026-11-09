@@ -2455,3 +2455,9 @@ button.lib-acct { cursor: pointer; }
 .ev-cta li .d-svg { width: 1.6cqw; height: 1.6cqw; color: var(--d-acc); flex: none; }
 .ev-cta-link { margin: 0.4cqw 0 0; color: var(--d-muted); font-size: 0.88em; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .ev-card, .ev-step, .ev-booth, .ev-stat, .ev-inc, .ev-q, .ev-pillar, .ev-map-row, .ev-proof, .ev-atk, .ev-def-bar, .ev-verb, .ev-trust, .ev-tl-items::before { animation: none !important; } }
+
+.lib-guests { align-self: center; margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; color: var(--brand-ink); background: color-mix(in srgb, var(--brand-ink) 12%, transparent); white-space: nowrap; }
+.ds-guests { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.ds-guests input { margin-top: 3px; }
+.ds-guests b, .ds-guests small { display: block; }
+.ds-guests small { color: var(--muted); font-size: 12.5px; line-height: 1.4; margin-top: 2px; }

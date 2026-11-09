@@ -434,6 +434,11 @@ export function deckSettingsDialog(opts) {
           <p><button type="button" class="secondary small" id="dsCopy">⧉ Make a copy…</button> <span class="muted small">for another customer, or your own version for this one</span></p>
           <div class="s-section-title">Share</div>
           <div class="ds-link"><input readonly value="${esc(link)}" aria-label="Deck link" /><button type="button" class="secondary small" id="dsLink">${ui.copied ? '✓ Copied' : 'Copy link'}</button></div>
+          ${
+            ro
+              ? ''
+              : `<label class="check ds-guests"><input type="checkbox" id="dsGuests" ${d.guests ? 'checked' : ''} /><span><b>Guests can view this deck</b><small>Read-only, for anyone who chooses “Continue as a guest”: from the library, the Deck menu and this link. Your private notes on each slide stay hidden.</small></span></label>`
+          }
           <p><a class="secondary small ds-pdf" href="${esc(pdfHref({ id: d.id, customer: d.customer, color: c?.color || '', name: d.name, products: opts.product ? [opts.product] : [] }))}" target="_blank" rel="noopener">⬇ Leave-behind PDF</a> <span class="muted small">for the customer after the meeting</span></p>
           ${
             ro || !ui.versions?.length
@@ -471,6 +476,17 @@ export function deckSettingsDialog(opts) {
       draw();
     };
     q('#dsAll')?.addEventListener('click', () => ((ui.all = true), draw()));
+    q('#dsGuests')?.addEventListener('change', async (e) => {
+      try {
+        const saved = await call(`/api/layouts/${d.id}`, 'PUT', { guests: e.target.checked });
+        d.guests = Boolean(saved.guests);
+        ui.error = '';
+        opts.onGuests?.(saved);
+      } catch (err) {
+        ui.error = err.message;
+        draw();
+      }
+    });
     dlg.querySelectorAll('[data-restore]').forEach(
       (b) =>
         (b.onclick = async () => {

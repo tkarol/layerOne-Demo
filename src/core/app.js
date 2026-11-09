@@ -15,7 +15,7 @@ import { json, safeEqual } from './util.js';
 import { connectInfo, runChecks, sendCustom } from './connect.js';
 import { presenterFromRequest, scopeStorage, canEditCustomer, handlePresenterApi, presenterIds } from './workspace.js';
 import { applySeeds } from './seeds.js';
-import { handleLayoutApi, deckPage, migrateSuiteDecks, migrateCustomerSlides, getDeck, DECKS } from './layouts.js';
+import { handleLayoutApi, deckPage, migrateSuiteDecks, migrateCustomerSlides, getDeck, DECKS, guestDecks, forGuests, guestSummary } from './layouts.js';
 
 const summarize = (t) => ({
   id: t.id,
@@ -178,18 +178,29 @@ export function createApp({ env, storage }) {
       if (me?.role === 'ae' && method !== 'GET' && /^\/api\/(settings|connect\/(check|send))(\/|$)/.test(pathname)) {
         return json(403, { error: 'Live settings and Connect are for sales engineers.', role: 'ae' });
       }
+      // Guests see the official decks, plus decks their owners opened to guests (read-only),
+      // with those decks' customers' name, logo and color; never other customers or decks.
+      const shared = me?.guest ? await guestDecks(storage) : null;
+      const sharedCustomers = new Set((shared || []).map((l) => l.customer).filter(Boolean));
       if (me?.guest) {
         const write = method !== 'GET';
         if (write && /^\/api\/(settings|profiles|layouts|connect)(\/|$)/.test(pathname)) return json(403, { error: 'Guests can look around, but can’t change anything.', guest: true });
-        if (pathname === '/api/profiles') return json(200, { active: null, profiles: [], me: { id: 'guest', guest: true }, locked: true, passwordRequired: false });
-        if (pathname.startsWith('/api/profiles/') || pathname.startsWith('/api/layouts/')) return json(403, { error: 'Not available to guests', guest: true });
-        if (pathname === '/api/layouts') return json(200, { layouts: [] });
+        if (pathname === '/api/profiles') return json(200, { active: null, profiles: (await listProfiles(storage)).filter((p) => sharedCustomers.has(p.id)).map(({ team, ...p }) => p), me: { id: 'guest', guest: true }, locked: true, passwordRequired: false });
+        if (pathname === '/api/layouts') return json(200, { layouts: shared.map(guestSummary).sort((a, b) => a.name.localeCompare(b.name)) });
+        const deckId = pathname.match(/^\/api\/layouts\/(l_[0-9a-f]{1,24})$/)?.[1];
+        if (deckId) {
+          const l = await getDeck(storage, deckId);
+          return l?.guests ? json(200, forGuests(l)) : json(404, { error: 'Not available to guests', guest: true });
+        }
+        const logoOf = pathname.match(/^\/api\/profiles\/(p_[0-9a-f]+)\/logo$/)?.[1];
+        if ((pathname.startsWith('/api/profiles/') && !(logoOf && sharedCustomers.has(logoOf))) || pathname.startsWith('/api/layouts/')) return json(403, { error: 'Not available to guests', guest: true });
       }
       const configNow = async () => mergeSaved(baseConfig(), (me && (await mine.getSettings())) || (await storage.getSettings()));
       // The customer this browser is presenting to (X-Customer), or the legacy site-wide one.
       const customerFor = async () => {
         const h = request.headers.get('x-customer');
-        if (me?.guest) return null; // guests always see the standard version
+        // Guests: only a customer whose deck is open to guests; otherwise the standard version.
+        if (me?.guest) return /^p_[0-9a-f]+$/.test(h || '') && sharedCustomers.has(h) ? storage.getKV(`profile:${h}`) : null;
         if (h === null) return getActiveProfile(storage);
         return /^p_[0-9a-f]+$/.test(h) ? storage.getKV(`profile:${h}`) : null;
       };

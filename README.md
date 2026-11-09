@@ -193,7 +193,8 @@ The first visit to any Vellox page shows **Who's presenting?**:
 
 * **Find your name** (type a few letters, Enter when there's one match), then your PIN. People who signed in on this device recently are listed first. Each person shows as **SE** or **AE**.
 * **First sign-in chooses your PIN** (4–8 digits). If the server has a `SETTINGS_PASSWORD`, choosing a first PIN also asks for it (the *team setup password*), so nobody can claim someone else's name. Five wrong PINs lock that name for a minute.
-* **Just looking? Continue as a guest:** no PIN. Guests see the official decks, architecture pages and sample apps and can try the demos (their Customer Hub data and history are a throwaway sandbox for 12 hours). They can't change anything and never see customers or anyone's decks. The server enforces this.
+* **Just looking? Continue as a guest:** no PIN. Guests see the official decks, architecture pages and sample apps and can try the demos (their Customer Hub data and history are a throwaway sandbox for 12 hours). They can't change anything and never see customers or anyone's decks, except decks whose owner shared them with guests (below). The server enforces this.
+* **Sharing a deck with guests:** in **Deck settings**, tick **Guests can view this deck**. Guests then find it in the library (*Shared with guests*) and the **Deck ▾** menu, and its link works for them, read-only, with that deck's customer name, logo, colors and booth. They don't see anyone's private **Notes** on the slides (the talking points are shown), other customers, or other decks. Copies of a shared deck start unshared. **AWS re:Invent 2026** is shared with guests from the start.
 * Admins are set in `src/core/workspace.js`; admin status is shown only to admins.
 
 ### People and roles (admins)
@@ -234,7 +235,7 @@ The top bar has **⌂ Decks**, the **Deck ▾** picker, **✎ Customer** (when t
 
 `src/core/seeds.js` adds ready-made customers and decks to whatever store the site runs on, **once** (tracked in `seeds:applied`). After that they're ordinary data: the owner can edit, copy or delete them, and a deleted seed doesn't come back.
 
-* **AWS re:Invent** (Tyler's customer, AWS-orange accent) and its deck **AWS re:Invent 2026**: the 15-slide event story on the Vellox page (see *Event story slides* below), with timing notes on every slide (about 25 minutes plus questions), a poll on slide 4 that the close comes back to, and lead-ins that hand each product to the next. It began as a 6-slide webinar version (polls and chat prompts, about 18 minutes); a one-time update in November 2026 replaced it with the event story, and the webinar version is still in the deck's history (**Deck settings → Earlier versions**) if you want it back. Set the booth in **✎ Customer → Booth** before the event. Open it from the library, or from **Deck ▾** on any page.
+* **AWS re:Invent** (Tyler's customer, AWS-orange accent) and its deck **AWS re:Invent 2026**: the 15-slide event story on the Vellox page (see *Event story slides* below), with timing notes on every slide (about 25 minutes plus questions), a poll on slide 4 that the close comes back to, and lead-ins that hand each product to the next. It began as a 6-slide webinar version (polls and chat prompts, about 18 minutes); a one-time update in November 2026 replaced it with the event story, and the webinar version is still in the deck's history (**Deck settings → Earlier versions**) if you want it back. Set the booth in **✎ Customer → Booth** before the event. Open it from the library, or from **Deck ▾** on any page. Guests can view it too (Deck settings → *Guests can view this deck*).
 
 ### Presenting
 

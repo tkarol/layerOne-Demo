@@ -31,12 +31,11 @@ async function load() {
   st.people = people.presenters;
   st.former = people.former || [];
   if (!me) return false;
-  if (!me.guest) {
-    const [decks, accounts, presented] = await Promise.all([call('/api/layouts'), call('/api/profiles'), call('/api/presented').catch(() => ({ presented: [] }))]);
-    st.decks = decks.layouts;
-    st.accounts = accounts.profiles;
-    st.presented = presented.presented;
-  }
+  // Guests get the decks their owners shared with guests (and only those decks' customers).
+  const [decks, accounts, presented] = await Promise.all([call('/api/layouts'), call('/api/profiles'), me.guest ? { presented: [] } : call('/api/presented').catch(() => ({ presented: [] }))]);
+  st.decks = decks.layouts;
+  st.accounts = accounts.profiles;
+  st.presented = presented.presented;
   return true;
 }
 
@@ -48,19 +47,20 @@ function deckCard(d) {
   return `<article class="lib-card" style="${a?.color ? `--acc:${esc(a.color)}` : ''}">
     <div class="lib-card-top">${
       a
-        ? `<button type="button" class="lib-cust" data-account="${esc(a.id)}" title="Show every deck for ${esc(a.name)}">${logoImg(a) || `<i style="${a.color ? `background:${esc(a.color)}` : ''}"></i>`}<span>${esc(a.name)}</span></button><button type="button" class="lib-cust-edit" data-details="${esc(a.id)}" title="${esc(a.name)}: logo, color, who can edit" aria-label="Edit customer ${esc(a.name)}">✎</button>`
+        ? `<button type="button" class="lib-cust" data-account="${esc(a.id)}" title="Show every deck for ${esc(a.name)}">${logoImg(a) || `<i style="${a.color ? `background:${esc(a.color)}` : ''}"></i>`}<span>${esc(a.name)}</span></button>${st.me.guest ? '' : `<button type="button" class="lib-cust-edit" data-details="${esc(a.id)}" title="${esc(a.name)}: logo, color, who can edit" aria-label="Edit customer ${esc(a.name)}">✎</button>`}`
         : '<span class="lib-acct gen">General deck</span>'
     }</div>
     <h3><a href="${deckHref(first, d.id, d.customer)}">${esc(d.name)}</a></h3>
     <div class="lib-prods" aria-label="Open on a product">${PRODUCTS.map((p) => `<a href="${deckHref(p.id, d.id, d.customer)}" class="${d.products?.includes(p.id) ? 'changed' : ''}" style="--p:${p.rgb}" title="${d.products?.includes(p.id) ? `Your ${esc(p.name)} slides` : `Official ${esc(p.name)} slides`}">${esc(p.name)}</a>`).join('')}</div>
-    <p class="lib-meta"><span class="lib-av">${initials(d.owner)}</span>${d.mine ? 'Yours' : esc(nameOf(d.owner))} · updated ${esc(ago(d.updatedAt))}${d.updatedBy && d.updatedBy !== d.owner ? ` by ${esc(nameOf(d.updatedBy))}` : ''}${(() => {
+    <p class="lib-meta">${st.me.guest ? `Booz Allen · updated ${esc(ago(d.updatedAt))}` : `<span class="lib-av">${initials(d.owner)}</span>${d.mine ? 'Yours' : esc(nameOf(d.owner))} · updated ${esc(ago(d.updatedAt))}`}${d.updatedBy && d.updatedBy !== d.owner ? ` by ${esc(nameOf(d.updatedBy))}` : ''}${(() => {
       const p = st.presented.find((x) => x.deck === d.id);
       return p ? `<br />Presented ${esc(ago(p.at))} by ${esc(p.by === st.me.id ? 'you' : nameOf(p.by))}` : '';
     })()}</p>
     <div class="lib-acts">
       <a class="lib-btn lib-primary" href="${deckHref(first, d.id, d.customer)}">Present</a>
-      ${d.canEdit ? `<a class="lib-btn" href="${deckHref(first, d.id, d.customer, { edit: true })}" title="Edit the slides">Edit slides</a>` : `<button type="button" class="lib-btn" data-copy="${esc(d.id)}" title="Make your own copy">⧉ Copy</button>`}
-      <button type="button" class="lib-btn icon" data-settings="${esc(d.id)}" title="Deck settings: rename, copy, link, delete" aria-label="Deck settings for ${esc(d.name)}">⚙</button>
+      ${st.me.guest ? '' : d.canEdit ? `<a class="lib-btn" href="${deckHref(first, d.id, d.customer, { edit: true })}" title="Edit the slides">Edit slides</a>` : `<button type="button" class="lib-btn" data-copy="${esc(d.id)}" title="Make your own copy">⧉ Copy</button>`}
+      ${st.me.guest ? '' : `<button type="button" class="lib-btn icon" data-settings="${esc(d.id)}" title="Deck settings: rename, copy, link, delete" aria-label="Deck settings for ${esc(d.name)}">⚙</button>`}
+      ${d.guests && !st.me.guest ? '<span class="lib-guests" title="Guests can open this deck, read-only">Open to guests</span>' : ''}
     </div>
   </article>`;
 }
@@ -122,7 +122,7 @@ function drawDecks() {
   return `
     ${
       guest
-        ? '<p class="lib-note">You’re browsing as a guest: here are the official decks. Sign in to see and make your own.</p>'
+        ? `<p class="lib-note">You’re browsing as a guest: here are the official decks${st.decks.length ? ', and decks shared with guests' : ''}. Sign in to see and make your own.</p>`
         : `<div class="lib-filters">
              <input id="libSearch" type="search" placeholder="Search decks, customers or people" value="${esc(st.q)}" aria-label="Search decks" />
              <select id="libWho" aria-label="Whose decks"><option value="">Everyone’s</option><option value="mine" ${st.who === 'mine' ? 'selected' : ''}>Mine</option>${owners.map((id) => `<option value="${esc(id)}" ${st.who === id ? 'selected' : ''}>${esc(nameOf(id))}’s</option>`).join('')}</select>
@@ -132,6 +132,7 @@ function drawDecks() {
     }
     ${!guest && !filtering ? recent() : ''}
     ${showOfficial ? `<section class="lib-sec"><div class="lib-grid">${officialCard()}</div></section>` : ''}
+    ${guest ? section('Shared with guests', 'read-only', others, '') : ''}
     ${guest ? '' : section('Your decks', 'each deck covers all five products', mine, filtering ? '' : 'You haven’t made a deck yet. Make your own from the official deck, or copy one below.')}
     ${guest ? '' : section('Shared with you', 'decks for customers you can edit', team, '')}
     ${guest ? '' : section('Everyone else’s', st.me.admin ? 'open, copy, or edit as an admin' : 'open to present, or copy to make your own', others, '')}
@@ -195,6 +196,7 @@ function wire() {
           customer: acct(d.customer),
           nameOf,
           onRenamed: reload,
+          onGuests: reload,
           onCopy: () => newDeckDialog({ accounts: st.accounts, from: d, nameOf, onCreated: created }),
           onDeleted: reload,
         });

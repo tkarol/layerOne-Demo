@@ -71,8 +71,9 @@
   if (PRINTING) {
     const qs = new URLSearchParams(location.search);
     const id = qs.get('deck') === 'official' ? '' : qs.get('deck') || '';
-    if (signedIn()) open = { id, customer: id ? qs.get('acct') || '' : '', color: qs.get('color') || '', name: '' };
-  } else if (signedIn()) {
+    if (me) open = { id, customer: id ? qs.get('acct') || '' : '', color: qs.get('color') || '', name: '' };
+  } else if (me) {
+    // Signed in, or a guest (who can open the decks their owners shared with guests).
     try {
       open = { ...open, ...JSON.parse(read(openKey()) || '{}') };
     } catch {}
@@ -91,7 +92,7 @@
       history.replaceState(null, '', `${location.pathname}${qs.toString() ? `?${qs}` : ''}${location.hash}`);
     }
   }
-  const customer = signedIn() && open.id ? open.customer || '' : '';
+  const customer = me && open.id ? open.customer || '' : '';
 
   // Brand color: Booz Allen's by default (styles.css); on a product page with a deck for a
   // customer, the customer's color, in two shades that stay readable: a bright one for the
@@ -159,7 +160,7 @@
   const ui = () => import('./decks-ui.js');
 
   function openDeck(d) {
-    if (!signedIn() || PRINTING) return;
+    if (!me || PRINTING) return;
     const next = { id: d.id || '', customer: d.id ? d.customer || '' : '', name: d.id ? d.name || '' : '' };
     next.color = next.customer ? account(next.customer)?.color || '' : '';
     applyBrand(next.color);
@@ -222,7 +223,7 @@
   }
 
   async function refreshAccounts() {
-    if (signedIn()) state.customers = (await api('/api/profiles').catch(() => ({ profiles: [] }))).profiles || [];
+    if (me) state.customers = (await api('/api/profiles').catch(() => ({ profiles: [] }))).profiles || [];
     if (document.querySelector('.ws-bar')) drawBar();
   }
 
@@ -249,7 +250,7 @@
     },
     page: PAGE,
     presenterName: nameOf,
-    layoutId: () => (signedIn() ? open.id : ''),
+    layoutId: () => (me ? open.id : ''),
     openDeck,
     newDeck,
     editDeck: () => state.deck?.layout && openEditor(state.deck.layout),
@@ -417,7 +418,7 @@
       const a = account(l.customer);
       return `<button type="button" class="ws-item ${cur?.id === l.id ? 'on' : ''}" data-open="${esc(l.id)}" data-cust="${esc(l.customer || '')}" data-name="${esc(l.name)}" data-find="${esc(`${l.name} ${a?.name || ''} ${nameOf(l.owner)} ${(l.products || []).join(' ')}`.toLowerCase())}">
         <i class="ws-dot ${a ? '' : 'gen'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i>
-        <span>${esc(l.name)}${a ? ` <em>· ${esc(a.name)}</em>` : ''}</span><small>${l.mine ? 'Yours' : esc(nameOf(l.owner))}</small></button>`;
+        <span>${esc(l.name)}${a ? ` <em>· ${esc(a.name)}</em>` : ''}</span><small>${isGuest() ? 'Booz Allen' : l.mine ? 'Yours' : esc(nameOf(l.owner))}</small></button>`;
     };
     // "Your accounts' decks": decks for accounts you own or are on the team of.
     const onTeam = (l) => {
@@ -435,9 +436,9 @@
                 <div class="ws-acts-h">Presenting</div>
                 <div class="ws-acts-name"><b>${esc(cur.name)}</b>${account(cur.customer) ? `<small>for ${esc(account(cur.customer).name)}</small>` : '<small>general deck</small>'}</div>
                 ${d && cur.canEdit ? `<button type="button" class="ws-small primary-act" data-edit>✎ Edit the ${esc(LABELS[PAGE] || '')} slides</button>` : ''}
-                ${d && !cur.canEdit ? '<p class="ws-note">You can present this deck. To change its slides, make your own copy (Deck settings).</p>' : ''}
+                ${d && !cur.canEdit && !isGuest() ? '<p class="ws-note">You can present this deck. To change its slides, make your own copy (Deck settings).</p>' : ''}
                 <div class="ws-acts-row">
-                  <button type="button" class="ws-small" data-settings>⚙ Deck settings</button>
+                  ${isGuest() ? '' : '<button type="button" class="ws-small" data-settings>⚙ Deck settings</button>'}
                   ${account(cur.customer) && cur.canEdit ? '<button type="button" class="ws-small" data-acct>Logo &amp; color</button>' : ''}
                   <button type="button" class="ws-small" data-link>🔗 Link</button>
                   <button type="button" class="ws-small" data-pdf title="A PDF of the slides to send after the meeting">⬇ PDF</button>
@@ -451,8 +452,8 @@
        <button type="button" class="ws-item ${cur ? '' : 'on'}" data-open="" data-find="official deck"><i class="ws-dot std"></i><span>Official deck</span><small>Booz Allen</small></button>
        ${mine.length ? `<div class="ws-menu-sub">Your decks</div>${mine.map(row).join('')}` : ''}
        ${team.length ? `<div class="ws-menu-sub">Shared with you <span>decks for customers you can edit</span></div>${team.map(row).join('')}` : ''}
-       ${others.length ? `<div class="ws-menu-sub">Everyone else’s <span>${me.admin ? 'you can edit these as an admin' : 'open, or copy to change'}</span></div>${others.map(row).join('')}` : ''}
-       <div class="ws-menu-f"><button type="button" class="ws-small" data-new>＋ New deck</button></div>
+       ${others.length ? `<div class="ws-menu-sub">${isGuest() ? 'Shared with guests <span>read-only</span>' : `Everyone else’s <span>${me.admin ? 'you can edit these as an admin' : 'open, or copy to change'}</span>`}</div>${others.map(row).join('')}` : ''}
+       ${isGuest() ? '' : '<div class="ws-menu-f"><button type="button" class="ws-small" data-new>＋ New deck</button></div>'}
        <a class="ws-item ws-lib" href="decks.html"><span>All decks</span><small>Library →</small></a>`,
       (m) => {
         const search = m.querySelector('.ws-search');
@@ -472,7 +473,7 @@
         );
         m.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(d.layout));
         m.querySelector('[data-acct]')?.addEventListener('click', editAccount);
-        m.querySelector('[data-new]').onclick = () => newDeck(null);
+        m.querySelector('[data-new]')?.addEventListener('click', () => newDeck(null));
         m.querySelector('[data-settings]')?.addEventListener('click', async () => {
           closeMenu();
           const { deckSettingsDialog } = await ui();
@@ -494,7 +495,7 @@
         m.querySelector('[data-link]')?.addEventListener('click', async () => {
           const { copyLink } = await ui();
           await copyLink(PAGE ? `${cur.id}/${PAGE}` : cur.id);
-          deckMenu(anchor, `Link copied: anyone signed in can open “${cur.name}” with it.`);
+          deckMenu(anchor, `Link copied: anyone signed in${cur.guests ? ', or browsing as a guest,' : ''} can open “${cur.name}” with it.`);
         });
       },
     );
@@ -663,12 +664,6 @@
     const bar = document.createElement('div');
     bar.className = 'ws-bar';
     const home = `<a class="ws-home" href="decks.html" title="All decks">⌂<span class="ws-lbl">Decks</span></a>`;
-    if (isGuest()) {
-      bar.innerHTML = `${home}<button type="button" class="ws-me ws-guest-chip" title="Browsing as a guest (read-only)"><span class="ws-av">G</span><span class="ws-me-n">Guest</span><span class="ws-caret">▾</span></button>`;
-      host.prepend(bar);
-      bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : guestMenu(e.currentTarget));
-      return;
-    }
     const a = account(open.customer);
     // Keep the remembered brand color in step with the customer (it may have changed).
     if (open.id && (a?.color || '') !== (open.color || '')) {
@@ -678,9 +673,11 @@
     applyBrand(open.id ? open.color : '');
     const name = open.id ? state.deck?.layout?.name || state.open?.name || open.name || 'Deck' : 'Official';
     const deckChip = `<button type="button" class="ws-deck" title="The deck you’re presenting, on every product: click to switch, edit, copy or share"><i class="ws-dot ${open.id ? (a ? '' : 'gen') : 'std'}" style="${a?.color ? `background:${esc(a.color)}` : ''}"></i><span class="ws-lbl">Deck</span><b>${esc(name)}</b>${a && a.name !== name ? `<small>${esc(a.name)}</small>` : ''}<span class="ws-caret">▾</span></button>`;
-    bar.innerHTML = `${home}${deckChip}<button type="button" class="ws-me" title="Signed in as ${esc(me.name)}"><span class="ws-av">${esc(me.name[0])}</span><span class="ws-me-n">${esc(me.name)}</span><span class="ws-caret">▾</span></button>`;
+    bar.innerHTML = isGuest()
+      ? `${home}${PAGE ? deckChip : ''}<button type="button" class="ws-me ws-guest-chip" title="Browsing as a guest (read-only)"><span class="ws-av">G</span><span class="ws-me-n">Guest</span><span class="ws-caret">▾</span></button>`
+      : `${home}${deckChip}<button type="button" class="ws-me" title="Signed in as ${esc(me.name)}"><span class="ws-av">${esc(me.name[0])}</span><span class="ws-me-n">${esc(me.name)}</span><span class="ws-caret">▾</span></button>`;
     host.prepend(bar);
-    bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : meMenu(e.currentTarget));
+    bar.querySelector('.ws-me').onclick = (e) => (menu ? closeMenu() : isGuest() ? guestMenu(e.currentTarget) : meMenu(e.currentTarget));
     bar.querySelector('.ws-deck')?.addEventListener('click', (e) => (menu ? closeMenu() : deckMenu(e.currentTarget)));
   }
 

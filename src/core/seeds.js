@@ -163,7 +163,17 @@ const REINVENT_EVENT = {
   },
 };
 
-export const SEEDS = [REINVENT, REINVENT_EVENT];
+// Guests (people who look around without signing in) can open the re:Invent deck,
+// read-only. Its owner can switch this off in Deck settings.
+const REINVENT_GUESTS = {
+  id: 'reinvent-guests-2026',
+  async apply(storage) {
+    const deck = await storage.getKV(`layout:${REINVENT.layout.id}`);
+    if (deck && !deck.guests) await storage.putKV(`layout:${deck.id}`, { ...deck, guests: true });
+  },
+};
+
+export const SEEDS = [REINVENT, REINVENT_EVENT, REINVENT_GUESTS];
 
 export async function applySeeds(storage) {
   const done = (await storage.getKV(DONE_KEY)) || [];
