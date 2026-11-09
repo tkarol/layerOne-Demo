@@ -12,7 +12,7 @@
 // - Threat figures: CrowdStrike 2026 Global Threat Report, Verizon 2026 DBIR, Mandiant
 //   M-Trends 2026, IBM Cost of a Data Breach 2026, Lightspeed's 2026 CISO survey.
 // - Incidents: CISA (Shai-Hulud, Sept 23, 2025), Anthropic (GTG-1002, Nov 2025),
-//   public reporting on LiteLLM/Mercor (Apr 2026), Sysdig (JadePuffer, Jul 2026).
+//   Sysdig (JadePuffer, Jul 2026).
 // The products are separate today and don't exchange data, so nothing here shows one
 // feeding another: in the replay they work side by side.
 import { icon, esc } from './deck-core.js';
@@ -71,7 +71,6 @@ const STATS = [
 const INCIDENTS = [
   ['Sep 2025', 'Shai-Hulud', 'A self-replicating worm spread through 500+ npm packages, stealing developers’ GitHub tokens and cloud keys.', 'CISA'],
   ['Nov 2025', 'GTG-1002', 'The first reported AI-orchestrated espionage campaign: about 30 targets, with AI agents doing most of the hands-on work.', 'Anthropic'],
-  ['Apr 2026', 'LiteLLM', 'Credential-stealing code slipped into a popular open-source AI library; downstream breaches followed.', 'Public reporting'],
   ['Jul 2026', 'JadePuffer', 'An AI agent ran an extortion intrusion end to end, from an exposed AI app server to the production database.', 'Sysdig'],
 ];
 
@@ -169,8 +168,8 @@ export function eventSlides({ P, chip, tx }) {
         points: [
           '<b>Top row, read two numbers, not four:</b> 29 minutes is the average time a criminal needs to move beyond the first machine they compromise, and the fastest seen was 27 seconds (CrowdStrike 2026 Global Threat Report, covering 2025). Then 14 days: the median time attackers stayed inside before anyone found them, up from 11 (Mandiant M-Trends 2026). Fast in, slow to be found.',
           '<b>The other two:</b> exploited vulnerabilities passed stolen credentials as the top way in, at 31% of breaches, a first in the report’s 19 years (Verizon 2026 DBIR). The average breach now costs $4.99M, a record (IBM Cost of a Data Breach 2026).',
-          '<b>Bottom row, the pattern:</b> two software supply chain attacks (Shai-Hulud in npm, and the LiteLLM AI library) and two attacks run largely by AI agents (GTG-1002, reported by Anthropic, and JadePuffer, reported by Sysdig).',
-          '<b>Be precise if asked:</b> Anthropic’s estimate that AI did most of GTG-1002’s hands-on work has been questioned by some researchers. Sysdig calls JadePuffer the first end-to-end agentic ransomware operation; others describe it more cautiously. The LiteLLM details come from press and vendor reporting; Mercor confirmed it was affected.',
+          '<b>Bottom row, the pattern:</b> a self-spreading software supply chain attack (Shai-Hulud, in npm) and two attacks run largely by AI agents (GTG-1002, reported by Anthropic, and JadePuffer, reported by Sysdig).',
+          '<b>Be precise if asked:</b> Anthropic’s estimate that AI did most of GTG-1002’s hands-on work has been questioned by some researchers. Sysdig calls JadePuffer the first end-to-end agentic ransomware operation; others describe it more cautiously.',
         ],
         ask: 'Which of these four would have hit you hardest?',
         objection: '“These are vendor numbers.” They are, and they agree with each other: different companies, different data, same direction.',
