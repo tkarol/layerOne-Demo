@@ -1181,11 +1181,13 @@ details[open] > summary::before { transform: rotate(90deg); }
   animation: 28s linear infinite both; animation-delay: calc(var(--n) * 7s); }
 .pk > span { grid-area: 1 / 1; }
 .d-lane.off .pk, .pk-block, .pk-hold { background: #2a0f0f; color: #fecaca; border-color: rgb(248 113 113 / 75%); box-shadow: 0 0 1.4cqw rgb(248 113 113 / 45%); }
-.pk-route { background: rgb(var(--brand-rgb) / 14%); color: rgb(var(--brand-rgb)); border-color: rgb(var(--brand-rgb) / 75%); box-shadow: 0 0 1.4cqw rgb(var(--brand-rgb) / 35%); }
+.pk-warn, .pk-warnback { background: #2a1f08; color: #fde68a; border-color: rgb(251 191 36 / 75%); box-shadow: 0 0 1.4cqw rgb(251 191 36 / 40%); }
 .pk-go { animation-name: pk-go; } .pk-back { animation-name: pk-back; }
-.pk-pass, .pk-route { animation-name: pk-pass; } .pk-block { animation-name: pk-block; } .pk-hold { animation-name: pk-hold; }
-.pk-route .a { animation: pk-a 28s linear infinite both; animation-delay: inherit; }
-.pk-route .b { opacity: 0; animation: pk-b 28s linear infinite both; animation-delay: inherit; }
+.pk-pass, .pk-warn { animation-name: pk-pass; } .pk-warnback { animation-name: pk-pass-back; } .pk-block { animation-name: pk-block; } .pk-hold { animation-name: pk-hold; }
+.pk-warn .a, .pk-warnback .a { animation: pk-a 28s linear infinite both; animation-delay: inherit; }
+.pk-warn .b, .pk-warnback .b { opacity: 0; animation: pk-b 28s linear infinite both; animation-delay: inherit; }
+/* An answer coming back through LayerOne (right to left), let through with a warning. */
+@keyframes pk-pass-back { 0% { left: 86%; opacity: 0; } 2% { opacity: 1; } 8% { left: 69%; opacity: 1; } 9.5% { left: 66%; opacity: 0; } 14% { left: 34%; opacity: 0; } 15.5% { left: 31%; opacity: 1; } 21% { left: 14%; opacity: 1; } 23%, 100% { left: 14%; opacity: 0; } }
 @keyframes pk-go { 0% { left: 14%; opacity: 0; } 2% { opacity: 1; } 20% { left: 86%; opacity: 1; } 23%, 100% { left: 86%; opacity: 0; } }
 @keyframes pk-back { 0% { left: 86%; opacity: 0; } 2% { opacity: 1; } 20% { left: 14%; opacity: 1; } 23%, 100% { left: 14%; opacity: 0; } }
 @keyframes pk-pass { 0% { left: 14%; opacity: 0; } 2% { opacity: 1; } 8% { left: 31%; opacity: 1; } 9.5% { left: 34%; opacity: 0; } 14% { left: 66%; opacity: 0; } 15.5% { left: 69%; opacity: 1; } 21% { left: 86%; opacity: 1; } 23%, 100% { left: 86%; opacity: 0; } }
@@ -1221,6 +1223,10 @@ details[open] > summary::before { transform: rotate(90deg); }
 .d-outcomes.live > .d-out:nth-child(1) { animation-delay: 0s !important; } .d-outcomes.live > .d-out:nth-child(2) { animation-delay: 7s !important; }
 .d-outcomes.live > .d-out:nth-child(3) { animation-delay: 14s !important; } .d-outcomes.live > .d-out:nth-child(4) { animation-delay: 21s !important; }
 .d-out.ok { --tile: var(--d-acc); } .d-out.warn { --tile: var(--d-warn); } .d-out.bad { --tile: var(--d-bad); }
+/* Three decisions (allow, warn, block) over four requests: Warn lights for the 2nd and the 4th. */
+.d-outcomes.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.d-outcomes.live.on.three > .d-out:nth-child(2) { animation-name: d-tile-on2 !important; }
+@keyframes d-tile-on2 { 0%, 8%, 24%, 58%, 74%, 100% { border-color: var(--d-line); box-shadow: none; transform: none; } 10%, 21%, 60%, 71% { border-color: var(--tile); box-shadow: 0 0 2cqw -0.4cqw var(--tile); transform: translateY(-0.3cqw); } }
 @keyframes d-tile-on { 0%, 8%, 24%, 100% { border-color: var(--d-line); box-shadow: none; transform: none; } 10%, 21% { border-color: var(--tile); box-shadow: 0 0 2cqw -0.4cqw var(--tile); transform: translateY(-0.3cqw); } }
 @keyframes d-tile-off { 0%, 18%, 32%, 100% { border-color: var(--d-line); box-shadow: none; transform: none; } 20%, 29% { border-color: var(--tile); box-shadow: 0 0 2cqw -0.4cqw var(--tile); transform: translateY(-0.3cqw); } }
 

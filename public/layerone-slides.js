@@ -4,7 +4,8 @@
 import { icon, esc, outcome, goCard as go } from './deck-core.js';
 
 // One request moving through the architecture picture (slides 2 and 3). `kind` sets its path:
-// go / back (straight through, no checkpoint), pass, route, block, hold (through LayerOne).
+// go / back (straight through, no checkpoint); through LayerOne: allow (pass), warn (goes
+// through flagged, a request or an answer coming back) and block.
 export const packet = (n, kind, label, after) =>
   `<span class="pk pk-${kind}" style="--n:${n}"><span class="a">${label}</span>${after ? `<span class="b">${after}</span>` : ''}</span>`;
 
@@ -86,35 +87,34 @@ export const SLIDES = [
             <li><span>4</span>Record the decision</li>
           </ol>
           <div class="d-now" aria-hidden="true">
-            <span class="ok">✓ Normal request: passed</span>
-            <span class="ok">↪ Sent to an approved model</span>
+            <span class="ok">✓ Normal request: allowed</span>
+            <span class="warn">⚠ Bulk export: allowed, flagged</span>
             <span class="bad">⛔ Hidden instruction: blocked</span>
-            <span class="warn">✋ Made-up rule: answer held</span>
+            <span class="warn">⚠ Made-up rule: answer flagged</span>
           </div>
         </div>
         <div class="d-wire"><span>approved →</span><i></i><i class="back"></i><span>← answer</span></div>
         <div class="d-end">${icon('sparkle')}<b>AI<br />models</b></div>
         <div class="d-lane on" aria-hidden="true">
           ${packet(0, 'pass', 'Draft a reply')}
-          ${packet(1, 'route', 'Agency data → public model', 'Approved model')}
+          ${packet(1, 'warn', 'Export 5,000 case records', '⚠ Flagged')}
           ${packet(2, 'block', '“Ignore previous instructions…”')}
-          ${packet(3, 'hold', '“Per rule 7.42(q), guaranteed…”')}
+          ${packet(3, 'warnback', '“Per rule 7.42(q), guaranteed…”', '⚠ Unverified claim')}
         </div>
       </div>
-      <div class="d-outcomes live on">
-        ${outcome('ok', 'Pass', 'Normal work flows')}
-        ${outcome('ok', 'Route', 'Approved models only')}
+      <div class="d-outcomes live on three">
+        ${outcome('ok', 'Allow', 'Normal work flows')}
+        ${outcome('warn', 'Warn', 'Goes through, flagged and recorded')}
         ${outcome('bad', 'Block', 'Never reaches a model')}
-        ${outcome('warn', 'Hold', 'Answer held for review')}
       </div>
       <p class="d-note">Drop-in: an OpenAI-compatible base URL and a few headers · hosted or self-hosted</p>`,
     talk: {
       key: 'Invisible when everything is fine, decisive when it isn’t.',
       points: [
         '<b>Use an analogy:</b> one security checkpoint at the front door instead of a different lock on every office. Set the rules once, and every app and agent inherits them.',
-        '<b>Let the traffic play once:</b> a normal request passes, agency data headed for a public model goes to an approved model instead, the hidden instruction stops at LayerOne, and the made-up answer coming back is held. The four steps inside LayerOne light up as it works.',
+        '<b>Let the traffic play once:</b> a normal request is allowed, a bulk export goes through with a warning, the hidden instruction is blocked at LayerOne, and the made-up answer comes back with a warning attached. Three decisions: allow, warn, block. The four steps inside LayerOne light up as it works.',
         '<b>Two moments matter:</b> before a model sees the request, and before a person sees the answer. That’s where LayerOne acts.',
-        '<b>Most traffic just passes,</b> and that’s the point. If governance slows people down, they route around it.',
+        '<b>Most traffic is simply allowed,</b> and that’s the point. If governance slows people down, they route around it.',
         '<b>The record is the quiet win:</b> every decision is tied to an agent, project and run, so an audit question takes minutes, not weeks of digging.',
         '<b>Adoption is a configuration change:</b> teams keep their tools and point them at a new URL with a few headers. Hosted or in their own environment.',
       ],

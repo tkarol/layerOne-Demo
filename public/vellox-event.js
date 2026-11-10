@@ -57,7 +57,7 @@ const PROOF = {
   ],
   layerone: [
     ['shield', 'One gateway', 'Every request your AI agents make passes through it'],
-    ['eyeOff', 'Checked both ways', 'Hidden instructions, unapproved models and risky answers caught'],
+    ['eyeOff', 'Allow, warn or block', 'Every request on the way in, every answer on the way out'],
     ['ledger', 'Recorded', 'A defensible audit record of every decision'],
   ],
 };
