@@ -4,7 +4,7 @@
 import { icon, esc, outcome, goCard as go } from './deck-core.js';
 
 // One request moving through the architecture picture (slides 2 and 3). `kind` sets its path:
-// go / back (straight through, no checkpoint), pass, redact, block, hold (through LayerOne).
+// go / back (straight through, no checkpoint), pass, route, block, hold (through LayerOne).
 export const packet = (n, kind, label, after) =>
   `<span class="pk pk-${kind}" style="--n:${n}"><span class="a">${label}</span>${after ? `<span class="b">${after}</span>` : ''}</span>`;
 
@@ -87,7 +87,7 @@ export const SLIDES = [
           </ol>
           <div class="d-now" aria-hidden="true">
             <span class="ok">✓ Normal request: passed</span>
-            <span class="warn">🛡 SSN removed, then sent</span>
+            <span class="ok">↪ Sent to an approved model</span>
             <span class="bad">⛔ Hidden instruction: blocked</span>
             <span class="warn">✋ Made-up rule: answer held</span>
           </div>
@@ -96,14 +96,14 @@ export const SLIDES = [
         <div class="d-end">${icon('sparkle')}<b>AI<br />models</b></div>
         <div class="d-lane on" aria-hidden="true">
           ${packet(0, 'pass', 'Draft a reply')}
-          ${packet(1, 'redact', 'SSN 123-45-6789', '[REDACTED]')}
+          ${packet(1, 'route', 'Agency data → public model', 'Approved model')}
           ${packet(2, 'block', '“Ignore previous instructions…”')}
           ${packet(3, 'hold', '“Per rule 7.42(q), guaranteed…”')}
         </div>
       </div>
       <div class="d-outcomes live on">
         ${outcome('ok', 'Pass', 'Normal work flows')}
-        ${outcome('warn', 'Redact', 'Sensitive data removed')}
+        ${outcome('ok', 'Route', 'Approved models only')}
         ${outcome('bad', 'Block', 'Never reaches a model')}
         ${outcome('warn', 'Hold', 'Answer held for review')}
       </div>
@@ -112,7 +112,7 @@ export const SLIDES = [
       key: 'Invisible when everything is fine, decisive when it isn’t.',
       points: [
         '<b>Use an analogy:</b> one security checkpoint at the front door instead of a different lock on every office. Set the rules once, and every app and agent inherits them.',
-        '<b>Let the traffic play once:</b> a normal request passes, the SSN goes in and comes out redacted, the hidden instruction stops at LayerOne, and the made-up answer coming back is held. The four steps inside LayerOne light up as it works.',
+        '<b>Let the traffic play once:</b> a normal request passes, agency data headed for a public model goes to an approved model instead, the hidden instruction stops at LayerOne, and the made-up answer coming back is held. The four steps inside LayerOne light up as it works.',
         '<b>Two moments matter:</b> before a model sees the request, and before a person sees the answer. That’s where LayerOne acts.',
         '<b>Most traffic just passes,</b> and that’s the point. If governance slows people down, they route around it.',
         '<b>The record is the quiet win:</b> every decision is tied to an agent, project and run, so an audit question takes minutes, not weeks of digging.',

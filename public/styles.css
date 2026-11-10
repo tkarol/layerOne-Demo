@@ -1181,11 +1181,11 @@ details[open] > summary::before { transform: rotate(90deg); }
   animation: 28s linear infinite both; animation-delay: calc(var(--n) * 7s); }
 .pk > span { grid-area: 1 / 1; }
 .d-lane.off .pk, .pk-block, .pk-hold { background: #2a0f0f; color: #fecaca; border-color: rgb(248 113 113 / 75%); box-shadow: 0 0 1.4cqw rgb(248 113 113 / 45%); }
-.pk-redact { background: #2a1f08; color: rgb(var(--brand-rgb)); border-color: rgb(251 191 36 / 75%); box-shadow: 0 0 1.4cqw rgb(251 191 36 / 40%); }
+.pk-route { background: rgb(var(--brand-rgb) / 14%); color: rgb(var(--brand-rgb)); border-color: rgb(var(--brand-rgb) / 75%); box-shadow: 0 0 1.4cqw rgb(var(--brand-rgb) / 35%); }
 .pk-go { animation-name: pk-go; } .pk-back { animation-name: pk-back; }
-.pk-pass, .pk-redact { animation-name: pk-pass; } .pk-block { animation-name: pk-block; } .pk-hold { animation-name: pk-hold; }
-.pk-redact .a { animation: pk-a 28s linear infinite both; animation-delay: inherit; }
-.pk-redact .b { opacity: 0; animation: pk-b 28s linear infinite both; animation-delay: inherit; }
+.pk-pass, .pk-route { animation-name: pk-pass; } .pk-block { animation-name: pk-block; } .pk-hold { animation-name: pk-hold; }
+.pk-route .a { animation: pk-a 28s linear infinite both; animation-delay: inherit; }
+.pk-route .b { opacity: 0; animation: pk-b 28s linear infinite both; animation-delay: inherit; }
 @keyframes pk-go { 0% { left: 14%; opacity: 0; } 2% { opacity: 1; } 20% { left: 86%; opacity: 1; } 23%, 100% { left: 86%; opacity: 0; } }
 @keyframes pk-back { 0% { left: 86%; opacity: 0; } 2% { opacity: 1; } 20% { left: 14%; opacity: 1; } 23%, 100% { left: 14%; opacity: 0; } }
 @keyframes pk-pass { 0% { left: 14%; opacity: 0; } 2% { opacity: 1; } 8% { left: 31%; opacity: 1; } 9.5% { left: 34%; opacity: 0; } 14% { left: 66%; opacity: 0; } 15.5% { left: 69%; opacity: 1; } 21% { left: 86%; opacity: 1; } 23%, 100% { left: 86%; opacity: 0; } }
